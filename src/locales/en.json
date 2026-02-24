@@ -1,5 +1,6 @@
 {
     "sidebar": {
+        "global": "Global",
         "dataTypes": "Data Types",
         "functionBlocks": "Function Blocks",
         "functions": "Functions",
@@ -45,7 +46,11 @@
         "instanceName": "Instance Name",
         "enableExecutionControl": "Enable Execution Control (EN Pin)",
         "pinInformation": "Pin Information",
-        "create": "Create"
+        "create": "Create",
+        "shortcuts": "Shortcuts",
+        "newProject": "New Project",
+        "openProject": "Open Project",
+        "close": "Close"
     },
     "actions": {
         "addTask": "Add Task",
@@ -56,7 +61,8 @@
         "start": "Start",
         "stop": "Stop",
         "simulate": "Simulate",
-        "sendToPlc": "Send to PLC"
+        "sendToPlc": "Send to PLC",
+        "closeProject": "Close Project"
     },
     "options": {
         "cyclic": "Cyclic",
@@ -73,19 +79,11 @@
         "empty": "Empty",
         "plcCompileStarted": "Compilation started",
         "plcRunMode": "PLC Run Mode.",
-        "plcStopped": "PLC Stopped."
+        "plcStopped": "PLC Stopped.",
+        "startScreenDesc": "A modern web-based PLC programming environment"
     },
     "resources": {
-        "globalVariables": "Global Variables",
-        "taskConfiguration": "Task Configuration",
-        "programInstances": "Program Instances",
-        "triggering": "Triggering",
-        "interval": "Interval",
-        "priority": "Priority",
-        "program": "Program",
-        "task": "Task",
-        "cyclic": "Cyclic",
-        "interrupt": "Interrupt"
+        "globalVariables": "Global Variables"
     },
     "modals": {
         "create": "Create New",

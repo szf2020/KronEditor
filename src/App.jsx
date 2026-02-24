@@ -7,17 +7,23 @@ import DataTypeCreationModal from './components/DataTypeCreationModal';
 import ErrorBoundary from './components/ErrorBoundary';
 import SettingsPage from './components/SettingsPage';
 import ShortcutsModal from './components/ShortcutsModal';
+import StartScreen from './components/StartScreen';
 import { useTranslation } from 'react-i18next';
 import { exportProjectToXml, importProjectFromXml } from './services/XmlService';
 import { libraryService } from './services/LibraryService'; // Import Service
-import { open, save } from '@tauri-apps/plugin-dialog';
+import { open, save, ask } from '@tauri-apps/plugin-dialog';
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
 import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { compileProjectToST } from './services/CompilerService';
+import PlcIcon from './assets/icons/plc-icon.png';
 import './App.css';
 
 function App() {
   const { t } = useTranslation();
+
+  // Project Open State
+  const [isProjectOpen, setIsProjectOpen] = useState(false);
 
   // Library State
   const [libraryData, setLibraryData] = useState([]);
@@ -30,8 +36,7 @@ function App() {
     });
   }, []);
 
-  // Global Project State
-  const [projectStructure, setProjectStructure] = useState({
+  const defaultProjectStructure = {
     dataTypes: [],
     functionBlocks: [],
     functions: [],
@@ -48,7 +53,10 @@ function App() {
         }
       }
     ]
-  });
+  };
+
+  // Global Project State
+  const [projectStructure, setProjectStructure] = useState(defaultProjectStructure);
 
   const [activeId, setActiveId] = useState(null);
   const [createModal, setCreateModal] = useState({
@@ -144,6 +152,31 @@ function App() {
     }
   }, [projectStructure, addLog]);
 
+  const handleNewProject = useCallback(() => {
+    // Reset to default empty project structure
+    setProjectStructure(defaultProjectStructure);
+    setCurrentFilePath(null);
+    setActiveId(null);
+    setLogs([
+      { type: 'info', msg: 'Started new project.' }
+    ]);
+    setIsProjectOpen(true);
+  }, [defaultProjectStructure]);
+
+  const handleCloseProject = useCallback(async () => {
+    const confirmation = await ask('Are you sure you want to close the current project? Any unsaved changes will be lost.', {
+      title: 'Close Project',
+      type: 'warning'
+    });
+
+    if (confirmation) {
+      setIsProjectOpen(false);
+      setProjectStructure(defaultProjectStructure);
+      setCurrentFilePath(null);
+      setActiveId(null);
+    }
+  }, [defaultProjectStructure]);
+
   const handleOpen = async () => {
     try {
       const selected = await open({
@@ -180,6 +213,7 @@ function App() {
         setProjectStructure(newStructure);
         setCurrentFilePath(filePath);
         setActiveId(null);
+        setIsProjectOpen(true);
         addLog('success', `Project loaded from ${filePath}`);
       } else {
         addLog('error', 'Failed to parse project file (Invalid Format).');
@@ -302,7 +336,7 @@ function App() {
     setDataTypeModal({ isOpen: false, existingNames: [] });
   };
 
-  const handleCreateConfirm = (name, type, returnType) => {
+  const handleCreateConfirm = (name, type, returnType, taskName) => {
     const category = createModal.category;
     const newItem = {
       id: `${category}_${Date.now()}`,
@@ -316,10 +350,58 @@ function App() {
               { code: '', variables: [] }
     };
 
-    setProjectStructure(prev => ({
-      ...prev,
-      [category]: [...prev[category], newItem]
-    }));
+    setProjectStructure(prev => {
+      const nextStruct = {
+        ...prev,
+        [category]: [...prev[category], newItem]
+      };
+
+      if (category === 'programs' && taskName) {
+        // Automatically assign the program to the task
+        const configResource = nextStruct.resources.find(r => r.id === 'res_config');
+        if (configResource) {
+          const tasks = configResource.content.tasks || [];
+          const instances = configResource.content.instances || [];
+
+          let taskExists = tasks.some(t => t.name === taskName);
+          let newTasks = [...tasks];
+          if (!taskExists) {
+            newTasks.push({
+              id: `task_${Date.now()}`,
+              name: taskName,
+              triggering: 'Cyclic',
+              interval: 'T#20ms',
+              priority: 1
+            });
+          }
+
+          let i = 0;
+          const instNames = instances.map(inst => inst.name);
+          while (instNames.includes(`instance${i}`)) i++;
+
+          const newInstances = [...instances, {
+            id: `inst_${Date.now()}_${Math.random()}`,
+            name: `instance${i}`,
+            program: name,
+            task: taskName
+          }];
+
+          nextStruct.resources = nextStruct.resources.map(r =>
+            r.id === 'res_config' ? {
+              ...r,
+              content: {
+                ...r.content,
+                tasks: newTasks,
+                instances: newInstances
+              }
+            } : r
+          );
+        }
+      }
+
+      return nextStruct;
+    });
+
     setActiveId(newItem.id);
     addLog('info', `Added ${name} (${type}) to ${category}`);
     // Close modal handled by createModal state update below
@@ -413,135 +495,160 @@ function App() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', background: '#1e1e1e', overflow: 'hidden' }}>
 
+      {/* CUSTOM TITLEBAR */}
+      <div data-tauri-drag-region className="custom-titlebar">
+        <div className="titlebar-title">
+          <img src={PlcIcon} alt="Logo" style={{ height: '18px', marginRight: '8px', pointerEvents: 'none' }} />
+          <span>KronEditor</span>
+        </div>
+        <div className="titlebar-controls">
+          <div className="titlebar-button" onClick={() => getCurrentWindow().minimize()}>_</div>
+          <div className="titlebar-button" onClick={() => getCurrentWindow().toggleMaximize()}>□</div>
+          <div className="titlebar-button titlebar-close" onClick={() => getCurrentWindow().close()}>✕</div>
+        </div>
+      </div>
+
       {/* 1. HEADER (Fixed) */}
       <div className="header" style={{ height: '50px', flexShrink: 0, display: 'flex', alignItems: 'center', padding: '0 15px', background: '#2d2d2d', borderBottom: '1px solid #3e3e42' }}>
-        <button className="toolbar-btn" onClick={handleOpen}>📂 {t('common.open') || 'Open'}</button>
-        <button className="toolbar-btn" onClick={handleSave}>💾 {t('common.save')}</button>
-        <button className="toolbar-btn" onClick={handleSaveAs}>💾 {t('common.saveAs') || 'Save As'}</button>
-        <div style={{ width: 20 }}></div>
-        <div style={{ width: 20 }}></div>
-        <button className="toolbar-btn" onClick={handleSimulate}>🚀 {t('actions.simulate')}</button>
-        <button className="toolbar-btn" onClick={handleSendToPlc}>⚡ {t('actions.sendToPlc')}</button>
-        <button className="toolbar-btn run" onClick={() => addLog('success', t('messages.plcRunMode') || 'Running')}>▶ {t('actions.start')}</button>
-        <button className="toolbar-btn stop" onClick={() => addLog('error', t('messages.plcStopped') || 'Stopped')}>⏹ {t('actions.stop')}</button>
+        {isProjectOpen && (
+          <>
+            <button className="toolbar-btn" onClick={handleOpen}>📂 {t('common.open') || 'Open'}</button>
+            <button className="toolbar-btn" onClick={handleSave}>💾 {t('common.save')}</button>
+            <button className="toolbar-btn" onClick={handleSaveAs}>💾 {t('common.saveAs') || 'Save As'}</button>
+            <div style={{ width: 20 }}></div>
+            <button className="toolbar-btn" onClick={handleCloseProject} style={{ color: '#ff9800' }}>✖ {t('actions.closeProject') || 'Close Project'}</button>
+            <div style={{ width: 20 }}></div>
+            <button className="toolbar-btn" onClick={handleSimulate}>🚀 {t('actions.simulate')}</button>
+            <button className="toolbar-btn" onClick={handleSendToPlc}>⚡ {t('actions.sendToPlc')}</button>
+            <button className="toolbar-btn run" onClick={() => addLog('success', t('messages.plcRunMode') || 'Running')}>▶ {t('actions.start')}</button>
+            <button className="toolbar-btn stop" onClick={() => addLog('error', t('messages.plcStopped') || 'Stopped')}>⏹ {t('actions.stop')}</button>
+          </>
+        )}
       </div>
 
       {/* 2. BODY (Row) */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-
-        {/* LEFT SIDEBAR (Project) */}
-        <div style={{ width: layout.leftWidth, display: 'flex', flexDirection: 'column', borderRight: '1px solid #333', background: '#252526' }}>
-          <ProjectSidebar
-            projectStructure={projectStructure}
-            activeId={activeId}
-            onSelectItem={handleSelectItem}
-            onAddItem={handleAddItem}
-            onDeleteItem={handleDeleteItem}
-            onRenameItem={handleRenameItem}
-            onSettingsClick={() => setActiveId('SETTINGS')}
-            onShortcutsClick={() => setShortcutsModalOpen(true)}
+        {!isProjectOpen ? (
+          <StartScreen
+            onNewProject={handleNewProject}
+            onOpenProject={handleOpen}
           />
-        </div>
-
-        {/* RESIZER (LEFT) */}
-        <div
-          onMouseDown={() => startResizing('left')}
-          style={{ width: 5, cursor: 'col-resize', background: isResizing === 'left' ? '#007acc' : '#1e1e1e', zIndex: 10, flexShrink: 0, borderRight: '1px solid #333' }}
-        />
-
-        {/* CENTER COLUMN (Editor + Console) */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, background: '#1e1e1e' }}>
-
-          {/* EDITOR */}
-          <div style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            {activeId === 'SETTINGS' ? (
-              <ErrorBoundary>
-                <SettingsPage
-                  theme={theme}
-                  setTheme={setTheme}
-                  editorSettings={editorSettings}
-                  setEditorSettings={setEditorSettings}
-                />
-              </ErrorBoundary>
-            ) : activeItem ? (
-              <ErrorBoundary>
-                <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-                  <EditorPane
-                    key={activeItem.id}
-                    fileType={activeItem.type}
-                    initialContent={activeItem.content}
-                    onContentChange={handleContentChange}
-                    allowedClasses={
-                      activeItem.category === 'programs'
-                        ? ['Local', 'Temp']
-                        : ['Input', 'Output', 'InOut', 'Local', 'Temp']
-                    }
-                    context={activeItem.category}
-                    availableBlocks={[...projectStructure.functionBlocks, ...projectStructure.functions]}
-                    availablePrograms={projectStructure.programs.map(p => p.name)}
-                    availableTasks={projectStructure.resources.find(r => r.type === 'RESOURCE_EDITOR')?.content.tasks?.map(t => t.name) || []}
-                    globalVars={projectStructure.resources.find(r => r.type === 'RESOURCE_EDITOR')?.content.globalVars || []}
-                    projectStructure={projectStructure}
-                    currentId={activeItem.id}
-                    libraryData={libraryData} // Pass Library Data
-                  />
-                </div>
-              </ErrorBoundary>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#666' }}>
-                Select an item from the Project Tree to edit.
-              </div>
-            )}
-          </div>
-
-          {/* RESIZER (CONSOLE) */}
-          <div
-            onMouseDown={() => startResizing('console')}
-            style={{ height: 5, cursor: 'row-resize', background: isResizing === 'console' ? '#007acc' : '#2d2d2d', zIndex: 10, flexShrink: 0, borderTop: '1px solid #333', borderBottom: '1px solid #333' }}
-          />
-
-          {/* CONSOLE */}
-          <div style={{ height: layout.consoleHeight, background: '#1e1e1e', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ padding: '5px 10px', background: '#2d2d2d', borderBottom: '1px solid #333', fontSize: '11px', fontWeight: 'bold', color: '#ccc' }}>
-              OUTPUT
-            </div>
-            <div style={{ flex: 1, overflowY: 'auto', padding: '5px', fontFamily: 'Consolas, monospace', fontSize: '12px' }}>
-              {logs.map((log, index) => (
-                <div key={index} className={`log-line log-${log.type}`}>
-                  {log.msg}
-                </div>
-              ))}
-            </div>
-          </div>
-
-        </div>
-
-        {/* RIGHT SIDEBAR (Only if LD) */}
-        {(activeItem?.type === 'LD' || activeItem?.type === 'ST') && (
+        ) : (
           <>
-            {/* RESIZER (RIGHT) */}
+            {/* LEFT SIDEBAR (Project) */}
+            <div style={{ width: layout.leftWidth, display: 'flex', flexDirection: 'column', borderRight: '1px solid #333', background: '#252526' }}>
+              <ProjectSidebar
+                projectStructure={projectStructure}
+                activeId={activeId}
+                onSelectItem={handleSelectItem}
+                onAddItem={handleAddItem}
+                onDeleteItem={handleDeleteItem}
+                onRenameItem={handleRenameItem}
+                onSettingsClick={() => setActiveId('SETTINGS')}
+                onShortcutsClick={() => setShortcutsModalOpen(true)}
+              />
+            </div>
+
+            {/* RESIZER (LEFT) */}
             <div
-              onMouseDown={() => startResizing('right')}
-              style={{ width: 5, cursor: 'col-resize', background: isResizing === 'right' ? '#007acc' : '#1e1e1e', zIndex: 10, flexShrink: 0, borderLeft: '1px solid #333' }}
+              onMouseDown={() => startResizing('left')}
+              style={{ width: 5, cursor: 'col-resize', background: isResizing === 'left' ? '#007acc' : '#1e1e1e', zIndex: 10, flexShrink: 0, borderRight: '1px solid #333' }}
             />
 
-            <div style={{ width: layout.rightWidth, display: 'flex', flexDirection: 'column', background: '#252526', borderLeft: '1px solid #333' }}>
-              <h4 style={{ padding: '10px 15px', margin: 0, background: '#2d2d2d', fontSize: '11px', textTransform: 'uppercase', color: '#ccc' }}>Kütüphane</h4>
-              <div style={{ flex: 1, overflow: 'auto' }}>
-                <Toolbox
-                  libraryData={libraryData} // Pass Library Data
-                  activeFileType={activeItem?.type}
-                  userDefinedBlocks={
-                    activeItem.category === 'programs'
-                      ? [...projectStructure.functionBlocks, ...projectStructure.functions]
-                      : []
-                  }
-                />
+            {/* CENTER COLUMN (Editor + Console) */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, background: '#1e1e1e' }}>
+
+              {/* EDITOR */}
+              <div style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                {activeId === 'SETTINGS' ? (
+                  <ErrorBoundary>
+                    <SettingsPage
+                      theme={theme}
+                      setTheme={setTheme}
+                      editorSettings={editorSettings}
+                      setEditorSettings={setEditorSettings}
+                    />
+                  </ErrorBoundary>
+                ) : activeItem ? (
+                  <ErrorBoundary>
+                    <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+                      <EditorPane
+                        key={activeItem.id}
+                        fileType={activeItem.type}
+                        initialContent={activeItem.content}
+                        onContentChange={handleContentChange}
+                        allowedClasses={
+                          activeItem.category === 'programs'
+                            ? ['Local', 'Temp']
+                            : ['Input', 'Output', 'InOut', 'Local', 'Temp']
+                        }
+                        context={activeItem.category}
+                        availableBlocks={[...projectStructure.functionBlocks, ...projectStructure.functions]}
+                        availablePrograms={projectStructure.programs.map(p => p.name)}
+                        availableTasks={projectStructure.resources.find(r => r.type === 'RESOURCE_EDITOR')?.content.tasks?.map(t => t.name) || []}
+                        globalVars={projectStructure.resources.find(r => r.type === 'RESOURCE_EDITOR')?.content.globalVars || []}
+                        projectStructure={projectStructure}
+                        currentId={activeItem.id}
+                        libraryData={libraryData} // Pass Library Data
+                      />
+                    </div>
+                  </ErrorBoundary>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#666' }}>
+                    Select an item from the Project Tree to edit.
+                  </div>
+                )}
               </div>
+
+              {/* RESIZER (CONSOLE) */}
+              <div
+                onMouseDown={() => startResizing('console')}
+                style={{ height: 5, cursor: 'row-resize', background: isResizing === 'console' ? '#007acc' : '#2d2d2d', zIndex: 10, flexShrink: 0, borderTop: '1px solid #333', borderBottom: '1px solid #333' }}
+              />
+
+              {/* CONSOLE */}
+              <div style={{ height: layout.consoleHeight, background: '#1e1e1e', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ padding: '5px 10px', background: '#2d2d2d', borderBottom: '1px solid #333', fontSize: '11px', fontWeight: 'bold', color: '#ccc' }}>
+                  OUTPUT
+                </div>
+                <div style={{ flex: 1, overflowY: 'auto', padding: '5px', fontFamily: 'Consolas, monospace', fontSize: '12px' }}>
+                  {logs.map((log, index) => (
+                    <div key={index} className={`log-line log-${log.type}`}>
+                      {log.msg}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
             </div>
+
+            {/* RIGHT SIDEBAR (Only if LD) */}
+            {(activeItem?.type === 'LD' || activeItem?.type === 'ST') && (
+              <>
+                {/* RESIZER (RIGHT) */}
+                <div
+                  onMouseDown={() => startResizing('right')}
+                  style={{ width: 5, cursor: 'col-resize', background: isResizing === 'right' ? '#007acc' : '#1e1e1e', zIndex: 10, flexShrink: 0, borderLeft: '1px solid #333' }}
+                />
+
+                <div style={{ width: layout.rightWidth, display: 'flex', flexDirection: 'column', background: '#252526', borderLeft: '1px solid #333' }}>
+                  <h4 style={{ padding: '10px 15px', margin: 0, background: '#2d2d2d', fontSize: '11px', textTransform: 'uppercase', color: '#ccc' }}>Kütüphane</h4>
+                  <div style={{ flex: 1, overflow: 'auto' }}>
+                    <Toolbox
+                      libraryData={libraryData} // Pass Library Data
+                      activeFileType={activeItem?.type}
+                      userDefinedBlocks={
+                        activeItem.category === 'programs'
+                          ? [...projectStructure.functionBlocks, ...projectStructure.functions]
+                          : []
+                      }
+                    />
+                  </div>
+                </div>
+              </>
+            )}
           </>
         )}
-
       </div>
 
       <CreateItemModal
@@ -550,6 +657,7 @@ function App() {
         onConfirm={handleCreateConfirm}
         category={createModal.category}
         defaultName={createModal.defaultName}
+        availableTasks={projectStructure.resources.find(r => r.id === 'res_config')?.content.tasks?.map(t => t.name) || []}
       />
 
       <DataTypeCreationModal

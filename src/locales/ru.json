@@ -4,7 +4,7 @@
         "functionBlocks": "Функциональные блоки",
         "functions": "Функции",
         "programs": "Программы",
-        "resources": "Ресурсы",
+        "global": "Глобальный",
         "configuration": "Конфигурация"
     },
     "tables": {
@@ -46,7 +46,11 @@
         "instanceName": "Имя экземпляра",
         "enableExecutionControl": "Включить управление выполнением (EN Pin)",
         "pinInformation": "Информация о пине",
-        "create": "Создать"
+        "create": "Создать",
+        "shortcuts": "Ярлыки",
+        "newProject": "Новый проект",
+        "openProject": "Открыть проект",
+        "close": "Закрыть"
     },
     "actions": {
         "addTask": "Добавить задачу",
@@ -57,7 +61,8 @@
         "start": "Старт",
         "stop": "Стоп",
         "simulate": "Симуляция",
-        "sendToPlc": "Отправить в ПЛК"
+        "sendToPlc": "Отправить в ПЛК",
+        "closeProject": "Закрыть проект"
     },
     "options": {
         "cyclic": "Циклический",
@@ -74,7 +79,8 @@
         "empty": "Пусто",
         "plcCompileStarted": "Компиляция началась",
         "plcRunMode": "Режим работы ПЛК.",
-        "plcStopped": "ПЛК остановлен."
+        "plcStopped": "ПЛК остановлен.",
+        "startScreenDesc": "Современная веб-среда программирования ПЛК"
     },
     "resources": {
         "globalVariables": "Глобальные переменные",

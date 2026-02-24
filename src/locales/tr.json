@@ -4,7 +4,7 @@
         "functionBlocks": "Fonksiyon Blokları",
         "functions": "Fonksiyonlar",
         "programs": "Programlar",
-        "resources": "Kaynaklar",
+        "global": "Global",
         "configuration": "Yapılandırma"
     },
     "common": {
@@ -30,7 +30,11 @@
         "instanceName": "Örnek Adı",
         "enableExecutionControl": "Yürütme Kontrolünü Etkinleştir (EN Pini)",
         "pinInformation": "Pin Bilgisi",
-        "create": "Oluştur"
+        "create": "Oluştur",
+        "shortcuts": "Kısayollar",
+        "newProject": "Yeni Proje",
+        "openProject": "Proje Aç",
+        "close": "Kapat"
     },
     "tables": {
         "name": "İsim",
@@ -56,7 +60,8 @@
         "start": "Başlat",
         "stop": "Durdur",
         "simulate": "Simüle Et",
-        "sendToPlc": "PLC'ye Gönder"
+        "sendToPlc": "PLC'ye Gönder",
+        "closeProject": "Projeyi Kapat"
     },
     "options": {
         "cyclic": "Döngüsel",
@@ -73,7 +78,8 @@
         "empty": "Boş",
         "plcCompileStarted": "Derleme başlatıldı",
         "plcRunMode": "PLC Run Modu.",
-        "plcStopped": "PLC Durduruldu."
+        "plcStopped": "PLC Durduruldu.",
+        "startScreenDesc": "Modern, web tabanlı bir PLC programlama ortamı"
     },
     "resources": {
         "globalVariables": "Global Değişkenler",

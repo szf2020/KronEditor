@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { DataTypeSelector } from './common/Selectors';
 
-const CreateItemModal = ({ isOpen, onClose, onConfirm, category, defaultName }) => {
+const CreateItemModal = ({ isOpen, onClose, onConfirm, category, defaultName, availableTasks = [] }) => {
     const [name, setName] = useState('');
     const [language, setLanguage] = useState('LD');
     const [returnType, setReturnType] = useState('BOOL');
+    const [selectedTask, setSelectedTask] = useState('task0');
 
     useEffect(() => {
         if (isOpen) {
             setName(defaultName || '');
             setLanguage(category === 'dataTypes' ? 'UDT' : 'LD');
             setReturnType('BOOL');
+            setSelectedTask('task0');
         }
     }, [isOpen, defaultName, category]);
 
@@ -18,6 +20,7 @@ const CreateItemModal = ({ isOpen, onClose, onConfirm, category, defaultName }) 
 
     const isDataType = category === 'dataTypes';
     const isFunction = category === 'functions';
+    const isProgram = category === 'programs';
     const title = category === 'dataTypes' ? 'Create Data Type' :
         category === 'programs' ? 'Create Program' :
             category === 'functionBlocks' ? 'Create Function Block' :
@@ -25,7 +28,7 @@ const CreateItemModal = ({ isOpen, onClose, onConfirm, category, defaultName }) 
 
     const handleConfirm = () => {
         if (!name.trim()) return;
-        onConfirm(name, language, returnType);
+        onConfirm(name, language, returnType, isProgram ? selectedTask.trim() || 'task0' : undefined);
         onClose();
     };
 
@@ -82,6 +85,37 @@ const CreateItemModal = ({ isOpen, onClose, onConfirm, category, defaultName }) 
                         }}
                     />
                 </div>
+
+                {/* Task Selection (Only for Programs) */}
+                {isProgram && (
+                    <div style={{ marginBottom: '20px' }}>
+                        <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', color: '#ccc' }}>
+                            Assign to Task
+                        </label>
+                        <input
+                            list="available-tasks"
+                            value={selectedTask}
+                            onChange={(e) => setSelectedTask(e.target.value)}
+                            placeholder="Enter task name (e.g. task0)"
+                            style={{
+                                width: '100%',
+                                padding: '10px',
+                                background: '#1e1e1e',
+                                border: '1px solid #444',
+                                color: '#fff',
+                                borderRadius: '4px',
+                                outline: 'none',
+                                fontSize: '14px',
+                                boxSizing: 'border-box'
+                            }}
+                        />
+                        <datalist id="available-tasks">
+                            {availableTasks.map(task => (
+                                <option key={task} value={task} />
+                            ))}
+                        </datalist>
+                    </div>
+                )}
 
                 {/* Return Type Selection (Only for Functions) */}
                 {isFunction && (

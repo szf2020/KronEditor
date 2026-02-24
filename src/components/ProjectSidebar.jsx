@@ -193,12 +193,11 @@ const ProjectSidebar = ({ projectStructure, onSelectItem, activeId, onAddItem, o
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px'
                 }}
-                title={t('resources.configuration')}
+                title={t('resources.globalVariables')}
             >
-                <img src={PlcIcon} alt="PLC" style={{ width: '18px', height: '18px', objectFit: 'contain' }} />
-                <span>{t('sidebar.resources')}</span>
+                <span>⚙️</span>
+                <span>{t('sidebar.global')}</span>
             </div>
             {renderSection('Data Types', 'dataTypes', projectStructure.dataTypes)}
             {renderSection('Function Blocks', 'functionBlocks', projectStructure.functionBlocks)}

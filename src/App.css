@@ -62,3 +62,46 @@ body { margin: 0; padding: 0; background: #1e1e1e; color: #d4d4d4; font-family: 
 .react-flow__edge-path {
   transition: all 0.2s ease;
 }
+
+/* Custom Titlebar */
+.custom-titlebar {
+  height: 30px;
+  background: #1e1e1e;
+  user-select: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+  border-bottom: 1px solid #3e3e42;
+}
+.titlebar-title {
+  display: flex;
+  align-items: center;
+  padding-left: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #ccc;
+  pointer-events: none;
+}
+.titlebar-controls {
+  display: flex;
+  height: 100%;
+}
+.titlebar-button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: 45px;
+  height: 100%;
+  color: #ccc;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.titlebar-button:hover {
+  background: #333;
+}
+.titlebar-close:hover {
+  background: #e81123 !important;
+  color: white !important;
+}
