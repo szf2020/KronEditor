@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Library>
+  <Category name="BITWISE">
+    <Block type="BAND" description="Bitwise AND" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN"  type="BOOL"  default="FALSE" />
+        <Variable name="IN1" type="DWORD" default="0" />
+        <Variable name="IN2" type="DWORD" default="0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="ENO" type="BOOL" />
+        <Variable name="OUT" type="DWORD" />
+      </Outputs>
+    </Block>
+    <Block type="BOR" description="Bitwise OR" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN"  type="BOOL"  default="FALSE" />
+        <Variable name="IN1" type="DWORD" default="0" />
+        <Variable name="IN2" type="DWORD" default="0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="ENO" type="BOOL" />
+        <Variable name="OUT" type="DWORD" />
+      </Outputs>
+    </Block>
+    <Block type="BXOR" description="Bitwise XOR" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN"  type="BOOL"  default="FALSE" />
+        <Variable name="IN1" type="DWORD" default="0" />
+        <Variable name="IN2" type="DWORD" default="0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="ENO" type="BOOL" />
+        <Variable name="OUT" type="DWORD" />
+      </Outputs>
+    </Block>
+    <Block type="BNOT" description="Bitwise NOT" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN" type="BOOL"  default="FALSE" />
+        <Variable name="IN" type="DWORD" default="0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="ENO" type="BOOL" />
+        <Variable name="OUT" type="DWORD" />
+      </Outputs>
+    </Block>
+    <Block type="SHL" description="Shift Left" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN" type="BOOL"  default="FALSE" />
+        <Variable name="IN" type="DWORD" default="0" />
+        <Variable name="N"  type="USINT" default="1" />
+      </Inputs>
+      <Outputs>
+        <Variable name="ENO" type="BOOL" />
+        <Variable name="OUT" type="DWORD" />
+      </Outputs>
+    </Block>
+    <Block type="SHR" description="Shift Right" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN" type="BOOL"  default="FALSE" />
+        <Variable name="IN" type="DWORD" default="0" />
+        <Variable name="N"  type="USINT" default="1" />
+      </Inputs>
+      <Outputs>
+        <Variable name="ENO" type="BOOL" />
+        <Variable name="OUT" type="DWORD" />
+      </Outputs>
+    </Block>
+    <Block type="ROL" description="Rotate Left" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN" type="BOOL"  default="FALSE" />
+        <Variable name="IN" type="DWORD" default="0" />
+        <Variable name="N"  type="USINT" default="1" />
+      </Inputs>
+      <Outputs>
+        <Variable name="ENO" type="BOOL" />
+        <Variable name="OUT" type="DWORD" />
+      </Outputs>
+    </Block>
+    <Block type="ROR" description="Rotate Right" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN" type="BOOL"  default="FALSE" />
+        <Variable name="IN" type="DWORD" default="0" />
+        <Variable name="N"  type="USINT" default="1" />
+      </Inputs>
+      <Outputs>
+        <Variable name="ENO" type="BOOL" />
+        <Variable name="OUT" type="DWORD" />
+      </Outputs>
+    </Block>
+  </Category>
+</Library>

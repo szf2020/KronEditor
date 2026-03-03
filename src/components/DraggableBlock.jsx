@@ -1,6 +1,6 @@
 import React from 'react';
 
-const DraggableBlock = ({ type, label, icon }) => {
+const DraggableBlock = ({ type, label, icon, style }) => {
     const onDragStart = (event, nodeType) => {
         event.dataTransfer.setData('application/reactflow', nodeType);
         event.dataTransfer.setData('blockType', nodeType);
@@ -42,7 +42,8 @@ const DraggableBlock = ({ type, label, icon }) => {
                 cursor: 'grab',
                 color: '#fff',
                 fontSize: '10px',
-                gap: '4px'
+                gap: '4px',
+                ...style
             }}
             title={`Drag ${label} to a rung`}
         >

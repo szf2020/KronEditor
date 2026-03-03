@@ -62,7 +62,8 @@ const VariableManager = ({
   parentName = "",
   disabled = false,
   isSimulationMode = false,
-  onForceWrite = null
+  onForceWrite = null,
+  projectStructure = null
 }) => {
   const { t } = useTranslation();
   const [selectedId, setSelectedId] = useState(null);
@@ -71,7 +72,23 @@ const VariableManager = ({
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleAddClick = () => {
-    const existingNames = [...variables, ...globalVars].map(v => v.name);
+    let existingNames = [...variables, ...globalVars].map(v => v.name);
+
+    // If projectStructure is provided, we need to check across all programs/functions/FBs to avoid global naming collisions
+    if (projectStructure) {
+      const allLocalVars = [];
+      ['programs'].forEach(category => {
+        if (projectStructure[category]) {
+          projectStructure[category].forEach(item => {
+            if (item.content && item.content.variables) {
+              allLocalVars.push(...item.content.variables.map(v => v.name));
+            }
+          });
+        }
+      });
+      existingNames = [...existingNames, ...allLocalVars];
+    }
+
     let counter = 0;
     while (existingNames.includes(`Var${counter}`)) counter++;
     if (onAdd) onAdd({
@@ -97,6 +114,27 @@ const VariableManager = ({
       alert(`Variable name '${trimmed}' already exists in this scope!`);
       return;
     }
+
+    if (projectStructure) {
+      let nameExistsInOtherScopes = false;
+      ['programs'].forEach(category => {
+        if (projectStructure[category]) {
+          projectStructure[category].forEach(item => {
+            if (item.content && item.content.variables) {
+              if (item.content.variables.some(v => v.name === trimmed)) {
+                nameExistsInOtherScopes = true;
+              }
+            }
+          });
+        }
+      });
+
+      if (nameExistsInOtherScopes) {
+        alert(`Variable name '${trimmed}' already exists as a local variable in another program/block!`);
+        return;
+      }
+    }
+
     if (onUpdate) onUpdate(id, 'name', trimmed);
   };
 
@@ -105,11 +143,11 @@ const VariableManager = ({
   /** Returns the correct liveVariables key for a variable name. */
   const getLiveKey = (varName) => {
     if (!liveVariables) return null;
-    const safeName    = (varName    || '').trim().replace(/\s+/g, '_');
+    const safeName = (varName || '').trim().replace(/\s+/g, '_');
     const safeProgName = (parentName || '').trim().replace(/\s+/g, '_');
-    const progKey    = `prog_${safeProgName}_${safeName}`;
+    const progKey = `prog_${safeProgName}_${safeName}`;
     if (liveVariables[progKey] !== undefined) return progKey;
-    const globalKey  = `prog__${safeName}`;
+    const globalKey = `prog__${safeName}`;
     if (liveVariables[globalKey] !== undefined) return globalKey;
     return progKey; // default even if not found (shows ---)
   };
@@ -159,7 +197,6 @@ const VariableManager = ({
           <thead style={{ background: '#1e1e1e', position: 'sticky', top: 0, zIndex: 10 }}>
             <tr>
               <th style={{ padding: '5px', borderBottom: '1px solid #444' }}>{t('tables.name')}</th>
-              <th style={{ padding: '5px', borderBottom: '1px solid #444', minWidth: '80px' }}>{t('tables.class')}</th>
               <th style={{ padding: '5px', borderBottom: '1px solid #444', minWidth: '120px' }}>{t('tables.type')}</th>
               <th style={{ padding: '5px', borderBottom: '1px solid #444' }}>{t('tables.initialValue')}</th>
               {liveVariables && (
@@ -185,13 +222,6 @@ const VariableManager = ({
                 >
                   <td style={{ padding: '5px' }}>
                     <EditableCell value={v.name} onCommit={(val) => !isSimulationMode && !disabled && validateAndSaveName(v.id, val)} />
-                  </td>
-                  <td style={{ padding: '5px' }}>
-                    <ModernSelect
-                      value={v.class}
-                      options={allowedClasses}
-                      onChange={(val) => !isSimulationMode && !disabled && onUpdate && onUpdate(v.id, 'class', val)}
-                    />
                   </td>
                   <td style={{ padding: '5px' }}>
                     <DataTypeSelector
@@ -235,7 +265,7 @@ const VariableManager = ({
             })}
             {variables.length === 0 && (
               <tr>
-                <td colSpan={liveVariables ? 6 : 5} style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
+                <td colSpan={liveVariables ? 5 : 4} style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
                   {t('messages.empty')}
                 </td>
               </tr>

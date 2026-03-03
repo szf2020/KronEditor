@@ -625,7 +625,7 @@ const EditorPane = ({
           </div>
         ) : fileType === 'RESOURCE_EDITOR' ? (
           <ResourceEditor
-            content={{ globalVars: variables, tasks, instances }}
+            content={{ globalVars: variables, tasks, instances, projectStructure }}
             onContentChange={(newContent) => {
               setVariables(newContent.globalVars || []);
               setTasks(newContent.tasks || []);

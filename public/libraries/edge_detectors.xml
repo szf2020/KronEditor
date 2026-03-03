@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Library>
+  <Category name="EDGE_DETECTORS">
+    <Block type="R_TRIG" description="Rising Edge" class="FunctionBlock">
+      <Inputs>
+        <Variable name="CLK" type="BOOL" default="FALSE" />
+      </Inputs>
+      <Outputs>
+        <Variable name="Q" type="BOOL" />
+      </Outputs>
+    </Block>
+    <Block type="F_TRIG" description="Falling Edge" class="FunctionBlock">
+      <Inputs>
+        <Variable name="CLK" type="BOOL" default="FALSE" />
+      </Inputs>
+      <Outputs>
+        <Variable name="Q" type="BOOL" />
+      </Outputs>
+    </Block>
+  </Category>
+</Library>

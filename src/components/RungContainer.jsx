@@ -126,6 +126,11 @@ export const blockConfig = {
     inputs: [{ name: 'CD', type: 'BOOL' }, { name: 'LD', type: 'BOOL' }, { name: 'PV', type: 'INT' }],
     outputs: [{ name: 'Q', type: 'BOOL' }, { name: 'CV', type: 'INT' }]
   },
+  CTUD: {
+    label: 'CTUD',
+    inputs: [{ name: 'CU', type: 'BOOL' }, { name: 'CD', type: 'BOOL' }, { name: 'R', type: 'BOOL' }, { name: 'LD', type: 'BOOL' }, { name: 'PV', type: 'INT' }],
+    outputs: [{ name: 'QU', type: 'BOOL' }, { name: 'QD', type: 'BOOL' }, { name: 'CV', type: 'INT' }]
+  },
   R_TRIG: {
     label: 'R_TRIG',
     inputs: [{ name: 'CLK', type: 'BOOL' }],
@@ -146,8 +151,39 @@ export const blockConfig = {
     inputs: [{ name: 'S1', type: 'BOOL' }, { name: 'R', type: 'BOOL' }],
     outputs: [{ name: 'Q1', type: 'BOOL' }]
   },
+  // --- COMPARISON ---
+  GT:   { label: 'GT',   inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }] },
+  GE:   { label: 'GE',   inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }] },
+  EQ:   { label: 'EQ',   inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }] },
+  NE:   { label: 'NE',   inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }] },
+  LE:   { label: 'LE',   inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }] },
+  LT:   { label: 'LT',   inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }] },
+  // --- ARITHMETIC ---
+  ADD:  { label: 'ADD',  inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DINT' }] },
+  SUB:  { label: 'SUB',  inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DINT' }] },
+  MUL:  { label: 'MUL',  inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DINT' }] },
+  DIV:  { label: 'DIV',  inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DINT' }] },
+  MOD:  { label: 'MOD',  inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DINT' }] },
+  MOVE: { label: 'MOVE', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN',  type: 'DINT' }],                                outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DINT' }] },
+  // --- MATH ---
+  ABS:   { label: 'ABS',   inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN',  type: 'REAL' }],                                                    outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
+  SQRT:  { label: 'SQRT',  inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN',  type: 'REAL' }],                                                    outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
+  EXPT:  { label: 'EXPT',  inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN',  type: 'REAL' }, { name: 'EXP', type: 'REAL' }],                    outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
+  MAX:   { label: 'MAX',   inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'REAL' }, { name: 'IN2', type: 'REAL' }],                    outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
+  MIN:   { label: 'MIN',   inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'REAL' }, { name: 'IN2', type: 'REAL' }],                    outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
+  LIMIT: { label: 'LIMIT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN',  type: 'REAL' }, { name: 'MN', type: 'REAL' }, { name: 'MX', type: 'REAL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
+  // --- BITWISE ---
+  BAND:  { label: 'BAND', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DWORD' }, { name: 'IN2', type: 'DWORD' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
+  BOR:   { label: 'BOR',  inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DWORD' }, { name: 'IN2', type: 'DWORD' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
+  BXOR:  { label: 'BXOR', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DWORD' }, { name: 'IN2', type: 'DWORD' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
+  BNOT:  { label: 'BNOT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN',  type: 'DWORD' }],                                 outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
+  SHL:   { label: 'SHL',  inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN',  type: 'DWORD' }, { name: 'N', type: 'USINT' }],   outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
+  SHR:   { label: 'SHR',  inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN',  type: 'DWORD' }, { name: 'N', type: 'USINT' }],   outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
+  ROL:   { label: 'ROL',  inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN',  type: 'DWORD' }, { name: 'N', type: 'USINT' }],   outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
+  ROR:   { label: 'ROR',  inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN',  type: 'DWORD' }, { name: 'N', type: 'USINT' }],   outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
+  // --- BASIC ELEMENTS ---
   Contact: { label: 'Contact', inputs: [], outputs: [] },
-  Coil: { label: 'Coil', inputs: [], outputs: [] }
+  Coil:    { label: 'Coil',    inputs: [], outputs: [] }
 };
 
 // SVG Path Helper
@@ -201,18 +237,18 @@ const getSymbolPath = (type, subType) => {
         return (
           <g stroke="currentColor" strokeWidth="2" fill="none">
             <line x1="0" y1="20" x2="10" y2="20" />
-            <path d="M10,5 Q-5,20 10,35" />
-            <path d="M30,5 Q45,20 30,35" />
+            <path d="M15,5 Q5,20 15,35" />
+            <path d="M25,5 Q35,20 25,35" />
             <line x1="30" y1="20" x2="40" y2="20" />
-            <line x1="10" y1="30" x2="30" y2="10" />
+            <line x1="15" y1="30" x2="25" y2="10" />
           </g>
         );
       case 'Set':
         return (
           <g stroke="currentColor" strokeWidth="2" fill="none">
             <line x1="0" y1="20" x2="10" y2="20" />
-            <path d="M10,5 Q-5,20 10,35" />
-            <path d="M30,5 Q45,20 30,35" />
+            <path d="M15,5 Q5,20 15,35" />
+            <path d="M25,5 Q35,20 25,35" />
             <line x1="30" y1="20" x2="40" y2="20" />
             <text x="20" y="25" textAnchor="middle" fontSize="12" stroke="none" fill="currentColor">S</text>
           </g>
@@ -221,8 +257,8 @@ const getSymbolPath = (type, subType) => {
         return (
           <g stroke="currentColor" strokeWidth="2" fill="none">
             <line x1="0" y1="20" x2="10" y2="20" />
-            <path d="M10,5 Q-5,20 10,35" />
-            <path d="M30,5 Q45,20 30,35" />
+            <path d="M15,5 Q5,20 15,35" />
+            <path d="M25,5 Q35,20 25,35" />
             <line x1="30" y1="20" x2="40" y2="20" />
             <text x="20" y="25" textAnchor="middle" fontSize="12" stroke="none" fill="currentColor">R</text>
           </g>
@@ -231,8 +267,8 @@ const getSymbolPath = (type, subType) => {
         return (
           <g stroke="currentColor" strokeWidth="2" fill="none">
             <line x1="0" y1="20" x2="10" y2="20" />
-            <path d="M10,5 Q-5,20 10,35" />
-            <path d="M30,5 Q45,20 30,35" />
+            <path d="M15,5 Q5,20 15,35" />
+            <path d="M25,5 Q35,20 25,35" />
             <line x1="30" y1="20" x2="40" y2="20" />
             <text x="20" y="25" textAnchor="middle" fontSize="12" stroke="none" fill="currentColor">P</text>
           </g>
@@ -241,8 +277,8 @@ const getSymbolPath = (type, subType) => {
         return (
           <g stroke="currentColor" strokeWidth="2" fill="none">
             <line x1="0" y1="20" x2="10" y2="20" />
-            <path d="M10,5 Q-5,20 10,35" />
-            <path d="M30,5 Q45,20 30,35" />
+            <path d="M15,5 Q5,20 15,35" />
+            <path d="M25,5 Q35,20 25,35" />
             <line x1="30" y1="20" x2="40" y2="20" />
             <text x="20" y="25" textAnchor="middle" fontSize="12" stroke="none" fill="currentColor">N</text>
           </g>
@@ -252,8 +288,8 @@ const getSymbolPath = (type, subType) => {
         return (
           <g stroke="currentColor" strokeWidth="2" fill="none">
             <line x1="0" y1="20" x2="10" y2="20" />
-            <path d="M10,5 Q-5,20 10,35" />
-            <path d="M30,5 Q45,20 30,35" />
+            <path d="M15,5 Q5,20 15,35" />
+            <path d="M25,5 Q35,20 25,35" />
             <line x1="30" y1="20" x2="40" y2="20" />
           </g>
         );
@@ -299,7 +335,7 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
       // Visual Clone of Contact/Coil
       return (
         <div style={{
-          position: 'relative', width: 18, height: 18, minWidth: 18, minHeight: 18,
+          position: 'relative', width: 27, height: 27, minWidth: 27, minHeight: 27,
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           background: 'rgba(255, 255, 255, 0.05)', // Match real block
           border: '1px solid transparent', // Match real block when not selected
@@ -318,7 +354,7 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
               {instanceName || '??'}
             </div>
           </div>
-          <svg width="18" height="18" viewBox="0 0 40 40" style={{ color: '#fff', overflow: 'visible' }}>{symbol}</svg>
+          <svg width="27" height="27" viewBox="0 0 40 40" style={{ color: '#fff', overflow: 'visible' }}>{symbol}</svg>
         </div>
       );
     }
@@ -449,10 +485,10 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
     return (
       <div style={{
         position: 'relative',
-        width: 18,
-        height: 18,
-        minWidth: 18, // Explicit min width
-        minHeight: 18, // Explicit min height
+        width: 27,
+        height: 27,
+        minWidth: 27, // Explicit min width
+        minHeight: 27, // Explicit min height
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -557,7 +593,7 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
         </div>
 
         {/* SVG Symbol */}
-        <svg width="18" height="18" viewBox="0 0 40 40" style={{ color: selected ? '#007acc' : '#fff', overflow: 'visible' }}>
+        <svg width="27" height="27" viewBox="0 0 40 40" style={{ color: selected ? '#007acc' : '#fff', overflow: 'visible' }}>
           {symbol}
         </svg>
 

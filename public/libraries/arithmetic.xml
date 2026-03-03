@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Library>
+  <Category name="ARITHMETIC">
+    <Block type="ADD" description="Addition" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN"  type="BOOL" default="FALSE" />
+        <Variable name="IN1" type="DINT"  default="0" />
+        <Variable name="IN2" type="DINT"  default="0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="ENO" type="BOOL" />
+        <Variable name="OUT" type="DINT" />
+      </Outputs>
+    </Block>
+    <Block type="SUB" description="Subtraction" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN"  type="BOOL" default="FALSE" />
+        <Variable name="IN1" type="DINT"  default="0" />
+        <Variable name="IN2" type="DINT"  default="0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="ENO" type="BOOL" />
+        <Variable name="OUT" type="DINT" />
+      </Outputs>
+    </Block>
+    <Block type="MUL" description="Multiplication" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN"  type="BOOL" default="FALSE" />
+        <Variable name="IN1" type="DINT"  default="0" />
+        <Variable name="IN2" type="DINT"  default="0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="ENO" type="BOOL" />
+        <Variable name="OUT" type="DINT" />
+      </Outputs>
+    </Block>
+    <Block type="DIV" description="Division" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN"  type="BOOL" default="FALSE" />
+        <Variable name="IN1" type="DINT"  default="0" />
+        <Variable name="IN2" type="DINT"  default="1" />
+      </Inputs>
+      <Outputs>
+        <Variable name="ENO" type="BOOL" />
+        <Variable name="OUT" type="DINT" />
+      </Outputs>
+    </Block>
+    <Block type="MOD" description="Modulo" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN"  type="BOOL" default="FALSE" />
+        <Variable name="IN1" type="DINT"  default="0" />
+        <Variable name="IN2" type="DINT"  default="1" />
+      </Inputs>
+      <Outputs>
+        <Variable name="ENO" type="BOOL" />
+        <Variable name="OUT" type="DINT" />
+      </Outputs>
+    </Block>
+    <Block type="MOVE" description="Move / Assign" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN" type="BOOL" default="FALSE" />
+        <Variable name="IN" type="DINT"  default="0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="ENO" type="BOOL" />
+        <Variable name="OUT" type="DINT" />
+      </Outputs>
+    </Block>
+  </Category>
+</Library>

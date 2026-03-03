@@ -6,7 +6,12 @@ export class LibraryService {
         this.libraryFiles = [
             '/libraries/timers.xml',
             '/libraries/counters.xml',
-            '/libraries/bit_logic.xml'
+            '/libraries/bistable.xml',
+            '/libraries/edge_detectors.xml',
+            '/libraries/comparison.xml',
+            '/libraries/arithmetic.xml',
+            '/libraries/math.xml',
+            '/libraries/bitwise.xml'
         ];
     }
 

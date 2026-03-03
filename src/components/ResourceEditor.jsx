@@ -54,6 +54,7 @@ const ResourceEditor = ({ content, onContentChange, availablePrograms = [], deri
                         disabled={isRunning}
                         isSimulationMode={isSimulationMode}
                         onForceWrite={onForceWrite}
+                        projectStructure={content.projectStructure} // We will pass this from EditorPane
                     />
                 </div>
             </div>

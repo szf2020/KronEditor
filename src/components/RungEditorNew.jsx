@@ -434,8 +434,9 @@ const RungEditorNew = ({ variables, setVariables, rungs, setRungs, availableBloc
           <DraggableBlock
             type="Contact"
             label="Contact"
+            style={{ width: '42px', height: '35px' }}
             icon={
-              <svg width="15" height="15" viewBox="0 0 40 40" stroke="currentColor" strokeWidth="2" fill="none">
+              <svg width="11" height="11" viewBox="0 0 40 40" stroke="currentColor" strokeWidth="2" fill="none">
                 <line x1="0" y1="20" x2="10" y2="20" />
                 <line x1="10" y1="5" x2="10" y2="35" />
                 <line x1="30" y1="5" x2="30" y2="35" />
@@ -446,11 +447,12 @@ const RungEditorNew = ({ variables, setVariables, rungs, setRungs, availableBloc
           <DraggableBlock
             type="Coil"
             label="Coil"
+            style={{ width: '42px', height: '35px' }}
             icon={
-              <svg width="15" height="15" viewBox="0 0 40 40" stroke="currentColor" strokeWidth="2" fill="none">
+              <svg width="11" height="11" viewBox="0 0 40 40" stroke="currentColor" strokeWidth="2" fill="none">
                 <line x1="0" y1="20" x2="10" y2="20" />
-                <path d="M10,5 Q2,20 10,35" />
-                <path d="M30,5 Q38,20 30,35" />
+                <path d="M15,5 Q5,20 15,35" />
+                <path d="M25,5 Q35,20 25,35" />
                 <line x1="30" y1="20" x2="40" y2="20" />
               </svg>
             }

@@ -12,7 +12,7 @@
         <Variable name="CV" type="INT" />
       </Outputs>
     </Block>
-     <Block type="CTD" description="Count Down" class="FunctionBlock">
+    <Block type="CTD" description="Count Down" class="FunctionBlock">
       <Inputs>
         <Variable name="CD" type="BOOL" default="FALSE" />
         <Variable name="LD" type="BOOL" default="FALSE" />
@@ -20,6 +20,20 @@
       </Inputs>
       <Outputs>
         <Variable name="Q" type="BOOL" />
+        <Variable name="CV" type="INT" />
+      </Outputs>
+    </Block>
+    <Block type="CTUD" description="Count Up/Down" class="FunctionBlock">
+      <Inputs>
+        <Variable name="CU" type="BOOL" default="FALSE" />
+        <Variable name="CD" type="BOOL" default="FALSE" />
+        <Variable name="R" type="BOOL" default="FALSE" />
+        <Variable name="LD" type="BOOL" default="FALSE" />
+        <Variable name="PV" type="INT" default="0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="QU" type="BOOL" />
+        <Variable name="QD" type="BOOL" />
         <Variable name="CV" type="INT" />
       </Outputs>
     </Block>
