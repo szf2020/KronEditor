@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Library>
+  <Category name="COMPARISON">
+    <!-- Comparison -->
+    <Block type="EQ" description="Equal" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN"  type="BOOL" default="FALSE" />
+        <Variable name="IN1" type="DINT" default="0" />
+        <Variable name="IN2" type="DINT" default="0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="ENO" type="BOOL" />
+      </Outputs>
+    </Block>
+    <Block type="NE" description="Not Equal" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN"  type="BOOL" default="FALSE" />
+        <Variable name="IN1" type="DINT" default="0" />
+        <Variable name="IN2" type="DINT" default="0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="ENO" type="BOOL" />
+      </Outputs>
+    </Block>
+    <Block type="GT" description="Greater Than" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN"  type="BOOL" default="FALSE" />
+        <Variable name="IN1" type="DINT" default="0" />
+        <Variable name="IN2" type="DINT" default="0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="ENO" type="BOOL" />
+      </Outputs>
+    </Block>
+    <Block type="GE" description="Greater or Equal" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN"  type="BOOL" default="FALSE" />
+        <Variable name="IN1" type="DINT" default="0" />
+        <Variable name="IN2" type="DINT" default="0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="ENO" type="BOOL" />
+      </Outputs>
+    </Block>
+    <Block type="LT" description="Less Than" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN"  type="BOOL" default="FALSE" />
+        <Variable name="IN1" type="DINT" default="0" />
+        <Variable name="IN2" type="DINT" default="0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="ENO" type="BOOL" />
+      </Outputs>
+    </Block>
+    <Block type="LE" description="Less or Equal" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN"  type="BOOL" default="FALSE" />
+        <Variable name="IN1" type="DINT" default="0" />
+        <Variable name="IN2" type="DINT" default="0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="ENO" type="BOOL" />
+      </Outputs>
+    </Block>
+    <!-- Selection -->
+    <Block type="SEL" description="Binary Select (G=0→IN0, G=1→IN1)" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN"  type="BOOL" default="FALSE" />
+        <Variable name="G"   type="BOOL" default="FALSE" />
+        <Variable name="IN0" type="DINT" default="0" />
+        <Variable name="IN1" type="DINT" default="0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="ENO" type="BOOL" />
+        <Variable name="OUT" type="DINT" />
+      </Outputs>
+    </Block>
+    <Block type="MUX" description="2-to-1 Multiplexer (K=0→IN0, K=1→IN1)" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN"  type="BOOL"  default="FALSE" />
+        <Variable name="K"   type="USINT" default="0" />
+        <Variable name="IN0" type="DINT"  default="0" />
+        <Variable name="IN1" type="DINT"  default="0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="ENO" type="BOOL" />
+        <Variable name="OUT" type="DINT" />
+      </Outputs>
+    </Block>
+    <!-- Limit / Range -->
+    <Block type="MAX" description="Maximum of two values" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN"  type="BOOL" default="FALSE" />
+        <Variable name="IN1" type="REAL" default="0.0" />
+        <Variable name="IN2" type="REAL" default="0.0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="ENO" type="BOOL" />
+        <Variable name="OUT" type="REAL" />
+      </Outputs>
+    </Block>
+    <Block type="MIN" description="Minimum of two values" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN"  type="BOOL" default="FALSE" />
+        <Variable name="IN1" type="REAL" default="0.0" />
+        <Variable name="IN2" type="REAL" default="0.0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="ENO" type="BOOL" />
+        <Variable name="OUT" type="REAL" />
+      </Outputs>
+    </Block>
+    <Block type="LIMIT" description="Clamp value to [MN, MX]" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN" type="BOOL" default="FALSE" />
+        <Variable name="IN" type="REAL" default="0.0" />
+        <Variable name="MN" type="REAL" default="0.0" />
+        <Variable name="MX" type="REAL" default="100.0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="ENO" type="BOOL" />
+        <Variable name="OUT" type="REAL" />
+      </Outputs>
+    </Block>
+  </Category>
+</Library>

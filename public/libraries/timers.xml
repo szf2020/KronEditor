@@ -22,12 +22,23 @@
       </Outputs>
     </Block>
     <Block type="TP" description="Pulse Timer" class="FunctionBlock">
-       <Inputs>
+      <Inputs>
         <Variable name="IN" type="BOOL" default="FALSE" />
         <Variable name="PT" type="TIME" default="T#0ms" />
       </Inputs>
       <Outputs>
-        <Variable name="Q" type="BOOL" />
+        <Variable name="Q"  type="BOOL" />
+        <Variable name="ET" type="TIME" />
+      </Outputs>
+    </Block>
+    <Block type="TONR" description="Retentive On-Delay Timer" class="FunctionBlock">
+      <Inputs>
+        <Variable name="IN"    type="BOOL" default="FALSE" />
+        <Variable name="PT"    type="TIME" default="T#0ms" />
+        <Variable name="RESET" type="BOOL" default="FALSE" />
+      </Inputs>
+      <Outputs>
+        <Variable name="Q"  type="BOOL" />
         <Variable name="ET" type="TIME" />
       </Outputs>
     </Block>

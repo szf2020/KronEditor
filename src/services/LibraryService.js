@@ -4,14 +4,16 @@ export class LibraryService {
         this.library = [];
         // List of library files to load
         this.libraryFiles = [
+            '/libraries/bit_logic.xml',
             '/libraries/timers.xml',
             '/libraries/counters.xml',
-            '/libraries/bistable.xml',
-            '/libraries/edge_detectors.xml',
-            '/libraries/comparison.xml',
-            '/libraries/arithmetic.xml',
             '/libraries/math.xml',
-            '/libraries/bitwise.xml'
+            '/libraries/comparison_selection.xml',
+            '/libraries/conversion.xml',
+            '/libraries/advanced_control.xml',
+            '/libraries/motion.xml',
+            '/libraries/communication.xml',
+            '/libraries/system.xml'
         ];
     }
 
@@ -95,7 +97,7 @@ export class LibraryService {
 
             libraryPart.push({
                 id: categoryName.toLowerCase(),
-                title: categoryName.replace('_', ' '),
+                title: categoryName.replace(/_/g, ' '),
                 blocks
             });
         }

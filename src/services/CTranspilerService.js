@@ -4,12 +4,33 @@ export const transpileToC = (projectStructure, standardHeaders = []) => {
 
     standardHeaders.forEach(([filename, content]) => {
         customIncludes += `#include "${filename}"\n`;
-        const regex = /void\s+([A-Za-z0-9_]+)_Call\s*\(([^)]+)\)/g;
+        const regex = /\b([A-Za-z0-9_]+)_Call\s*\(([^)]*)\)/g;
         let match;
         while ((match = regex.exec(content)) !== null) {
             const blockType = match[1];
-            const params = match[2];
-            stdFunctions[blockType] = { hasTime: params.includes('TIME') };
+            const paramsStr = match[2].trim();
+            const paramList = paramsStr ? paramsStr.split(',').map(s => s.trim()) : [];
+            let isFB = false;
+
+            if (paramList.length > 0 && paramList[0].includes('*')) {
+                isFB = true;
+                paramList.shift();
+            } else if (paramList.length > 0 && paramList[0] === 'void') {
+                paramList.shift();
+            }
+
+            const inputs = paramList.map(p => {
+                const parts = p.split(/\s+/).filter(Boolean);
+                if (parts.length === 0) return null;
+                const last = parts[parts.length - 1];
+                return last.replace(/[^A-Za-z0-9_]/g, '');
+            }).filter(Boolean);
+
+            stdFunctions[blockType] = {
+                hasTime: paramsStr.includes('TIME'),
+                inputs: inputs,
+                isFB: isFB
+            };
         }
     });
 
@@ -229,6 +250,16 @@ const generateMainLoop = (projectStructure, config) => {
         });
     }
 
+    // Ensure execution order matches definition order in projectStructure.programs
+    if (projectStructure.programs && projectStructure.programs.length > 0) {
+        const programOrder = projectStructure.programs.map(p => (p.name || '').trim().replace(/\s+/g, '_'));
+        programTasks.sort((a, b) => {
+            const ai = programOrder.indexOf(a.name);
+            const bi = programOrder.indexOf(b.name);
+            return (ai < 0 ? Infinity : ai) - (bi < 0 ? Infinity : bi);
+        });
+    }
+
     mainSrc += `    while(!plc_stop) {\n`;
 
     // 3. Scan logic
@@ -309,25 +340,47 @@ const transpilePOUSource = (pou, category, stdFunctions = {}, parentName = '', g
 // Trigger (first/power-flow) input pin for each standard FB type
 const FB_TRIGGER_PIN = {
     // Timers
-    'TON': 'IN', 'TOF': 'IN', 'TP': 'IN',
+    'TON': 'IN', 'TOF': 'IN', 'TP': 'IN', 'TONR': 'IN',
     // Counters
     'CTU': 'CU', 'CTD': 'CD', 'CTUD': 'CU',
     // Edge detectors
     'R_TRIG': 'CLK', 'F_TRIG': 'CLK',
     // Bistable
     'RS': 'S', 'SR': 'S1',
-    // Comparison / Arithmetic / Math / Bitwise — EN is the power-flow input
+    // Comparison / Arithmetic / Math / Bitwise / Trig / Selection / Conversion — EN is the power-flow input
     'GT': 'EN', 'GE': 'EN', 'EQ': 'EN', 'NE': 'EN', 'LE': 'EN', 'LT': 'EN',
     'ADD': 'EN', 'SUB': 'EN', 'MUL': 'EN', 'DIV': 'EN', 'MOD': 'EN', 'MOVE': 'EN',
     'ABS': 'EN', 'SQRT': 'EN', 'EXPT': 'EN', 'MAX': 'EN', 'MIN': 'EN', 'LIMIT': 'EN',
     'BAND': 'EN', 'BOR': 'EN', 'BXOR': 'EN', 'BNOT': 'EN',
-    'SHL': 'EN', 'SHR': 'EN', 'ROL': 'EN', 'ROR': 'EN'
+    'SHL': 'EN', 'SHR': 'EN', 'ROL': 'EN', 'ROR': 'EN',
+    'SIN': 'EN', 'COS': 'EN', 'TAN': 'EN', 'ASIN': 'EN', 'ACOS': 'EN', 'ATAN': 'EN',
+    'SEL': 'EN', 'MUX': 'EN',
+    // Conversion (all 72 — EN is trigger)
+    'BYTE_TO_BOOL': 'EN', 'WORD_TO_BOOL': 'EN', 'DWORD_TO_BOOL': 'EN', 'INT_TO_BOOL': 'EN',
+    'UINT_TO_BOOL': 'EN', 'DINT_TO_BOOL': 'EN', 'UDINT_TO_BOOL': 'EN', 'REAL_TO_BOOL': 'EN',
+    'BOOL_TO_BYTE': 'EN', 'WORD_TO_BYTE': 'EN', 'DWORD_TO_BYTE': 'EN', 'INT_TO_BYTE': 'EN',
+    'UINT_TO_BYTE': 'EN', 'DINT_TO_BYTE': 'EN', 'UDINT_TO_BYTE': 'EN', 'REAL_TO_BYTE': 'EN',
+    'BOOL_TO_WORD': 'EN', 'BYTE_TO_WORD': 'EN', 'DWORD_TO_WORD': 'EN', 'INT_TO_WORD': 'EN',
+    'UINT_TO_WORD': 'EN', 'DINT_TO_WORD': 'EN', 'UDINT_TO_WORD': 'EN', 'REAL_TO_WORD': 'EN',
+    'BOOL_TO_DWORD': 'EN', 'BYTE_TO_DWORD': 'EN', 'WORD_TO_DWORD': 'EN', 'INT_TO_DWORD': 'EN',
+    'UINT_TO_DWORD': 'EN', 'DINT_TO_DWORD': 'EN', 'UDINT_TO_DWORD': 'EN', 'REAL_TO_DWORD': 'EN',
+    'BOOL_TO_INT': 'EN', 'BYTE_TO_INT': 'EN', 'WORD_TO_INT': 'EN', 'DWORD_TO_INT': 'EN',
+    'UINT_TO_INT': 'EN', 'DINT_TO_INT': 'EN', 'UDINT_TO_INT': 'EN', 'REAL_TO_INT': 'EN',
+    'BOOL_TO_UINT': 'EN', 'BYTE_TO_UINT': 'EN', 'WORD_TO_UINT': 'EN', 'DWORD_TO_UINT': 'EN',
+    'INT_TO_UINT': 'EN', 'DINT_TO_UINT': 'EN', 'UDINT_TO_UINT': 'EN', 'REAL_TO_UINT': 'EN',
+    'BOOL_TO_DINT': 'EN', 'BYTE_TO_DINT': 'EN', 'WORD_TO_DINT': 'EN', 'DWORD_TO_DINT': 'EN',
+    'INT_TO_DINT': 'EN', 'UINT_TO_DINT': 'EN', 'UDINT_TO_DINT': 'EN', 'REAL_TO_DINT': 'EN',
+    'BOOL_TO_UDINT': 'EN', 'BYTE_TO_UDINT': 'EN', 'WORD_TO_UDINT': 'EN', 'DWORD_TO_UDINT': 'EN',
+    'INT_TO_UDINT': 'EN', 'UINT_TO_UDINT': 'EN', 'DINT_TO_UDINT': 'EN', 'REAL_TO_UDINT': 'EN',
+    'BOOL_TO_REAL': 'EN', 'BYTE_TO_REAL': 'EN', 'WORD_TO_REAL': 'EN', 'DWORD_TO_REAL': 'EN',
+    'INT_TO_REAL': 'EN', 'UINT_TO_REAL': 'EN', 'DINT_TO_REAL': 'EN', 'UDINT_TO_REAL': 'EN',
+    'NORM_X': 'EN', 'SCALE_X': 'EN'
 };
 
 // Primary boolean output pin for downstream power flow
 const FB_Q_OUTPUT = {
     // Timers
-    'TON': 'Q', 'TOF': 'Q', 'TP': 'Q',
+    'TON': 'Q', 'TOF': 'Q', 'TP': 'Q', 'TONR': 'Q',
     // Counters
     'CTU': 'Q', 'CTD': 'Q', 'CTUD': 'QU',
     // Edge detectors
@@ -336,42 +389,102 @@ const FB_Q_OUTPUT = {
     'RS': 'Q1', 'SR': 'Q1',
     // Comparison: ENO = EN && (result) — acts as conditional power flow
     'GT': 'ENO', 'GE': 'ENO', 'EQ': 'ENO', 'NE': 'ENO', 'LE': 'ENO', 'LT': 'ENO',
-    // Arithmetic / Math / Bitwise: ENO = EN — passes power through
+    // Arithmetic / Math / Bitwise / Trig / Selection / Conversion: ENO = EN — passes power through
     'ADD': 'ENO', 'SUB': 'ENO', 'MUL': 'ENO', 'DIV': 'ENO', 'MOD': 'ENO', 'MOVE': 'ENO',
     'ABS': 'ENO', 'SQRT': 'ENO', 'EXPT': 'ENO', 'MAX': 'ENO', 'MIN': 'ENO', 'LIMIT': 'ENO',
     'BAND': 'ENO', 'BOR': 'ENO', 'BXOR': 'ENO', 'BNOT': 'ENO',
-    'SHL': 'ENO', 'SHR': 'ENO', 'ROL': 'ENO', 'ROR': 'ENO'
+    'SHL': 'ENO', 'SHR': 'ENO', 'ROL': 'ENO', 'ROR': 'ENO',
+    'SIN': 'ENO', 'COS': 'ENO', 'TAN': 'ENO', 'ASIN': 'ENO', 'ACOS': 'ENO', 'ATAN': 'ENO',
+    'SEL': 'ENO', 'MUX': 'ENO',
+    // Conversion (all 72 — ENO passes power through)
+    'BYTE_TO_BOOL': 'ENO', 'WORD_TO_BOOL': 'ENO', 'DWORD_TO_BOOL': 'ENO', 'INT_TO_BOOL': 'ENO',
+    'UINT_TO_BOOL': 'ENO', 'DINT_TO_BOOL': 'ENO', 'UDINT_TO_BOOL': 'ENO', 'REAL_TO_BOOL': 'ENO',
+    'BOOL_TO_BYTE': 'ENO', 'WORD_TO_BYTE': 'ENO', 'DWORD_TO_BYTE': 'ENO', 'INT_TO_BYTE': 'ENO',
+    'UINT_TO_BYTE': 'ENO', 'DINT_TO_BYTE': 'ENO', 'UDINT_TO_BYTE': 'ENO', 'REAL_TO_BYTE': 'ENO',
+    'BOOL_TO_WORD': 'ENO', 'BYTE_TO_WORD': 'ENO', 'DWORD_TO_WORD': 'ENO', 'INT_TO_WORD': 'ENO',
+    'UINT_TO_WORD': 'ENO', 'DINT_TO_WORD': 'ENO', 'UDINT_TO_WORD': 'ENO', 'REAL_TO_WORD': 'ENO',
+    'BOOL_TO_DWORD': 'ENO', 'BYTE_TO_DWORD': 'ENO', 'WORD_TO_DWORD': 'ENO', 'INT_TO_DWORD': 'ENO',
+    'UINT_TO_DWORD': 'ENO', 'DINT_TO_DWORD': 'ENO', 'UDINT_TO_DWORD': 'ENO', 'REAL_TO_DWORD': 'ENO',
+    'BOOL_TO_INT': 'ENO', 'BYTE_TO_INT': 'ENO', 'WORD_TO_INT': 'ENO', 'DWORD_TO_INT': 'ENO',
+    'UINT_TO_INT': 'ENO', 'DINT_TO_INT': 'ENO', 'UDINT_TO_INT': 'ENO', 'REAL_TO_INT': 'ENO',
+    'BOOL_TO_UINT': 'ENO', 'BYTE_TO_UINT': 'ENO', 'WORD_TO_UINT': 'ENO', 'DWORD_TO_UINT': 'ENO',
+    'INT_TO_UINT': 'ENO', 'DINT_TO_UINT': 'ENO', 'UDINT_TO_UINT': 'ENO', 'REAL_TO_UINT': 'ENO',
+    'BOOL_TO_DINT': 'ENO', 'BYTE_TO_DINT': 'ENO', 'WORD_TO_DINT': 'ENO', 'DWORD_TO_DINT': 'ENO',
+    'INT_TO_DINT': 'ENO', 'UINT_TO_DINT': 'ENO', 'UDINT_TO_DINT': 'ENO', 'REAL_TO_DINT': 'ENO',
+    'BOOL_TO_UDINT': 'ENO', 'BYTE_TO_UDINT': 'ENO', 'WORD_TO_UDINT': 'ENO', 'DWORD_TO_UDINT': 'ENO',
+    'INT_TO_UDINT': 'ENO', 'UINT_TO_UDINT': 'ENO', 'DINT_TO_UDINT': 'ENO', 'REAL_TO_UDINT': 'ENO',
+    'BOOL_TO_REAL': 'ENO', 'BYTE_TO_REAL': 'ENO', 'WORD_TO_REAL': 'ENO', 'DWORD_TO_REAL': 'ENO',
+    'INT_TO_REAL': 'ENO', 'UINT_TO_REAL': 'ENO', 'DINT_TO_REAL': 'ENO', 'UDINT_TO_REAL': 'ENO',
+    'NORM_X': 'ENO', 'SCALE_X': 'ENO'
 };
 
 // Ordered input pin names for each standard FB type (index matches in_0, in_1, ...)
 const FB_INPUTS = {
-    'TON':    ['IN', 'PT'],
-    'TOF':    ['IN', 'PT'],
-    'TP':     ['IN', 'PT'],
-    'CTU':    ['CU', 'R', 'PV'],
-    'CTD':    ['CD', 'LD', 'PV'],
-    'CTUD':   ['CU', 'CD', 'R', 'LD', 'PV'],
+    'TON': ['IN', 'PT'],
+    'TOF': ['IN', 'PT'],
+    'TP': ['IN', 'PT'],
+    'TONR': ['IN', 'PT', 'RESET'],
+    'CTU': ['CU', 'R', 'PV'],
+    'CTD': ['CD', 'LD', 'PV'],
+    'CTUD': ['CU', 'CD', 'R', 'LD', 'PV'],
     'R_TRIG': ['CLK'],
     'F_TRIG': ['CLK'],
-    'RS':     ['S', 'R1'],
-    'SR':     ['S1', 'R'],
+    'RS': ['S', 'R1'],
+    'SR': ['S1', 'R'],
     // Comparison
     'GT': ['EN', 'IN1', 'IN2'], 'GE': ['EN', 'IN1', 'IN2'], 'EQ': ['EN', 'IN1', 'IN2'],
     'NE': ['EN', 'IN1', 'IN2'], 'LE': ['EN', 'IN1', 'IN2'], 'LT': ['EN', 'IN1', 'IN2'],
     // Arithmetic
-    'ADD':  ['EN', 'IN1', 'IN2'], 'SUB':  ['EN', 'IN1', 'IN2'],
-    'MUL':  ['EN', 'IN1', 'IN2'], 'DIV':  ['EN', 'IN1', 'IN2'],
-    'MOD':  ['EN', 'IN1', 'IN2'], 'MOVE': ['EN', 'IN'],
+    'ADD': ['EN', 'IN1', 'IN2'], 'SUB': ['EN', 'IN1', 'IN2'],
+    'MUL': ['EN', 'IN1', 'IN2'], 'DIV': ['EN', 'IN1', 'IN2'],
+    'MOD': ['EN', 'IN1', 'IN2'], 'MOVE': ['EN', 'IN'],
     // Math
-    'ABS':   ['EN', 'IN'],         'SQRT':  ['EN', 'IN'],
-    'EXPT':  ['EN', 'IN', 'EXP'],
-    'MAX':   ['EN', 'IN1', 'IN2'], 'MIN':   ['EN', 'IN1', 'IN2'],
+    'ABS': ['EN', 'IN'], 'SQRT': ['EN', 'IN'],
+    'EXPT': ['EN', 'IN', 'EXP'],
+    'MAX': ['EN', 'IN1', 'IN2'], 'MIN': ['EN', 'IN1', 'IN2'],
     'LIMIT': ['EN', 'IN', 'MN', 'MX'],
     // Bitwise
-    'BAND': ['EN', 'IN1', 'IN2'], 'BOR':  ['EN', 'IN1', 'IN2'],
+    'BAND': ['EN', 'IN1', 'IN2'], 'BOR': ['EN', 'IN1', 'IN2'],
     'BXOR': ['EN', 'IN1', 'IN2'], 'BNOT': ['EN', 'IN'],
-    'SHL':  ['EN', 'IN', 'N'],    'SHR':  ['EN', 'IN', 'N'],
-    'ROL':  ['EN', 'IN', 'N'],    'ROR':  ['EN', 'IN', 'N']
+    'SHL': ['EN', 'IN', 'N'], 'SHR': ['EN', 'IN', 'N'],
+    'ROL': ['EN', 'IN', 'N'], 'ROR': ['EN', 'IN', 'N'],
+    // Trig
+    'SIN': ['EN', 'IN'], 'COS': ['EN', 'IN'], 'TAN': ['EN', 'IN'],
+    'ASIN': ['EN', 'IN'], 'ACOS': ['EN', 'IN'], 'ATAN': ['EN', 'IN'],
+    // Selection
+    'SEL': ['EN', 'G', 'IN0', 'IN1'],
+    'MUX': ['EN', 'K', 'IN0', 'IN1'],
+    // Conversion (all 72 — ['EN', 'IN'] pattern)
+    'BYTE_TO_BOOL': ['EN', 'IN'], 'WORD_TO_BOOL': ['EN', 'IN'], 'DWORD_TO_BOOL': ['EN', 'IN'],
+    'INT_TO_BOOL': ['EN', 'IN'], 'UINT_TO_BOOL': ['EN', 'IN'], 'DINT_TO_BOOL': ['EN', 'IN'],
+    'UDINT_TO_BOOL': ['EN', 'IN'], 'REAL_TO_BOOL': ['EN', 'IN'],
+    'BOOL_TO_BYTE': ['EN', 'IN'], 'WORD_TO_BYTE': ['EN', 'IN'], 'DWORD_TO_BYTE': ['EN', 'IN'],
+    'INT_TO_BYTE': ['EN', 'IN'], 'UINT_TO_BYTE': ['EN', 'IN'], 'DINT_TO_BYTE': ['EN', 'IN'],
+    'UDINT_TO_BYTE': ['EN', 'IN'], 'REAL_TO_BYTE': ['EN', 'IN'],
+    'BOOL_TO_WORD': ['EN', 'IN'], 'BYTE_TO_WORD': ['EN', 'IN'], 'DWORD_TO_WORD': ['EN', 'IN'],
+    'INT_TO_WORD': ['EN', 'IN'], 'UINT_TO_WORD': ['EN', 'IN'], 'DINT_TO_WORD': ['EN', 'IN'],
+    'UDINT_TO_WORD': ['EN', 'IN'], 'REAL_TO_WORD': ['EN', 'IN'],
+    'BOOL_TO_DWORD': ['EN', 'IN'], 'BYTE_TO_DWORD': ['EN', 'IN'], 'WORD_TO_DWORD': ['EN', 'IN'],
+    'INT_TO_DWORD': ['EN', 'IN'], 'UINT_TO_DWORD': ['EN', 'IN'], 'DINT_TO_DWORD': ['EN', 'IN'],
+    'UDINT_TO_DWORD': ['EN', 'IN'], 'REAL_TO_DWORD': ['EN', 'IN'],
+    'BOOL_TO_INT': ['EN', 'IN'], 'BYTE_TO_INT': ['EN', 'IN'], 'WORD_TO_INT': ['EN', 'IN'],
+    'DWORD_TO_INT': ['EN', 'IN'], 'UINT_TO_INT': ['EN', 'IN'], 'DINT_TO_INT': ['EN', 'IN'],
+    'UDINT_TO_INT': ['EN', 'IN'], 'REAL_TO_INT': ['EN', 'IN'],
+    'BOOL_TO_UINT': ['EN', 'IN'], 'BYTE_TO_UINT': ['EN', 'IN'], 'WORD_TO_UINT': ['EN', 'IN'],
+    'DWORD_TO_UINT': ['EN', 'IN'], 'INT_TO_UINT': ['EN', 'IN'], 'DINT_TO_UINT': ['EN', 'IN'],
+    'UDINT_TO_UINT': ['EN', 'IN'], 'REAL_TO_UINT': ['EN', 'IN'],
+    'BOOL_TO_DINT': ['EN', 'IN'], 'BYTE_TO_DINT': ['EN', 'IN'], 'WORD_TO_DINT': ['EN', 'IN'],
+    'DWORD_TO_DINT': ['EN', 'IN'], 'INT_TO_DINT': ['EN', 'IN'], 'UINT_TO_DINT': ['EN', 'IN'],
+    'UDINT_TO_DINT': ['EN', 'IN'], 'REAL_TO_DINT': ['EN', 'IN'],
+    'BOOL_TO_UDINT': ['EN', 'IN'], 'BYTE_TO_UDINT': ['EN', 'IN'], 'WORD_TO_UDINT': ['EN', 'IN'],
+    'DWORD_TO_UDINT': ['EN', 'IN'], 'INT_TO_UDINT': ['EN', 'IN'], 'UINT_TO_UDINT': ['EN', 'IN'],
+    'DINT_TO_UDINT': ['EN', 'IN'], 'REAL_TO_UDINT': ['EN', 'IN'],
+    'BOOL_TO_REAL': ['EN', 'IN'], 'BYTE_TO_REAL': ['EN', 'IN'], 'WORD_TO_REAL': ['EN', 'IN'],
+    'DWORD_TO_REAL': ['EN', 'IN'], 'INT_TO_REAL': ['EN', 'IN'], 'UINT_TO_REAL': ['EN', 'IN'],
+    'DINT_TO_REAL': ['EN', 'IN'], 'UDINT_TO_REAL': ['EN', 'IN'],
+    // Scaling
+    'NORM_X': ['EN', 'MIN', 'MAX', 'VALUE'],
+    'SCALE_X': ['EN', 'MIN', 'MAX', 'VALUE']
 };
 
 const transpileSTLogics = (code, stdFunctions = {}, parentName = '', category = 'program', varMap = {}) => {
@@ -685,7 +798,7 @@ const transpileLDLogics = (rungs, stdFunctions = {}, parentName = '', category =
                 // ── Function Block (standard or user-defined) ──────────────────
                 const instName = data.instanceName || type;
                 const callTarget = getCallTarget(instName);
-                const inputPins = FB_INPUTS[type] || [];
+                const inputPins = FB_INPUTS[type] || (stdFunctions[type] ? stdFunctions[type].inputs : []);
 
                 // Step 1: assign static pin values entered in the block's input fields
                 //         (these are overridden below for the trigger pin)
@@ -716,22 +829,41 @@ const transpileLDLogics = (rungs, stdFunctions = {}, parentName = '', category =
                 });
 
                 // Step 3: set the trigger (power-flow) input — always from inExpr
-                const trigPin = FB_TRIGGER_PIN[type] || (data.executionControl ? 'EN' : null);
-                if (trigPin) {
-                    out += `    ${callTarget}.${trigPin} = ${inExpr};\n`;
+                const triggerPin = FB_TRIGGER_PIN[type] || (inputPins.length > 0 ? inputPins[0] : null);
+                if (triggerPin) {
+                    out += `    ${callTarget}.${triggerPin} = ${inExpr};\n`;
                 }
 
-                // Step 4: call the block function
-                if (stdFunctions[type]) {
-                    const timeArg = stdFunctions[type].hasTime ? ', us_tick' : '';
-                    out += `    ${type}_Call(&${callTarget}${timeArg});\n`;
+                // Call the FB execute function
+                if (stdFunctions[type]?.hasTime) {
+                    if (stdFunctions[type]?.isFB !== false || Object.keys(FB_INPUTS).includes(type)) {
+                        out += `    ${type}_Call(&${callTarget}, us_tick);\n`;
+                    } else {
+                        out += `    ${bOut} = ${type}_Call(${inExpr}); // Unhandled function with time\n`;
+                    }
                 } else {
-                    out += `    ${type}_Execute(&${callTarget});\n`;
+                    if (stdFunctions[type]?.isFB !== false || Object.keys(FB_INPUTS).includes(type)) { // Standard blocks or FBs
+                        out += `    ${type}_Call(&${callTarget}); // FBs handle their own execution\n`;
+                    } else {
+                        // Regular function call transpilation fallback
+                        const funcArgs = [inExpr];
+                        for (let i = 1; i < inputPins.length; i++) {
+                            funcArgs.push(`${callTarget}.${inputPins[i]}`);
+                        }
+                        out += `    ${bOut} = ${type}_Call(${funcArgs.join(', ')});\n`;
+                    }
                 }
 
-                // Step 5: read Q output for downstream power flow
-                const qPin = FB_Q_OUTPUT[type] || 'ENO';
-                out += `    ${bOut} = ${callTarget}.${qPin};\n`;
+                // Check and propagate EN -> ENO correctly for regular FBs, or use Q-output
+                const qOutput = FB_Q_OUTPUT[type] || (triggerPin === 'EN' ? 'ENO' : 'Q');
+                if (qOutput === 'ENO' && triggerPin === 'EN') {
+                    // Implicit power flow
+                    out += `    ${bOut} = ${callTarget}.EN;\n`;
+                } else if (qOutput) {
+                    out += `    ${bOut} = ${callTarget}.${qOutput};\n`;
+                } else {
+                    out += `    ${bOut} = false;\n`;
+                }
             }
         });
     });

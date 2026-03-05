@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Library>
+  <Category name="MOTION">
+    <Block type="MC_Power" description="Enable axis power" class="FunctionBlock">
+      <Inputs>
+        <Variable name="Axis"   type="DINT" default="0" />
+        <Variable name="Enable" type="BOOL" default="FALSE" />
+      </Inputs>
+      <Outputs>
+        <Variable name="Status" type="BOOL" />
+        <Variable name="Error"  type="BOOL" />
+      </Outputs>
+    </Block>
+    <Block type="MC_MoveAbsolute" description="Move axis to absolute position" class="FunctionBlock">
+      <Inputs>
+        <Variable name="Axis"     type="DINT" default="0" />
+        <Variable name="Execute"  type="BOOL" default="FALSE" />
+        <Variable name="Position" type="REAL" default="0.0" />
+        <Variable name="Velocity" type="REAL" default="10.0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="Done"     type="BOOL" />
+        <Variable name="Busy"     type="BOOL" />
+        <Variable name="Error"    type="BOOL" />
+      </Outputs>
+    </Block>
+    <Block type="MC_MoveRelative" description="Move axis by relative distance" class="FunctionBlock">
+      <Inputs>
+        <Variable name="Axis"     type="DINT" default="0" />
+        <Variable name="Execute"  type="BOOL" default="FALSE" />
+        <Variable name="Distance" type="REAL" default="0.0" />
+        <Variable name="Velocity" type="REAL" default="10.0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="Done"  type="BOOL" />
+        <Variable name="Busy"  type="BOOL" />
+        <Variable name="Error" type="BOOL" />
+      </Outputs>
+    </Block>
+    <Block type="MC_Stop" description="Stop axis motion" class="FunctionBlock">
+      <Inputs>
+        <Variable name="Axis"        type="DINT" default="0" />
+        <Variable name="Execute"     type="BOOL" default="FALSE" />
+        <Variable name="Deceleration" type="REAL" default="100.0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="Done"  type="BOOL" />
+        <Variable name="Busy"  type="BOOL" />
+        <Variable name="Error" type="BOOL" />
+      </Outputs>
+    </Block>
+  </Category>
+</Library>

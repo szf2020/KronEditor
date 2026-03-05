@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Library>
+  <Category name="CONVERSION">
+    <!-- ── TO_BOOL ──────────────────────────────────────────────────────── -->
+    <Block type="BYTE_TO_BOOL"  description="BYTE → BOOL"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="BYTE"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="BOOL"/></Outputs>
+    </Block>
+    <Block type="WORD_TO_BOOL"  description="WORD → BOOL"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="WORD"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="BOOL"/></Outputs>
+    </Block>
+    <Block type="DWORD_TO_BOOL" description="DWORD → BOOL" class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="DWORD" default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="BOOL"/></Outputs>
+    </Block>
+    <Block type="INT_TO_BOOL"   description="INT → BOOL"   class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="INT"   default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="BOOL"/></Outputs>
+    </Block>
+    <Block type="UINT_TO_BOOL"  description="UINT → BOOL"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="UINT"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="BOOL"/></Outputs>
+    </Block>
+    <Block type="DINT_TO_BOOL"  description="DINT → BOOL"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="DINT"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="BOOL"/></Outputs>
+    </Block>
+    <Block type="UDINT_TO_BOOL" description="UDINT → BOOL" class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="UDINT" default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="BOOL"/></Outputs>
+    </Block>
+    <Block type="REAL_TO_BOOL"  description="REAL → BOOL"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="REAL"  default="0.0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="BOOL"/></Outputs>
+    </Block>
+
+    <!-- ── TO_BYTE ──────────────────────────────────────────────────────── -->
+    <Block type="BOOL_TO_BYTE"  description="BOOL → BYTE"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="BOOL"  default="FALSE"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="BYTE"/></Outputs>
+    </Block>
+    <Block type="WORD_TO_BYTE"  description="WORD → BYTE"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="WORD"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="BYTE"/></Outputs>
+    </Block>
+    <Block type="DWORD_TO_BYTE" description="DWORD → BYTE" class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="DWORD" default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="BYTE"/></Outputs>
+    </Block>
+    <Block type="INT_TO_BYTE"   description="INT → BYTE"   class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="INT"   default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="BYTE"/></Outputs>
+    </Block>
+    <Block type="UINT_TO_BYTE"  description="UINT → BYTE"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="UINT"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="BYTE"/></Outputs>
+    </Block>
+    <Block type="DINT_TO_BYTE"  description="DINT → BYTE"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="DINT"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="BYTE"/></Outputs>
+    </Block>
+    <Block type="UDINT_TO_BYTE" description="UDINT → BYTE" class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="UDINT" default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="BYTE"/></Outputs>
+    </Block>
+    <Block type="REAL_TO_BYTE"  description="REAL → BYTE"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="REAL"  default="0.0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="BYTE"/></Outputs>
+    </Block>
+
+    <!-- ── TO_WORD ──────────────────────────────────────────────────────── -->
+    <Block type="BOOL_TO_WORD"  description="BOOL → WORD"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="BOOL"  default="FALSE"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="WORD"/></Outputs>
+    </Block>
+    <Block type="BYTE_TO_WORD"  description="BYTE → WORD"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="BYTE"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="WORD"/></Outputs>
+    </Block>
+    <Block type="DWORD_TO_WORD" description="DWORD → WORD" class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="DWORD" default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="WORD"/></Outputs>
+    </Block>
+    <Block type="INT_TO_WORD"   description="INT → WORD"   class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="INT"   default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="WORD"/></Outputs>
+    </Block>
+    <Block type="UINT_TO_WORD"  description="UINT → WORD"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="UINT"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="WORD"/></Outputs>
+    </Block>
+    <Block type="DINT_TO_WORD"  description="DINT → WORD"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="DINT"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="WORD"/></Outputs>
+    </Block>
+    <Block type="UDINT_TO_WORD" description="UDINT → WORD" class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="UDINT" default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="WORD"/></Outputs>
+    </Block>
+    <Block type="REAL_TO_WORD"  description="REAL → WORD"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="REAL"  default="0.0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="WORD"/></Outputs>
+    </Block>
+
+    <!-- ── TO_DWORD ─────────────────────────────────────────────────────── -->
+    <Block type="BOOL_TO_DWORD"  description="BOOL → DWORD"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="BOOL"  default="FALSE"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="DWORD"/></Outputs>
+    </Block>
+    <Block type="BYTE_TO_DWORD"  description="BYTE → DWORD"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="BYTE"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="DWORD"/></Outputs>
+    </Block>
+    <Block type="WORD_TO_DWORD"  description="WORD → DWORD"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="WORD"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="DWORD"/></Outputs>
+    </Block>
+    <Block type="INT_TO_DWORD"   description="INT → DWORD"   class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="INT"   default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="DWORD"/></Outputs>
+    </Block>
+    <Block type="UINT_TO_DWORD"  description="UINT → DWORD"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="UINT"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="DWORD"/></Outputs>
+    </Block>
+    <Block type="DINT_TO_DWORD"  description="DINT → DWORD"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="DINT"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="DWORD"/></Outputs>
+    </Block>
+    <Block type="UDINT_TO_DWORD" description="UDINT → DWORD" class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="UDINT" default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="DWORD"/></Outputs>
+    </Block>
+    <Block type="REAL_TO_DWORD"  description="REAL → DWORD"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="REAL"  default="0.0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="DWORD"/></Outputs>
+    </Block>
+
+    <!-- ── TO_INT ───────────────────────────────────────────────────────── -->
+    <Block type="BOOL_TO_INT"   description="BOOL → INT"   class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="BOOL"  default="FALSE"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="INT"/></Outputs>
+    </Block>
+    <Block type="BYTE_TO_INT"   description="BYTE → INT"   class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="BYTE"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="INT"/></Outputs>
+    </Block>
+    <Block type="WORD_TO_INT"   description="WORD → INT"   class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="WORD"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="INT"/></Outputs>
+    </Block>
+    <Block type="DWORD_TO_INT"  description="DWORD → INT"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="DWORD" default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="INT"/></Outputs>
+    </Block>
+    <Block type="UINT_TO_INT"   description="UINT → INT"   class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="UINT"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="INT"/></Outputs>
+    </Block>
+    <Block type="DINT_TO_INT"   description="DINT → INT"   class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="DINT"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="INT"/></Outputs>
+    </Block>
+    <Block type="UDINT_TO_INT"  description="UDINT → INT"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="UDINT" default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="INT"/></Outputs>
+    </Block>
+    <Block type="REAL_TO_INT"   description="REAL → INT (truncate)" class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="REAL"  default="0.0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="INT"/></Outputs>
+    </Block>
+
+    <!-- ── TO_UINT ──────────────────────────────────────────────────────── -->
+    <Block type="BOOL_TO_UINT"  description="BOOL → UINT"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="BOOL"  default="FALSE"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="UINT"/></Outputs>
+    </Block>
+    <Block type="BYTE_TO_UINT"  description="BYTE → UINT"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="BYTE"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="UINT"/></Outputs>
+    </Block>
+    <Block type="WORD_TO_UINT"  description="WORD → UINT"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="WORD"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="UINT"/></Outputs>
+    </Block>
+    <Block type="DWORD_TO_UINT" description="DWORD → UINT" class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="DWORD" default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="UINT"/></Outputs>
+    </Block>
+    <Block type="INT_TO_UINT"   description="INT → UINT"   class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="INT"   default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="UINT"/></Outputs>
+    </Block>
+    <Block type="DINT_TO_UINT"  description="DINT → UINT"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="DINT"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="UINT"/></Outputs>
+    </Block>
+    <Block type="UDINT_TO_UINT" description="UDINT → UINT" class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="UDINT" default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="UINT"/></Outputs>
+    </Block>
+    <Block type="REAL_TO_UINT"  description="REAL → UINT"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="REAL"  default="0.0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="UINT"/></Outputs>
+    </Block>
+
+    <!-- ── TO_DINT ──────────────────────────────────────────────────────── -->
+    <Block type="BOOL_TO_DINT"  description="BOOL → DINT"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="BOOL"  default="FALSE"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="DINT"/></Outputs>
+    </Block>
+    <Block type="BYTE_TO_DINT"  description="BYTE → DINT"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="BYTE"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="DINT"/></Outputs>
+    </Block>
+    <Block type="WORD_TO_DINT"  description="WORD → DINT"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="WORD"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="DINT"/></Outputs>
+    </Block>
+    <Block type="DWORD_TO_DINT" description="DWORD → DINT" class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="DWORD" default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="DINT"/></Outputs>
+    </Block>
+    <Block type="INT_TO_DINT"   description="INT → DINT"   class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="INT"   default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="DINT"/></Outputs>
+    </Block>
+    <Block type="UINT_TO_DINT"  description="UINT → DINT"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="UINT"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="DINT"/></Outputs>
+    </Block>
+    <Block type="UDINT_TO_DINT" description="UDINT → DINT" class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="UDINT" default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="DINT"/></Outputs>
+    </Block>
+    <Block type="REAL_TO_DINT"  description="REAL → DINT (truncate)" class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="REAL"  default="0.0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="DINT"/></Outputs>
+    </Block>
+
+    <!-- ── TO_UDINT ─────────────────────────────────────────────────────── -->
+    <Block type="BOOL_TO_UDINT"  description="BOOL → UDINT"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="BOOL"  default="FALSE"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="UDINT"/></Outputs>
+    </Block>
+    <Block type="BYTE_TO_UDINT"  description="BYTE → UDINT"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="BYTE"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="UDINT"/></Outputs>
+    </Block>
+    <Block type="WORD_TO_UDINT"  description="WORD → UDINT"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="WORD"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="UDINT"/></Outputs>
+    </Block>
+    <Block type="DWORD_TO_UDINT" description="DWORD → UDINT" class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="DWORD" default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="UDINT"/></Outputs>
+    </Block>
+    <Block type="INT_TO_UDINT"   description="INT → UDINT"   class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="INT"   default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="UDINT"/></Outputs>
+    </Block>
+    <Block type="UINT_TO_UDINT"  description="UINT → UDINT"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="UINT"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="UDINT"/></Outputs>
+    </Block>
+    <Block type="DINT_TO_UDINT"  description="DINT → UDINT"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="DINT"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="UDINT"/></Outputs>
+    </Block>
+    <Block type="REAL_TO_UDINT"  description="REAL → UDINT"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="REAL"  default="0.0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="UDINT"/></Outputs>
+    </Block>
+
+    <!-- ── TO_REAL ──────────────────────────────────────────────────────── -->
+    <Block type="BOOL_TO_REAL"  description="BOOL → REAL"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="BOOL"  default="FALSE"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="REAL"/></Outputs>
+    </Block>
+    <Block type="BYTE_TO_REAL"  description="BYTE → REAL"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="BYTE"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="REAL"/></Outputs>
+    </Block>
+    <Block type="WORD_TO_REAL"  description="WORD → REAL"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="WORD"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="REAL"/></Outputs>
+    </Block>
+    <Block type="DWORD_TO_REAL" description="DWORD → REAL" class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="DWORD" default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="REAL"/></Outputs>
+    </Block>
+    <Block type="INT_TO_REAL"   description="INT → REAL"   class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="INT"   default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="REAL"/></Outputs>
+    </Block>
+    <Block type="UINT_TO_REAL"  description="UINT → REAL"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="UINT"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="REAL"/></Outputs>
+    </Block>
+    <Block type="DINT_TO_REAL"  description="DINT → REAL"  class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="DINT"  default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="REAL"/></Outputs>
+    </Block>
+    <Block type="UDINT_TO_REAL" description="UDINT → REAL" class="FunctionBlock">
+      <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="UDINT" default="0"/></Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="REAL"/></Outputs>
+    </Block>
+
+    <!-- ── SCALING ──────────────────────────────────────────────────────── -->
+    <Block type="NORM_X"  description="Normalize VALUE from [MIN,MAX] to [0.0,1.0]" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN"    type="BOOL" default="FALSE"/>
+        <Variable name="MIN"   type="REAL" default="0.0"/>
+        <Variable name="MAX"   type="REAL" default="100.0"/>
+        <Variable name="VALUE" type="REAL" default="0.0"/>
+      </Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="REAL"/></Outputs>
+    </Block>
+    <Block type="SCALE_X" description="Scale VALUE from [0.0,1.0] to [MIN,MAX]" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN"    type="BOOL" default="FALSE"/>
+        <Variable name="MIN"   type="REAL" default="0.0"/>
+        <Variable name="MAX"   type="REAL" default="100.0"/>
+        <Variable name="VALUE" type="REAL" default="0.0"/>
+      </Inputs>
+      <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="REAL"/></Outputs>
+    </Block>
+  </Category>
+</Library>

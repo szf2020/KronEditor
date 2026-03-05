@@ -116,6 +116,11 @@ export const blockConfig = {
     inputs: [{ name: 'IN', type: 'BOOL' }, { name: 'PT', type: 'TIME' }],
     outputs: [{ name: 'Q', type: 'BOOL' }, { name: 'ET', type: 'TIME' }]
   },
+  TONR: {
+    label: 'TONR',
+    inputs: [{ name: 'IN', type: 'BOOL' }, { name: 'PT', type: 'TIME' }, { name: 'RESET', type: 'BOOL' }],
+    outputs: [{ name: 'Q', type: 'BOOL' }, { name: 'ET', type: 'TIME' }]
+  },
   CTU: {
     label: 'CTU',
     inputs: [{ name: 'CU', type: 'BOOL' }, { name: 'R', type: 'BOOL' }, { name: 'PV', type: 'INT' }],
@@ -152,38 +157,131 @@ export const blockConfig = {
     outputs: [{ name: 'Q1', type: 'BOOL' }]
   },
   // --- COMPARISON ---
-  GT:   { label: 'GT',   inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }] },
-  GE:   { label: 'GE',   inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }] },
-  EQ:   { label: 'EQ',   inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }] },
-  NE:   { label: 'NE',   inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }] },
-  LE:   { label: 'LE',   inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }] },
-  LT:   { label: 'LT',   inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }] },
+  GT: { label: 'GT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }] },
+  GE: { label: 'GE', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }] },
+  EQ: { label: 'EQ', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }] },
+  NE: { label: 'NE', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }] },
+  LE: { label: 'LE', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }] },
+  LT: { label: 'LT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }] },
   // --- ARITHMETIC ---
-  ADD:  { label: 'ADD',  inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DINT' }] },
-  SUB:  { label: 'SUB',  inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DINT' }] },
-  MUL:  { label: 'MUL',  inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DINT' }] },
-  DIV:  { label: 'DIV',  inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DINT' }] },
-  MOD:  { label: 'MOD',  inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DINT' }] },
-  MOVE: { label: 'MOVE', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN',  type: 'DINT' }],                                outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DINT' }] },
+  ADD: { label: 'ADD', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DINT' }] },
+  SUB: { label: 'SUB', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DINT' }] },
+  MUL: { label: 'MUL', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DINT' }] },
+  DIV: { label: 'DIV', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DINT' }] },
+  MOD: { label: 'MOD', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DINT' }, { name: 'IN2', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DINT' }] },
+  MOVE: { label: 'MOVE', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DINT' }] },
   // --- MATH ---
-  ABS:   { label: 'ABS',   inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN',  type: 'REAL' }],                                                    outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
-  SQRT:  { label: 'SQRT',  inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN',  type: 'REAL' }],                                                    outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
-  EXPT:  { label: 'EXPT',  inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN',  type: 'REAL' }, { name: 'EXP', type: 'REAL' }],                    outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
-  MAX:   { label: 'MAX',   inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'REAL' }, { name: 'IN2', type: 'REAL' }],                    outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
-  MIN:   { label: 'MIN',   inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'REAL' }, { name: 'IN2', type: 'REAL' }],                    outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
-  LIMIT: { label: 'LIMIT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN',  type: 'REAL' }, { name: 'MN', type: 'REAL' }, { name: 'MX', type: 'REAL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
+  ABS: { label: 'ABS', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'REAL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
+  SQRT: { label: 'SQRT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'REAL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
+  EXPT: { label: 'EXPT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'REAL' }, { name: 'EXP', type: 'REAL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
+  MAX: { label: 'MAX', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'REAL' }, { name: 'IN2', type: 'REAL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
+  MIN: { label: 'MIN', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'REAL' }, { name: 'IN2', type: 'REAL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
+  LIMIT: { label: 'LIMIT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'REAL' }, { name: 'MN', type: 'REAL' }, { name: 'MX', type: 'REAL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
   // --- BITWISE ---
-  BAND:  { label: 'BAND', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DWORD' }, { name: 'IN2', type: 'DWORD' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
-  BOR:   { label: 'BOR',  inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DWORD' }, { name: 'IN2', type: 'DWORD' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
-  BXOR:  { label: 'BXOR', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DWORD' }, { name: 'IN2', type: 'DWORD' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
-  BNOT:  { label: 'BNOT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN',  type: 'DWORD' }],                                 outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
-  SHL:   { label: 'SHL',  inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN',  type: 'DWORD' }, { name: 'N', type: 'USINT' }],   outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
-  SHR:   { label: 'SHR',  inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN',  type: 'DWORD' }, { name: 'N', type: 'USINT' }],   outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
-  ROL:   { label: 'ROL',  inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN',  type: 'DWORD' }, { name: 'N', type: 'USINT' }],   outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
-  ROR:   { label: 'ROR',  inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN',  type: 'DWORD' }, { name: 'N', type: 'USINT' }],   outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
+  BAND: { label: 'BAND', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DWORD' }, { name: 'IN2', type: 'DWORD' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
+  BOR: { label: 'BOR', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DWORD' }, { name: 'IN2', type: 'DWORD' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
+  BXOR: { label: 'BXOR', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN1', type: 'DWORD' }, { name: 'IN2', type: 'DWORD' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
+  BNOT: { label: 'BNOT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'DWORD' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
+  SHL: { label: 'SHL', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'DWORD' }, { name: 'N', type: 'USINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
+  SHR: { label: 'SHR', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'DWORD' }, { name: 'N', type: 'USINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
+  ROL: { label: 'ROL', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'DWORD' }, { name: 'N', type: 'USINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
+  ROR: { label: 'ROR', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'DWORD' }, { name: 'N', type: 'USINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
+  // --- TRIG ---
+  SIN: { label: 'SIN', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'REAL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
+  COS: { label: 'COS', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'REAL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
+  TAN: { label: 'TAN', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'REAL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
+  ASIN: { label: 'ASIN', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'REAL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
+  ACOS: { label: 'ACOS', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'REAL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
+  ATAN: { label: 'ATAN', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'REAL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
+  // --- SELECTION ---
+  SEL: { label: 'SEL', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'G', type: 'BOOL' }, { name: 'IN0', type: 'DINT' }, { name: 'IN1', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DINT' }] },
+  MUX: { label: 'MUX', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'K', type: 'USINT' }, { name: 'IN0', type: 'DINT' }, { name: 'IN1', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DINT' }] },
+  // --- CONVERSION (TO_BOOL) ---
+  BYTE_TO_BOOL: { label: 'BYTE_TO_BOOL', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'BYTE' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'BOOL' }] },
+  WORD_TO_BOOL: { label: 'WORD_TO_BOOL', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'WORD' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'BOOL' }] },
+  DWORD_TO_BOOL: { label: 'DWORD_TO_BOOL', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'DWORD' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'BOOL' }] },
+  INT_TO_BOOL: { label: 'INT_TO_BOOL', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'INT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'BOOL' }] },
+  UINT_TO_BOOL: { label: 'UINT_TO_BOOL', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'UINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'BOOL' }] },
+  DINT_TO_BOOL: { label: 'DINT_TO_BOOL', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'BOOL' }] },
+  UDINT_TO_BOOL: { label: 'UDINT_TO_BOOL', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'UDINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'BOOL' }] },
+  REAL_TO_BOOL: { label: 'REAL_TO_BOOL', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'REAL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'BOOL' }] },
+  // --- CONVERSION (TO_BYTE) ---
+  BOOL_TO_BYTE: { label: 'BOOL_TO_BYTE', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'BOOL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'BYTE' }] },
+  WORD_TO_BYTE: { label: 'WORD_TO_BYTE', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'WORD' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'BYTE' }] },
+  DWORD_TO_BYTE: { label: 'DWORD_TO_BYTE', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'DWORD' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'BYTE' }] },
+  INT_TO_BYTE: { label: 'INT_TO_BYTE', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'INT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'BYTE' }] },
+  UINT_TO_BYTE: { label: 'UINT_TO_BYTE', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'UINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'BYTE' }] },
+  DINT_TO_BYTE: { label: 'DINT_TO_BYTE', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'BYTE' }] },
+  UDINT_TO_BYTE: { label: 'UDINT_TO_BYTE', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'UDINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'BYTE' }] },
+  REAL_TO_BYTE: { label: 'REAL_TO_BYTE', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'REAL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'BYTE' }] },
+  // --- CONVERSION (TO_WORD) ---
+  BOOL_TO_WORD: { label: 'BOOL_TO_WORD', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'BOOL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'WORD' }] },
+  BYTE_TO_WORD: { label: 'BYTE_TO_WORD', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'BYTE' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'WORD' }] },
+  DWORD_TO_WORD: { label: 'DWORD_TO_WORD', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'DWORD' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'WORD' }] },
+  INT_TO_WORD: { label: 'INT_TO_WORD', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'INT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'WORD' }] },
+  UINT_TO_WORD: { label: 'UINT_TO_WORD', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'UINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'WORD' }] },
+  DINT_TO_WORD: { label: 'DINT_TO_WORD', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'WORD' }] },
+  UDINT_TO_WORD: { label: 'UDINT_TO_WORD', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'UDINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'WORD' }] },
+  REAL_TO_WORD: { label: 'REAL_TO_WORD', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'REAL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'WORD' }] },
+  // --- CONVERSION (TO_DWORD) ---
+  BOOL_TO_DWORD: { label: 'BOOL_TO_DWORD', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'BOOL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
+  BYTE_TO_DWORD: { label: 'BYTE_TO_DWORD', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'BYTE' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
+  WORD_TO_DWORD: { label: 'WORD_TO_DWORD', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'WORD' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
+  INT_TO_DWORD: { label: 'INT_TO_DWORD', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'INT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
+  UINT_TO_DWORD: { label: 'UINT_TO_DWORD', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'UINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
+  DINT_TO_DWORD: { label: 'DINT_TO_DWORD', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
+  UDINT_TO_DWORD: { label: 'UDINT_TO_DWORD', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'UDINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
+  REAL_TO_DWORD: { label: 'REAL_TO_DWORD', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'REAL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DWORD' }] },
+  // --- CONVERSION (TO_INT) ---
+  BOOL_TO_INT: { label: 'BOOL_TO_INT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'BOOL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'INT' }] },
+  BYTE_TO_INT: { label: 'BYTE_TO_INT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'BYTE' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'INT' }] },
+  WORD_TO_INT: { label: 'WORD_TO_INT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'WORD' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'INT' }] },
+  DWORD_TO_INT: { label: 'DWORD_TO_INT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'DWORD' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'INT' }] },
+  UINT_TO_INT: { label: 'UINT_TO_INT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'UINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'INT' }] },
+  DINT_TO_INT: { label: 'DINT_TO_INT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'INT' }] },
+  UDINT_TO_INT: { label: 'UDINT_TO_INT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'UDINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'INT' }] },
+  REAL_TO_INT: { label: 'REAL_TO_INT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'REAL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'INT' }] },
+  // --- CONVERSION (TO_UINT) ---
+  BOOL_TO_UINT: { label: 'BOOL_TO_UINT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'BOOL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'UINT' }] },
+  BYTE_TO_UINT: { label: 'BYTE_TO_UINT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'BYTE' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'UINT' }] },
+  WORD_TO_UINT: { label: 'WORD_TO_UINT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'WORD' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'UINT' }] },
+  DWORD_TO_UINT: { label: 'DWORD_TO_UINT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'DWORD' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'UINT' }] },
+  INT_TO_UINT: { label: 'INT_TO_UINT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'INT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'UINT' }] },
+  DINT_TO_UINT: { label: 'DINT_TO_UINT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'UINT' }] },
+  UDINT_TO_UINT: { label: 'UDINT_TO_UINT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'UDINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'UINT' }] },
+  REAL_TO_UINT: { label: 'REAL_TO_UINT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'REAL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'UINT' }] },
+  // --- CONVERSION (TO_DINT) ---
+  BOOL_TO_DINT: { label: 'BOOL_TO_DINT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'BOOL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DINT' }] },
+  BYTE_TO_DINT: { label: 'BYTE_TO_DINT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'BYTE' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DINT' }] },
+  WORD_TO_DINT: { label: 'WORD_TO_DINT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'WORD' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DINT' }] },
+  DWORD_TO_DINT: { label: 'DWORD_TO_DINT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'DWORD' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DINT' }] },
+  INT_TO_DINT: { label: 'INT_TO_DINT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'INT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DINT' }] },
+  UINT_TO_DINT: { label: 'UINT_TO_DINT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'UINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DINT' }] },
+  UDINT_TO_DINT: { label: 'UDINT_TO_DINT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'UDINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DINT' }] },
+  REAL_TO_DINT: { label: 'REAL_TO_DINT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'REAL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'DINT' }] },
+  // --- CONVERSION (TO_UDINT) ---
+  BOOL_TO_UDINT: { label: 'BOOL_TO_UDINT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'BOOL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'UDINT' }] },
+  BYTE_TO_UDINT: { label: 'BYTE_TO_UDINT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'BYTE' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'UDINT' }] },
+  WORD_TO_UDINT: { label: 'WORD_TO_UDINT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'WORD' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'UDINT' }] },
+  DWORD_TO_UDINT: { label: 'DWORD_TO_UDINT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'DWORD' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'UDINT' }] },
+  INT_TO_UDINT: { label: 'INT_TO_UDINT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'INT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'UDINT' }] },
+  UINT_TO_UDINT: { label: 'UINT_TO_UDINT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'UINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'UDINT' }] },
+  DINT_TO_UDINT: { label: 'DINT_TO_UDINT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'UDINT' }] },
+  REAL_TO_UDINT: { label: 'REAL_TO_UDINT', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'REAL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'UDINT' }] },
+  // --- CONVERSION (TO_REAL) ---
+  BOOL_TO_REAL: { label: 'BOOL_TO_REAL', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'BOOL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
+  BYTE_TO_REAL: { label: 'BYTE_TO_REAL', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'BYTE' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
+  WORD_TO_REAL: { label: 'WORD_TO_REAL', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'WORD' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
+  DWORD_TO_REAL: { label: 'DWORD_TO_REAL', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'DWORD' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
+  INT_TO_REAL: { label: 'INT_TO_REAL', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'INT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
+  UINT_TO_REAL: { label: 'UINT_TO_REAL', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'UINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
+  DINT_TO_REAL: { label: 'DINT_TO_REAL', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'DINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
+  UDINT_TO_REAL: { label: 'UDINT_TO_REAL', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'IN', type: 'UDINT' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
+  NORM_X: { label: 'NORM_X', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'MIN', type: 'REAL' }, { name: 'MAX', type: 'REAL' }, { name: 'VALUE', type: 'REAL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
+  SCALE_X: { label: 'SCALE_X', inputs: [{ name: 'EN', type: 'BOOL' }, { name: 'MIN', type: 'REAL' }, { name: 'MAX', type: 'REAL' }, { name: 'VALUE', type: 'REAL' }], outputs: [{ name: 'ENO', type: 'BOOL' }, { name: 'OUT', type: 'REAL' }] },
   // --- BASIC ELEMENTS ---
   Contact: { label: 'Contact', inputs: [], outputs: [] },
-  Coil:    { label: 'Coil',    inputs: [], outputs: [] }
+  Coil: { label: 'Coil', inputs: [], outputs: [] }
 };
 
 // SVG Path Helper
@@ -909,7 +1007,10 @@ const RungContainer = ({
   liveVariables = null,
   parentName = "",
   readOnly = false,
-  onForceWrite = null
+  onForceWrite,
+  isFocused = false,
+  onInsertAbove,
+  onInsertBelow = null
 }) => {
   const containerRef = useRef(null);
   const [containerWidth, setContainerWidth] = React.useState(800);
@@ -1445,7 +1546,7 @@ const RungContainer = ({
     }}>
       {/* RUNG HEADER */}
       <div style={{
-        background: '#252526',
+        background: isFocused ? '#333333' : '#252526',
         padding: '10px 15px',
         display: 'flex',
         justifyContent: 'space-between',
@@ -1453,7 +1554,31 @@ const RungContainer = ({
         borderBottom: '1px solid #444'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
-          <span style={{ color: '#fff', fontWeight: 'bold', fontSize: 14 }}>
+          <div
+            title="Sürükleyip Bırak"
+            style={{
+              padding: '4px',
+              cursor: readOnly ? 'default' : 'grab',
+              opacity: readOnly ? 0.3 : 0.7,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '2px',
+            }}
+          >
+            <div style={{ display: 'flex', gap: '2px' }}>
+              <div style={{ width: 3, height: 3, background: 'white', borderRadius: '50%' }}></div>
+              <div style={{ width: 3, height: 3, background: 'white', borderRadius: '50%' }}></div>
+            </div>
+            <div style={{ display: 'flex', gap: '2px' }}>
+              <div style={{ width: 3, height: 3, background: 'white', borderRadius: '50%' }}></div>
+              <div style={{ width: 3, height: 3, background: 'white', borderRadius: '50%' }}></div>
+            </div>
+            <div style={{ display: 'flex', gap: '2px' }}>
+              <div style={{ width: 3, height: 3, background: 'white', borderRadius: '50%' }}></div>
+              <div style={{ width: 3, height: 3, background: 'white', borderRadius: '50%' }}></div>
+            </div>
+          </div>
+          <span style={{ color: isFocused ? '#4da6ff' : '#fff', fontWeight: 'bold', fontSize: 14 }}>
             Rung {index}: {rung.label}
           </span>
           <span style={{ color: '#888', fontSize: 11 }}>
@@ -1462,6 +1587,7 @@ const RungContainer = ({
         </div>
 
         <div style={{ display: 'flex', gap: 8 }}>
+
           <button
             onClick={onMoveUp}
             disabled={index === 0}

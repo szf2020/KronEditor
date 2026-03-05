@@ -31,14 +31,33 @@ function App() {
   // Project Open State
   const [isProjectOpen, setIsProjectOpen] = useState(false);
 
-  // Library State
   const [libraryData, setLibraryData] = useState([]);
+  const [parsedBlocks, setParsedBlocks] = useState([]);
 
   // Load Library on Mount
   useEffect(() => {
     libraryService.loadLibrary().then(data => {
       console.log("Library Loaded:", data);
       setLibraryData(data);
+
+      // Extract library blocks for the Variable Manager drop-down
+      const blocks = [];
+      data.forEach(cat => {
+        const catName = cat.category || 'Standard Libraries';
+        (cat.blocks || []).forEach(b => blocks.push({ name: b.blockType, category: catName }));
+        (cat.subcategories || []).forEach(sub => {
+          (sub.items || []).forEach(item => blocks.push({ name: item.blockType, category: catName }));
+          (sub.fromLibrary || []).forEach(item => blocks.push({ name: item, category: catName }));
+        });
+      });
+      // Deduplicate blocks
+      const uniqueBlocksMap = new Map();
+      blocks.forEach(b => {
+        if (!uniqueBlocksMap.has(b.name)) {
+          uniqueBlocksMap.set(b.name, b);
+        }
+      });
+      setParsedBlocks(Array.from(uniqueBlocksMap.values()));
     });
   }, []);
 
@@ -71,7 +90,8 @@ function App() {
     defaultName: '',
     isEdit: false,
     editId: null,
-    initialData: {}
+    initialData: {},
+    insertIndex: null
   });
 
   const [dataTypeModal, setDataTypeModal] = useState({
@@ -126,8 +146,8 @@ function App() {
 
   // Sahte Konsol Logları
   const [logs, setLogs] = useState([
-    { type: 'info', msg: 'System initialized.' },
-    { type: 'info', msg: 'Ready to map PLC project...' }
+    { type: 'info', msg: t('logs.systemInitialized') || 'System initialized.' },
+    { type: 'info', msg: t('logs.systemReady') || 'Ready to map PLC project...' }
   ]);
 
   // Auto-scroll Console
@@ -157,9 +177,9 @@ function App() {
           } else if (parsed.status === 'exited' || parsed.status === 'crashed') {
             // Simulation process ended on its own
             setIsRunning(false);
-            addLog('warning', `Simulation ${parsed.status}.`);
+            addLog('warning', t('logs.simulationStatus', { status: parsed.status }) || `Simulation ${parsed.status}.`);
           } else if (parsed.error) {
-            addLog('error', `Simulation: ${parsed.error}`);
+            addLog('error', t('logs.simulationError', { error: parsed.error }) || `Simulation: ${parsed.error}`);
           }
           // {"status": "started", "pid": N} is informational, no action needed
         } catch (e) {
@@ -181,9 +201,9 @@ function App() {
     try {
       const xmlContent = exportProjectToXml(projectStructure);
       await writeTextFile(currentFilePath, xmlContent);
-      addLog('success', `Project saved to ${currentFilePath} `);
+      addLog('success', t('logs.projectSaved', { path: currentFilePath }) || `Project saved to ${currentFilePath} `);
     } catch (error) {
-      addLog('error', `Save Error: ${error} `);
+      addLog('error', t('logs.saveError', { error: error }) || `Save Error: ${error} `);
     }
   }, [currentFilePath, projectStructure, addLog]);
 
@@ -205,9 +225,9 @@ function App() {
       await writeTextFile(filePath, xmlContent);
 
       setCurrentFilePath(filePath);
-      addLog('success', `Project saved to ${filePath} `);
+      addLog('success', t('logs.projectSaved', { path: filePath }) || `Project saved to ${filePath} `);
     } catch (error) {
-      addLog('error', `Save As Error: ${error} `);
+      addLog('error', t('logs.saveAsError', { error: error }) || `Save As Error: ${error} `);
     }
   }, [projectStructure, addLog]);
 
@@ -217,13 +237,13 @@ function App() {
     setCurrentFilePath(null);
     setActiveId(null);
     setLogs([
-      { type: 'info', msg: 'Started new project.' }
+      { type: 'info', msg: t('logs.startedNewProject') || 'Started new project.' }
     ]);
     setIsProjectOpen(true);
   }, [defaultProjectStructure]);
 
   const handleCloseProject = useCallback(async () => {
-    const confirmation = await ask('Are you sure you want to close the current project? Any unsaved changes will be lost.', {
+    const confirmation = await ask(t('messages.confirmCloseProject') || 'Are you sure you want to close the current project? Any unsaved changes will be lost.', {
       title: 'Close Project',
       type: 'warning'
     });
@@ -266,38 +286,38 @@ function App() {
               content: { globalVars: [], tasks: [], instances: [] }
             }
           ];
-          addLog('warning', 'Project had no configuration; restored default.');
+          addLog('warning', t('logs.missingConfigRestored') || 'Project had no configuration; restored default.');
         }
 
         setProjectStructure(newStructure);
         setCurrentFilePath(filePath);
         setActiveId(null);
         setIsProjectOpen(true);
-        addLog('success', `Project loaded from ${filePath} `);
+        addLog('success', t('logs.projectLoaded', { path: filePath }) || `Project loaded from ${filePath} `);
       } else {
-        addLog('error', 'Failed to parse project file (Invalid Format).');
+        addLog('error', t('logs.invalidFormat') || 'Failed to parse project file (Invalid Format).');
       }
     } catch (error) {
       console.error(error);
-      addLog('error', `Open Error: ${error} `);
+      addLog('error', t('logs.openError', { error: error }) || `Open Error: ${error} `);
     }
   };
 
   const handleToggleSimulation = async () => {
     if (isPlcConnected) {
-      addLog('error', 'Cannot enable Simulation Mode while PLC is connected.');
+      addLog('error', t('logs.cannotSimulateConnected') || 'Cannot enable Simulation Mode while PLC is connected.');
       return;
     }
 
     if (isRunning) {
-      addLog('warning', 'Please stop execution before toggling simulation mode.');
+      addLog('warning', t('logs.stopExecutionFirst') || 'Please stop execution before toggling simulation mode.');
       return;
     }
 
     const nextMode = !isSimulationMode;
 
     if (nextMode) {
-      addLog('info', 'Compiling Project for Simulation (C Transpilation)...');
+      addLog('info', t('logs.compilingSimulationTranspile') || 'Compiling Project for Simulation (C Transpilation)...');
       try {
         const standardHeaders = await invoke('get_standard_headers').catch(() => []);
         const cCode = transpileToC(projectStructure, standardHeaders);
@@ -306,11 +326,11 @@ function App() {
           source: cCode.source,
           variableTable: JSON.stringify(cCode.variableTable, null, 2)
         });
-        addLog('success', `Transpiled C header and source successfully saved to ${outPath}`);
+        addLog('success', t('logs.transpiledSaved', { path: outPath }) || `Transpiled C header and source successfully saved to ${outPath}`);
 
-        addLog('info', 'Compiling simulation executable with gcc (debug symbols)...');
+        addLog('info', t('logs.compilingSimulationGcc') || 'Compiling simulation executable with gcc (debug symbols)...');
         const exePath = await invoke('compile_simulation');
-        addLog('success', `Simulation executable compiled: ${exePath}`);
+        addLog('success', t('logs.simulationCompiled', { path: exePath }) || `Simulation executable compiled: ${exePath}`);
 
         setIsSimulationMode(true);
 
@@ -332,20 +352,20 @@ function App() {
         }
 
         setLiveVariables(initialLiveVars);
-        addLog('info', 'Simulation Mode Enabled. Variables populated with default values.');
+        addLog('info', t('logs.simulationEnabled') || 'Simulation Mode Enabled. Variables populated with default values.');
       } catch (error) {
-        addLog('error', `Simulation Compilation Failed: ${error}`);
+        addLog('error', t('logs.simulationCompileFailed', { error: error }) || `Simulation Compilation Failed: ${error}`);
       }
     } else {
       setIsSimulationMode(false);
-      addLog('info', 'Simulation Mode Disabled.');
+      addLog('info', t('logs.simulationDisabled') || 'Simulation Mode Disabled.');
       setLiveVariables({});
     }
   };
 
   const handleStartExecution = async () => {
     if (!isSimulationMode && !isPlcConnected) {
-      addLog('warning', 'Cannot start. Please enable Simulation Mode or connect to a PLC.');
+      addLog('warning', t('logs.cannotStartEnableSim') || 'Cannot start. Please enable Simulation Mode or connect to a PLC.');
       return;
     }
 
@@ -355,12 +375,12 @@ function App() {
       try {
         await invoke('run_simulation');
       } catch (err) {
-        addLog('error', `Failed to start simulation: ${err}`);
+        addLog('error', t('logs.failedToStartSim', { error: err }) || `Failed to start simulation: ${err}`);
         setIsRunning(false);
       }
     } else if (isPlcConnected) {
       setIsRunning(true);
-      addLog('success', 'PLC Execution Started.');
+      addLog('success', t('logs.plcExecutionStarted') || 'PLC Execution Started.');
     }
   };
 
@@ -372,7 +392,7 @@ function App() {
         try {
           await invoke('stop_simulation');
         } catch (err) {
-          addLog('error', `Failed to stop simulation: ${err}`);
+          addLog('error', t('logs.failedToStopSim', { error: err }) || `Failed to stop simulation: ${err}`);
         }
       }
 
@@ -385,25 +405,25 @@ function App() {
     try {
       await invoke('write_variable', { name: key, value: String(value) });
     } catch (err) {
-      addLog('error', `Force write failed for '${key}': ${err}`);
+      addLog('error', t('logs.forceWriteFailed', { key: key, error: err }) || `Force write failed for '${key}': ${err}`);
     }
   }, [isRunning, addLog]);
 
   const handleBuild = () => {
-    addLog('info', `Build started for target: ${plcTarget}...`);
+    addLog('info', t('logs.buildStartedTarget', { target: plcTarget }) || `Build started for target: ${plcTarget}...`);
     try {
       const stCode = compileProjectToST(projectStructure);
-      addLog('success', 'Project built successfully.');
+      addLog('success', t('logs.projectBuilt') || 'Project built successfully.');
     } catch (err) {
-      addLog('error', `Build failed: ${err.message}`);
+      addLog('error', t('logs.buildFailed', { error: err.message }) || `Build failed: ${err.message}`);
     }
   };
 
   const handleSendToPlc = async () => {
-    addLog('info', `Send to PLC triggered for target: ${plcTarget} `);
+    addLog('info', t('logs.sendToPlcTriggered', { target: plcTarget }) || `Send to PLC triggered for target: ${plcTarget} `);
     // Future: Invoke specific Rust command for cross-compilation
     setTimeout(() => {
-      addLog('success', 'Binary sent to PLC (Simulated Action)');
+      addLog('success', t('logs.binarySentSimulated') || 'Binary sent to PLC (Simulated Action)');
     }, 1000);
   };
 
@@ -440,7 +460,7 @@ function App() {
 
   // --- Handlers ---
 
-  const handleAddItem = (category) => {
+  const handleAddItem = (category, insertIndex = null) => {
     let base = category;
     if (category.endsWith('s')) base = category.slice(0, -1);
     const prefix = base.charAt(0).toUpperCase() + base.slice(1);
@@ -453,7 +473,7 @@ function App() {
     const defaultName = `${prefix}${counter} `;
 
     if (category === 'dataTypes') {
-      setDataTypeModal({ isOpen: true, existingNames });
+      setDataTypeModal({ isOpen: true, existingNames, insertIndex });
       return;
     }
 
@@ -463,7 +483,8 @@ function App() {
       defaultName,
       isEdit: false,
       editId: null,
-      initialData: {}
+      initialData: {},
+      insertIndex
     });
   };
 
@@ -485,12 +506,18 @@ function App() {
       content: content
     };
 
-    setProjectStructure(prev => ({
-      ...prev,
-      dataTypes: [...prev.dataTypes, newItem]
-    }));
+    setProjectStructure(prev => {
+      const items = [...prev.dataTypes];
+      const insertAt = dataTypeModal.insertIndex;
+      if (insertAt !== null && insertAt !== undefined && insertAt >= 0 && insertAt <= items.length) {
+        items.splice(insertAt, 0, newItem);
+      } else {
+        items.push(newItem);
+      }
+      return { ...prev, dataTypes: items };
+    });
     setActiveId(newItem.id);
-    addLog('info', `Added Data Type ${name} (${type})`);
+    addLog('info', t('logs.addedDataType', { name, type }) || `Added Data Type ${name} (${type})`);
     setDataTypeModal({ isOpen: false, existingNames: [] });
   };
 
@@ -565,8 +592,8 @@ function App() {
         }
         return nextStruct;
       });
-      addLog('info', `Updated properties for ${name}`);
-      setCreateModal({ isOpen: false, category: '', defaultName: '', isEdit: false, editId: null, initialData: {} });
+      addLog('info', t('logs.updatedProperties', { name }) || `Updated properties for ${name}`);
+      setCreateModal({ isOpen: false, category: '', defaultName: '', isEdit: false, editId: null, initialData: {}, insertIndex: null });
       return true;
     }
 
@@ -584,9 +611,16 @@ function App() {
     };
 
     setProjectStructure(prev => {
+      const catItems = [...prev[category]];
+      const insertAt = createModal.insertIndex;
+      if (insertAt !== null && insertAt !== undefined && insertAt >= 0 && insertAt <= catItems.length) {
+        catItems.splice(insertAt, 0, newItem);
+      } else {
+        catItems.push(newItem);
+      }
       const nextStruct = {
         ...prev,
-        [category]: [...prev[category], newItem]
+        [category]: catItems
       };
 
       if (category === 'programs' && cycleTime) {
@@ -634,9 +668,9 @@ function App() {
     });
 
     setActiveId(newItem.id);
-    addLog('info', `Added ${name} (${type}) to ${category}`);
+    addLog('info', t('logs.addedItem', { name, type, category }) || `Added ${name} (${type}) to ${category}`);
     // Close modal handled by createModal state update below
-    setCreateModal({ isOpen: false, category: '', defaultName: '', isEdit: false, editId: null, initialData: {} });
+    setCreateModal({ isOpen: false, category: '', defaultName: '', isEdit: false, editId: null, initialData: {}, insertIndex: null });
     return true;
   };
 
@@ -646,7 +680,22 @@ function App() {
       [category]: prev[category].filter(item => item.id !== id)
     }));
     if (activeId === id) setActiveId(null);
-    addLog('warning', `Deleted item ${id}`);
+    addLog('warning', t('logs.deletedItem', { id }) || `Deleted item ${id}`);
+  };
+
+  const handleReorderItem = (category, sourceIndex, destinationIndex) => {
+    setProjectStructure(prev => {
+      if (!prev[category]) return prev;
+
+      const newItems = Array.from(prev[category]);
+      const [movedItem] = newItems.splice(sourceIndex, 1);
+      newItems.splice(destinationIndex, 0, movedItem);
+
+      return {
+        ...prev,
+        [category]: newItems
+      };
+    });
   };
 
   const handleEditItemDetails = (category, id) => {
@@ -668,7 +717,7 @@ function App() {
             it.id === id ? { ...it, name: newName } : it
           )
         }));
-        addLog('info', `Renamed item to ${newName}`);
+        addLog('info', t('logs.renamedItem', { name: newName }) || `Renamed item to ${newName}`);
       }
       return;
     }
@@ -757,6 +806,26 @@ function App() {
     if (!activeItem || activeItem.category !== 'dataTypes') return projectStructure.dataTypes.map(d => d.name);
     const idx = projectStructure.dataTypes.findIndex(d => d.id === activeItem.id);
     return idx >= 0 ? projectStructure.dataTypes.slice(0, idx).map(d => d.name) : projectStructure.dataTypes.map(d => d.name);
+  };
+
+  // Hangi POU'nun hangi bloklara erişebileceğini tanım sırasına göre filtrele:
+  // functions: yalnızca kendinden önceki functions + library
+  // functionBlocks: tüm functions + kendinden önceki FBs + library
+  // programs: hepsi
+  const getAvailableBlocks = () => {
+    if (!activeItem) return [...projectStructure.functionBlocks, ...projectStructure.functions, ...parsedBlocks];
+    const cat = activeItem.category;
+    if (cat === 'functions') {
+      const idx = projectStructure.functions.findIndex(f => f.id === activeItem.id);
+      const prevFunctions = idx >= 0 ? projectStructure.functions.slice(0, idx) : projectStructure.functions;
+      return [...prevFunctions, ...parsedBlocks];
+    } else if (cat === 'functionBlocks') {
+      const idx = projectStructure.functionBlocks.findIndex(fb => fb.id === activeItem.id);
+      const prevFBs = idx >= 0 ? projectStructure.functionBlocks.slice(0, idx) : projectStructure.functionBlocks;
+      return [...prevFBs, ...projectStructure.functions, ...parsedBlocks];
+    }
+    // programs and others: all
+    return [...projectStructure.functionBlocks, ...projectStructure.functions, ...parsedBlocks];
   };
 
   return (
@@ -886,6 +955,7 @@ function App() {
                 onAddItem={handleAddItem}
                 onDeleteItem={handleDeleteItem}
                 onEditItem={handleEditItemDetails}
+                onReorderItem={handleReorderItem}
                 onSettingsClick={() => setActiveId('SETTINGS')}
                 onShortcutsClick={() => setShortcutsModalOpen(true)}
                 isRunning={isRunning || isSimulationMode}
@@ -937,7 +1007,7 @@ function App() {
                               : ['Input', 'Output', 'InOut', 'Local', 'Temp']
                           }
                           context={activeItem.category}
-                          availableBlocks={[...projectStructure.functionBlocks, ...projectStructure.functions]}
+                          availableBlocks={getAvailableBlocks()}
                           availablePrograms={projectStructure.programs.map(p => p.name)}
                           availableTasks={projectStructure.resources.find(r => r.type === 'RESOURCE_EDITOR')?.content.tasks?.map(t => t.name) || []}
                           globalVars={projectStructure.resources.find(r => r.type === 'RESOURCE_EDITOR')?.content.globalVars || []}

@@ -111,7 +111,7 @@ const VariableManager = ({
     const currentVar = variables.find(v => v.id === id);
     if (!currentVar || currentVar.name === trimmed) return;
     if (variables.some(v => v.id !== id && v.name === trimmed) || globalVars.some(v => v.name === trimmed)) {
-      alert(`Variable name '${trimmed}' already exists in this scope!`);
+      alert(t('errors.varExistsScope', { name: trimmed }));
       return;
     }
 
@@ -130,7 +130,7 @@ const VariableManager = ({
       });
 
       if (nameExistsInOtherScopes) {
-        alert(`Variable name '${trimmed}' already exists as a local variable in another program/block!`);
+        alert(t('errors.varExistsOtherScope', { name: trimmed }));
         return;
       }
     }
@@ -226,7 +226,37 @@ const VariableManager = ({
                   <td style={{ padding: '5px' }}>
                     <DataTypeSelector
                       value={v.type}
-                      onChange={(newType) => !isSimulationMode && !disabled && onUpdate && onUpdate(v.id, 'type', newType)}
+                      onChange={(newType) => {
+                        if (isSimulationMode || disabled) return;
+
+                        // User request: eger secilen type ile ayni tipte ayni isimde baska bir degisken varsa, global dahil, degisikligi yapamasin.
+                        const isDuplicate = variables.some(other => other.id !== v.id && other.name === v.name && other.type === newType) ||
+                          globalVars.some(other => other.name === v.name && other.type === newType);
+
+                        if (projectStructure) {
+                          let isLocalDuplicate = false;
+                          ['programs'].forEach(category => {
+                            if (projectStructure[category]) {
+                              projectStructure[category].forEach(item => {
+                                if (item.content && item.content.variables) {
+                                  if (item.content.variables.some(other => other.name === v.name && other.type === newType)) {
+                                    isLocalDuplicate = true;
+                                  }
+                                }
+                              });
+                            }
+                          });
+                          if (isDuplicate || isLocalDuplicate) {
+                            alert(t('errors.varExistsWithType', { name: v.name, type: newType }));
+                            return;
+                          }
+                        } else if (isDuplicate) {
+                          alert(t('errors.varExistsWithType', { name: v.name, type: newType }));
+                          return;
+                        }
+
+                        if (onUpdate) onUpdate(v.id, 'type', newType);
+                      }}
                       derivedTypes={derivedTypes}
                       userDefinedTypes={userDefinedTypes}
                     />

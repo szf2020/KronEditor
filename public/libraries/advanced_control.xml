@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Library>
+  <Category name="ADVANCED_CONTROL">
+    <Block type="PID_Compact" description="PID Controller (Compact)" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN"       type="BOOL" default="FALSE" />
+        <Variable name="Setpoint" type="REAL" default="0.0" />
+        <Variable name="Input"    type="REAL" default="0.0" />
+        <Variable name="Kp"       type="REAL" default="1.0" />
+        <Variable name="Ki"       type="REAL" default="0.0" />
+        <Variable name="Kd"       type="REAL" default="0.0" />
+        <Variable name="Reset"    type="BOOL" default="FALSE" />
+      </Inputs>
+      <Outputs>
+        <Variable name="ENO"    type="BOOL" />
+        <Variable name="Output" type="REAL" />
+      </Outputs>
+    </Block>
+    <Block type="Filter_LowPass" description="First-Order Low-Pass Filter" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN"    type="BOOL" default="FALSE" />
+        <Variable name="IN"    type="REAL" default="0.0" />
+        <Variable name="Alpha" type="REAL" default="0.1" />
+      </Inputs>
+      <Outputs>
+        <Variable name="ENO" type="BOOL" />
+        <Variable name="OUT" type="REAL" />
+      </Outputs>
+    </Block>
+  </Category>
+</Library>

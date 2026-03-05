@@ -102,7 +102,9 @@
         "enumDef": "Sıralı Tanımı",
         "enumDesc": "Sıralı değerleri tanımlayın.",
         "noMembers": "Üye tanımlanmadı. Başlamak için \"Üye Ekle\"ye tıklayın.",
-        "structTip": "İpucu: Yeni bir satır eklemek için son Başlangıç Değeri alanında Enter'a basın."
+        "structTip": "İpucu: Yeni bir satır eklemek için son Başlangıç Değeri alanında Enter'a basın.",
+        "confirmDelete": "{{name}} öğesi silinsin mi?",
+        "confirmCloseProject": "Mevcut projeyi kapatmak istediğinize emin misiniz? Kaydedilmemiş değişiklikler kaybolacak."
     },
     "resources": {
         "globalVariables": "Global Değişkenler",
@@ -130,7 +132,10 @@
     "errors": {
         "nameRequired": "İsim zorunludur",
         "nameExists": "İsim zaten mevcut",
-        "invalidIdentifier": "Geçersiz Tanımlayıcı: \"{name}\". Bir harf veya alt çizgi ile başlamalı ve yalnızca alfasayısal karakterler içermelidir."
+        "invalidIdentifier": "Geçersiz Tanımlayıcı: \"{name}\". Bir harf veya alt çizgi ile başlamalı ve yalnızca alfasayısal karakterler içermelidir.",
+        "varExistsScope": "Değişken adı '{{name}}' bu kapsamda zaten mevcut!",
+        "varExistsOtherScope": "Değişken adı '{{name}}' başka bir programda/blokta yerel değişken olarak zaten mevcut!",
+        "varExistsWithType": "'{{name}}' adında ve '{{type}}' tipinde değişken zaten mevcut!"
     },
     "settingsPage": {
         "general": "Genel",
@@ -146,5 +151,45 @@
         "version": "Sürüm",
         "aboutDescription": "Ladder Logic (LD) ve Structured Text (ST) destekleyen modern, web tabanlı bir PLC programlama ortamı.",
         "copyright": "© 2026 Fehim Kus tarafından geliştirilmiştir"
+    },
+    "logs": {
+        "systemInitialized": "Sistem başlatıldı.",
+        "systemReady": "PLC projesi eşlenmeye hazır...",
+        "simulationStatus": "Simülasyon durumu: {{status}}.",
+        "simulationError": "Simülasyon Hatası: {{error}}",
+        "projectSaved": "Proje kaydedildi: {{path}}",
+        "saveError": "Kaydetme Hatası: {{error}}",
+        "saveAsError": "Farklı Kaydetme Hatası: {{error}}",
+        "startedNewProject": "Yeni proje başlatıldı.",
+        "confirmCloseProject": "Mevcut projeyi kapatmak istediğinize emin misiniz? Kaydedilmemiş değişiklikler kaybolacak.",
+        "missingConfigRestored": "Projenin yapılandırması yoktu; varsayılan geri yüklendi.",
+        "projectLoaded": "Proje yüklendi: {{path}}",
+        "invalidFormat": "Proje dosyası ayrıştırılamadı (Geçersiz Format).",
+        "openError": "Açma Hatası: {{error}}",
+        "cannotSimulateConnected": "PLC bağlıyken Simülasyon Modu etkinleştirilemez.",
+        "stopExecutionFirst": "Simülasyon modunu değiştirmeden önce lütfen yürütmeyi durdurun.",
+        "compilingSimulationTranspile": "Simülasyon için Proje Derleniyor (C Transpilation)...",
+        "transpiledSaved": "Çevrilen C başlık ve kaynak dosyası başarıyla kaydedildi: {{path}}",
+        "compilingSimulationGcc": "Simülasyon çalıştırılabilir dosyası gcc ile derleniyor (hata ayıklama sembolleriyle)...",
+        "simulationCompiled": "Simülasyon dosyası derlendi: {{path}}",
+        "simulationEnabled": "Simülasyon Modu Etkinleştirildi. Değişkenler varsayılan değerler ile dolduruldu.",
+        "simulationCompileFailed": "Simülasyon Derleme Hatası: {{error}}",
+        "simulationDisabled": "Simülasyon Modu Devre Dışı Bırakıldı.",
+        "cannotStartEnableSim": "Başlatılamıyor. Lütfen Simülasyon Modunu etkinleştirin veya bir PLC'ye bağlanın.",
+        "failedToStartSim": "Simülasyon başlatılamadı: {{error}}",
+        "plcExecutionStarted": "PLC Yürütmesi Başlatıldı.",
+        "failedToStopSim": "Simülasyon durdurulamadı: {{error}}",
+        "forceWriteFailed": "\"{{key}}\" için zorunlu yazma işlemi başarısız oldu: {{error}}",
+        "buildStartedTarget": "Hedef için derleme başlatıldı: {{target}}...",
+        "projectBuilt": "Proje başarıyla derlendi.",
+        "buildFailed": "Derleme başarısız oldu: {{error}}",
+        "sendToPlcTriggered": "Hedef için PLC'ye gönderme tetiklendi: {{target}}",
+        "binarySentSimulated": "Elde edilen kod PLC'ye gönderildi (Simüle Edilen İşlem)",
+        "addedDataType": "Veri Tipi Eklendi: {{name}} ({{type}})",
+        "duplicateName": "Bu isimde bir öğe zaten mevcut.",
+        "updatedProperties": "Özellikler güncellendi: {{name}}",
+        "addedItem": "{{name}} ({{type}}), {{category}} kategorisine eklendi",
+        "deletedItem": "Öğe {{id}} silindi",
+        "renamedItem": "Öğe {{name}} olarak yeniden adlandırıldı"
     }
 }

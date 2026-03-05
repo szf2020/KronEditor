@@ -1,13 +1,77 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+
+const KRON_REPOS = [
+    'KronStandard', 'KronControl', 'KronCompare', 'KronConverter',
+    'KronMathematic', 'KronCommunication', 'KronLogic', 'KronMotion',
+];
 
 const SettingsPage = ({ theme, setTheme, editorSettings, setEditorSettings }) => {
     const { t, i18n } = useTranslation();
     const [activeTab, setActiveTab] = useState('general');
+    const [isUpdating, setIsUpdating] = useState(false);
+    const [progressLog, setProgressLog] = useState('');
+    const [selectedRepos, setSelectedRepos] = useState([...KRON_REPOS]);
+    const logRef = useRef(null);
+    const unlistenRef = useRef(null);
+
+    const handleRepoSelection = (repo) => {
+        if (selectedRepos.includes(repo)) {
+            setSelectedRepos(selectedRepos.filter(r => r !== repo));
+        } else {
+            setSelectedRepos([...selectedRepos, repo]);
+        }
+    };
+
+    useEffect(() => {
+        return () => {
+            if (unlistenRef.current) {
+                unlistenRef.current.progress?.();
+                unlistenRef.current.done?.();
+            }
+        };
+    }, []);
+
+    useEffect(() => {
+        if (logRef.current) {
+            logRef.current.scrollTop = logRef.current.scrollHeight;
+        }
+    }, [progressLog]);
+
+    const handleUpdateLibraries = async () => {
+        setIsUpdating(true);
+        setProgressLog('Starting library update...\n');
+
+        const unlistenProgress = await listen('library-update-progress', (event) => {
+            setProgressLog(prev => prev + event.payload + '\n');
+        });
+
+        const unlistenDone = await listen('library-update-done', (event) => {
+            const { success, message } = event.payload;
+            setProgressLog(prev => prev + (success ? '✓ ' : '✗ ') + message + '\n');
+            setIsUpdating(false);
+            unlistenProgress();
+            unlistenDone();
+            unlistenRef.current = null;
+        });
+
+        unlistenRef.current = { progress: unlistenProgress, done: unlistenDone };
+
+        invoke('update_libraries', { repos: selectedRepos }).catch(err => {
+            setProgressLog(prev => prev + 'Error: ' + err + '\n');
+            setIsUpdating(false);
+            unlistenProgress();
+            unlistenDone();
+            unlistenRef.current = null;
+        });
+    };
 
     const tabs = [
         { id: 'general', label: t('settingsPage.general'), icon: '⚙️' },
         { id: 'editor', label: t('settingsPage.editor'), icon: '📝' },
+        { id: 'libraries', label: 'Libraries', icon: '📦' },
         { id: 'about', label: t('settingsPage.about'), icon: 'ℹ️' }
     ];
 
@@ -124,6 +188,74 @@ const SettingsPage = ({ theme, setTheme, editorSettings, setEditorSettings }) =>
                                 <label htmlFor="wrap-check" style={{ color: '#ccc', cursor: 'pointer' }}>{t('settingsPage.wordWrap')}</label>
                             </div>
                         </div>
+                    </div>
+                );
+            case 'libraries':
+                return (
+                    <div style={{ maxWidth: '600px' }}>
+                        <h3 style={{ borderBottom: '1px solid #444', paddingBottom: '10px', marginTop: 0 }}>
+                            Kron Libraries
+                        </h3>
+                        <div style={{ marginBottom: '20px', background: '#252526', borderRadius: '4px', padding: '4px 12px' }}>
+                            {KRON_REPOS.map((repo, i) => (
+                                <div key={repo} style={{
+                                    padding: '8px 0',
+                                    color: '#ccc',
+                                    fontSize: '13px',
+                                    borderBottom: i < KRON_REPOS.length - 1 ? '1px solid #333' : 'none',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px'
+                                }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedRepos.includes(repo)}
+                                        onChange={() => handleRepoSelection(repo)}
+                                        disabled={isUpdating}
+                                        style={{ cursor: isUpdating ? 'not-allowed' : 'pointer', margin: 0 }}
+                                    />
+                                    <span style={{ color: '#888' }}>github.com/Krontek/</span>
+                                    <span style={{ color: '#9cdcfe' }}>{repo}</span>
+                                </div>
+                            ))}
+                        </div>
+                        <button
+                            onClick={handleUpdateLibraries}
+                            disabled={isUpdating}
+                            style={{
+                                padding: '10px 20px',
+                                backgroundColor: isUpdating ? '#444' : '#007acc',
+                                color: '#fff',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: isUpdating ? 'not-allowed' : 'pointer',
+                                marginBottom: '16px',
+                                width: '100%',
+                                fontSize: '14px'
+                            }}
+                        >
+                            {isUpdating ? 'Updating...' : 'Update Libraries'}
+                        </button>
+                        {progressLog && (
+                            <textarea
+                                ref={logRef}
+                                value={progressLog}
+                                readOnly
+                                style={{
+                                    width: '100%',
+                                    height: '260px',
+                                    background: '#0d0d0d',
+                                    color: '#4ec9b0',
+                                    border: '1px solid #333',
+                                    borderRadius: '4px',
+                                    padding: '10px',
+                                    fontFamily: 'monospace',
+                                    fontSize: '12px',
+                                    resize: 'none',
+                                    boxSizing: 'border-box'
+                                }}
+                            />
+                        )}
                     </div>
                 );
             case 'about':

@@ -103,7 +103,9 @@
         "enumDef": "Enumerated Definition",
         "enumDesc": "Define the enumerated values.",
         "noMembers": "No members defined. Click \"Add Member\" to start.",
-        "structTip": "Tip: Press Enter in the last Initial Value field to add a new row."
+        "structTip": "Tip: Press Enter in the last Initial Value field to add a new row.",
+        "confirmDelete": "Delete {{name}}?",
+        "confirmCloseProject": "Are you sure you want to close the current project? Any unsaved changes will be lost."
     },
     "resources": {
         "globalVariables": "Global Variables"
@@ -122,7 +124,10 @@
     "errors": {
         "nameRequired": "Name is required",
         "nameExists": "Name already exists",
-        "invalidIdentifier": "Invalid Identifier: \"{name}\". Must start with a letter/underscore and contain only alphanumeric characters."
+        "invalidIdentifier": "Invalid Identifier: \"{name}\". Must start with a letter/underscore and contain only alphanumeric characters.",
+        "varExistsScope": "Variable name '{{name}}' already exists in this scope!",
+        "varExistsOtherScope": "Variable name '{{name}}' already exists as a local variable in another program/block!",
+        "varExistsWithType": "Variable with name '{{name}}' and type '{{type}}' already exists!"
     },
     "settingsPage": {
         "general": "General",
@@ -138,5 +143,45 @@
         "version": "Version",
         "aboutDescription": "A modern, web-based PLC programming environment supporting Ladder Logic (LD) and Structured Text (ST).",
         "copyright": "© 2026 Developed by Fehim Kus"
+    },
+    "logs": {
+        "systemInitialized": "System initialized.",
+        "systemReady": "Ready to map PLC project...",
+        "simulationStatus": "Simulation status: {{status}}.",
+        "simulationError": "Simulation Error: {{error}}",
+        "projectSaved": "Project saved to {{path}}",
+        "saveError": "Save Error: {{error}}",
+        "saveAsError": "Save As Error: {{error}}",
+        "startedNewProject": "Started new project.",
+        "confirmCloseProject": "Are you sure you want to close the current project? Any unsaved changes will be lost.",
+        "missingConfigRestored": "Project had no configuration; restored default.",
+        "projectLoaded": "Project loaded from {{path}}",
+        "invalidFormat": "Failed to parse project file (Invalid Format).",
+        "openError": "Open Error: {{error}}",
+        "cannotSimulateConnected": "Cannot enable Simulation Mode while PLC is connected.",
+        "stopExecutionFirst": "Please stop execution before toggling simulation mode.",
+        "compilingSimulationTranspile": "Compiling Project for Simulation (C Transpilation)...",
+        "transpiledSaved": "Transpiled C header and source successfully saved to {{path}}",
+        "compilingSimulationGcc": "Compiling simulation executable with gcc (debug symbols)...",
+        "simulationCompiled": "Simulation executable compiled: {{path}}",
+        "simulationEnabled": "Simulation Mode Enabled. Variables populated with default values.",
+        "simulationCompileFailed": "Simulation Compilation Failed: {{error}}",
+        "simulationDisabled": "Simulation Mode Disabled.",
+        "cannotStartEnableSim": "Cannot start. Please enable Simulation Mode or connect to a PLC.",
+        "failedToStartSim": "Failed to start simulation: {{error}}",
+        "plcExecutionStarted": "PLC Execution Started.",
+        "failedToStopSim": "Failed to stop simulation: {{error}}",
+        "forceWriteFailed": "Force write failed for '{{key}}': {{error}}",
+        "buildStartedTarget": "Build started for target: {{target}}...",
+        "projectBuilt": "Project built successfully.",
+        "buildFailed": "Build failed: {{error}}",
+        "sendToPlcTriggered": "Send to PLC triggered for target: {{target}}",
+        "binarySentSimulated": "Binary sent to PLC (Simulated Action)",
+        "addedDataType": "Added Data Type {{name}} ({{type}})",
+        "duplicateName": "An item with this name already exists.",
+        "updatedProperties": "Updated properties for {{name}}",
+        "addedItem": "Added {{name}} ({{type}}) to {{category}}",
+        "deletedItem": "Deleted item {{id}}",
+        "renamedItem": "Renamed item to {{name}}"
     }
 }

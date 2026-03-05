@@ -1,6 +1,43 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Library>
-  <Category name="BITWISE">
+  <Category name="BIT_LOGIC">
+    <!-- Bistable -->
+    <Block type="SR" description="Set Dominant Bistable" class="FunctionBlock">
+      <Inputs>
+        <Variable name="S1" type="BOOL" default="FALSE" />
+        <Variable name="R"  type="BOOL" default="FALSE" />
+      </Inputs>
+      <Outputs>
+        <Variable name="Q1" type="BOOL" />
+      </Outputs>
+    </Block>
+    <Block type="RS" description="Reset Dominant Bistable" class="FunctionBlock">
+      <Inputs>
+        <Variable name="S"  type="BOOL" default="FALSE" />
+        <Variable name="R1" type="BOOL" default="FALSE" />
+      </Inputs>
+      <Outputs>
+        <Variable name="Q1" type="BOOL" />
+      </Outputs>
+    </Block>
+    <!-- Edge Detectors -->
+    <Block type="R_TRIG" description="Rising Edge Detector" class="FunctionBlock">
+      <Inputs>
+        <Variable name="CLK" type="BOOL" default="FALSE" />
+      </Inputs>
+      <Outputs>
+        <Variable name="Q" type="BOOL" />
+      </Outputs>
+    </Block>
+    <Block type="F_TRIG" description="Falling Edge Detector" class="FunctionBlock">
+      <Inputs>
+        <Variable name="CLK" type="BOOL" default="FALSE" />
+      </Inputs>
+      <Outputs>
+        <Variable name="Q" type="BOOL" />
+      </Outputs>
+    </Block>
+    <!-- Bitwise Operations -->
     <Block type="BAND" description="Bitwise AND" class="FunctionBlock">
       <Inputs>
         <Variable name="EN"  type="BOOL"  default="FALSE" />

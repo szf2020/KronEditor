@@ -88,7 +88,25 @@ export const DataTypeSelector = ({ value, onChange, derivedTypes = [], userDefin
 
     const filteredElementary = ELEMENTARY_TYPES.filter(t => t.toLowerCase().includes(term));
     const filteredDerived = derivedTypes.filter(t => t.toLowerCase().includes(term));
-    const filteredUser = userDefinedTypes.filter(t => t.toLowerCase().includes(term));
+
+    // Normalize user defined types to always have a name and category
+    const normalizedUserTypes = userDefinedTypes.map(b => {
+        if (typeof b === 'string') return { name: b, category: 'Project Defined' };
+        return { name: b.name, category: b.category || 'Project Defined' };
+    });
+
+    const filteredUserObjs = normalizedUserTypes.filter(t => t.name.toLowerCase().includes(term));
+    const filteredUserNames = filteredUserObjs.map(t => t.name); // Keep names for quick access
+
+    // Grouping
+    const groupedUserTypes = filteredUserObjs.reduce((acc, curr) => {
+        if (!acc[curr.category]) acc[curr.category] = [];
+        // Prevent duplicates
+        if (!acc[curr.category].includes(curr.name)) {
+            acc[curr.category].push(curr.name);
+        }
+        return acc;
+    }, {});
 
     // Auto-expand if searching
     const showElementary = isSearching || expandedCategories.elementary;
@@ -137,7 +155,7 @@ export const DataTypeSelector = ({ value, onChange, derivedTypes = [], userDefin
                         if (e.key === 'Enter') {
                             if (filteredElementary.length > 0) { handleSelect(filteredElementary[0]); return; }
                             if (filteredDerived.length > 0) { handleSelect(filteredDerived[0]); return; }
-                            if (filteredUser.length > 0) { handleSelect(filteredUser[0]); return; }
+                            if (filteredUserNames.length > 0) { handleSelect(filteredUserNames[0]); return; }
                         }
                     }}
                 />
@@ -161,7 +179,7 @@ export const DataTypeSelector = ({ value, onChange, derivedTypes = [], userDefin
                         alignItems: 'center'
                     }}
                 >
-                    <span>Elementary Types</span>
+                    <span>Elementary</span>
                     {!isSearching && <span>{expandedCategories.elementary ? '▼' : '►'}</span>}
                 </div>
                 {showElementary && (
@@ -204,7 +222,7 @@ export const DataTypeSelector = ({ value, onChange, derivedTypes = [], userDefin
                         alignItems: 'center'
                     }}
                 >
-                    <span>Derived Types</span>
+                    <span>Derived</span>
                     {!isSearching && <span>{expandedCategories.derived ? '▼' : '►'}</span>}
                 </div>
                 {showDerived && (
@@ -231,53 +249,58 @@ export const DataTypeSelector = ({ value, onChange, derivedTypes = [], userDefin
                     </div>
                 )}
 
-                {/* 3. USER DEFINED TYPES (FBs) - Only show if prop passed */}
-                {userDefinedTypes.length > 0 && (
-                    <>
-                        <div
-                            onClick={() => !isSearching && toggleCategory('user')}
-                            style={{
-                                padding: '6px 10px',
-                                background: '#333',
-                                borderBottom: '1px solid #2d2d2d',
-                                borderTop: '1px solid #2d2d2d',
-                                color: '#eee',
-                                fontSize: '11px',
-                                fontWeight: 'bold',
-                                cursor: isSearching ? 'default' : 'pointer',
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center'
-                            }}
-                        >
-                            <span>User Defined (FB)</span>
-                            {!isSearching && <span>{expandedCategories.user ? '▼' : '►'}</span>}
-                        </div>
-                        {showUser && (
-                            <div style={{ padding: '4px 0', background: '#1e1e1e' }}>
-                                {filteredUser.length === 0 && <div style={{ padding: '5px 20px', color: '#666', fontSize: '11px' }}>No FBs available</div>}
-                                {filteredUser.map(t => (
-                                    <div
-                                        key={t}
-                                        onClick={() => handleSelect(t)}
-                                        style={{
-                                            padding: '6px 20px',
-                                            cursor: 'pointer',
-                                            fontSize: '13px',
-                                            color: value === t ? '#4ec9b0' : '#ccc',
-                                            background: value === t ? '#2d2d2d' : 'transparent',
-                                            fontFamily: 'Consolas, monospace'
-                                        }}
-                                        onMouseEnter={(e) => e.target.style.background = '#2d2d2d'}
-                                        onMouseLeave={(e) => e.target.style.background = value === t ? '#2d2d2d' : 'transparent'}
-                                    >
-                                        {t}
+                {/* 3. USER DEFINED TYPES (FBs) */}
+                <>
+                    <div
+                        onClick={() => !isSearching && toggleCategory('user')}
+                        style={{
+                            padding: '6px 10px',
+                            background: '#333',
+                            borderBottom: '1px solid #2d2d2d',
+                            borderTop: '1px solid #2d2d2d',
+                            color: '#eee',
+                            fontSize: '11px',
+                            fontWeight: 'bold',
+                            cursor: isSearching ? 'default' : 'pointer',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                        }}
+                    >
+                        <span>FunctionBlock</span>
+                        {!isSearching && <span>{expandedCategories.user ? '▼' : '►'}</span>}
+                    </div>
+                    {showUser && (
+                        <div style={{ padding: '0', background: '#1e1e1e' }}>
+                            {filteredUserNames.length === 0 && <div style={{ padding: '5px 20px', color: '#666', fontSize: '11px' }}>No function blocks</div>}
+                            {Object.entries(groupedUserTypes).map(([catName, blocks]) => (
+                                <div key={catName}>
+                                    <div style={{ padding: '4px 15px', color: '#888', fontSize: '10px', textTransform: 'uppercase', background: '#252526', borderBottom: '1px solid #333' }}>
+                                        {catName}
                                     </div>
-                                ))}
-                            </div>
-                        )}
-                    </>
-                )}
+                                    {blocks.map(t => (
+                                        <div
+                                            key={t}
+                                            onClick={() => handleSelect(t)}
+                                            style={{
+                                                padding: '6px 20px',
+                                                cursor: 'pointer',
+                                                fontSize: '13px',
+                                                color: value === t ? '#4ec9b0' : '#ccc',
+                                                background: value === t ? '#2d2d2d' : 'transparent',
+                                                fontFamily: 'Consolas, monospace'
+                                            }}
+                                            onMouseEnter={(e) => e.target.style.background = '#2d2d2d'}
+                                            onMouseLeave={(e) => e.target.style.background = value === t ? '#2d2d2d' : 'transparent'}
+                                        >
+                                            {t}
+                                        </div>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </>
 
             </div>
         </div>

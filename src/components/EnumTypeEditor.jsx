@@ -65,7 +65,7 @@ const EnumTypeEditor = ({ content, onContentChange }) => {
         if (!isValidIdentifier(currentName)) {
             // Revert
             update(values.map(v => v.id === id ? { ...v, name: tempValue || `Object${values.findIndex(x => x.id === id)}` } : v));
-            alert(`Invalid Identifier: "${currentName}". Must start with a letter/underscore and contain only alphanumeric characters.`);
+            alert(t('errors.invalidIdentifier', { name: currentName }));
         } else {
             // Valid, check for duplicates?
             // User didn't explicitly ask for dup check here, but it's good practice.

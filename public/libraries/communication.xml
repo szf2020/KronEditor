@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Library>
+  <Category name="COMMUNICATION">
+    <Block type="TSEND" description="TCP/IP Send Data" class="FunctionBlock">
+      <Inputs>
+        <Variable name="REQ"  type="BOOL" default="FALSE" />
+        <Variable name="ID"   type="DINT" default="0" />
+        <Variable name="LEN"  type="DINT" default="0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="DONE"  type="BOOL" />
+        <Variable name="BUSY"  type="BOOL" />
+        <Variable name="ERROR" type="BOOL" />
+      </Outputs>
+    </Block>
+    <Block type="TRCV" description="TCP/IP Receive Data" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN_R" type="BOOL" default="FALSE" />
+        <Variable name="ID"   type="DINT" default="0" />
+        <Variable name="LEN"  type="DINT" default="0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="NDR"   type="BOOL" />
+        <Variable name="BUSY"  type="BOOL" />
+        <Variable name="ERROR" type="BOOL" />
+        <Variable name="RCVD_LEN" type="DINT" />
+      </Outputs>
+    </Block>
+    <Block type="Modbus_Master" description="Modbus RTU/TCP Master" class="FunctionBlock">
+      <Inputs>
+        <Variable name="REQ"       type="BOOL" default="FALSE" />
+        <Variable name="MB_ADDR"   type="DINT" default="1" />
+        <Variable name="MODE"      type="DINT" default="0" />
+        <Variable name="DATA_ADDR" type="DINT" default="0" />
+        <Variable name="DATA_LEN"  type="DINT" default="1" />
+      </Inputs>
+      <Outputs>
+        <Variable name="DONE"  type="BOOL" />
+        <Variable name="BUSY"  type="BOOL" />
+        <Variable name="ERROR" type="BOOL" />
+      </Outputs>
+    </Block>
+    <Block type="MQTT_Client" description="MQTT Publish/Subscribe Client" class="FunctionBlock">
+      <Inputs>
+        <Variable name="REQ"     type="BOOL" default="FALSE" />
+        <Variable name="Publish" type="BOOL" default="FALSE" />
+        <Variable name="QoS"     type="DINT" default="0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="DONE"  type="BOOL" />
+        <Variable name="BUSY"  type="BOOL" />
+        <Variable name="ERROR" type="BOOL" />
+      </Outputs>
+    </Block>
+  </Category>
+</Library>

@@ -121,6 +121,25 @@ const EditorPane = ({
           return changed ? { ...block, data: newData } : block;
         })
       })));
+    } else if (field === 'type' && fileType === 'LD' && oldName) {
+      // Cascade variable type change to the matching Block instances in Rungs
+      setRungs(prevRungs => prevRungs.map(rung => ({
+        ...rung,
+        blocks: rung.blocks.map(block => {
+          if (block.data.instanceName === oldName) {
+            return {
+              ...block,
+              type: value,
+              data: {
+                ...block.data,
+                type: value,
+                label: value
+              }
+            };
+          }
+          return block;
+        })
+      })));
     }
   };
 
@@ -551,7 +570,7 @@ const EditorPane = ({
             allowedClasses={allowedClasses}
             globalVars={globalVars}
             derivedTypes={projectStructure?.dataTypes?.map(d => d.name) || []}
-            userDefinedTypes={availableBlocks?.map(b => b.name) || []}
+            userDefinedTypes={availableBlocks || []}
             liveVariables={liveVariables}
             parentName={parentName}
             disabled={isRunning}
@@ -633,7 +652,7 @@ const EditorPane = ({
             }}
             availablePrograms={availablePrograms}
             derivedTypes={projectStructure?.dataTypes?.map(d => d.name) || []}
-            userDefinedTypes={availableBlocks?.map(b => b.name) || []}
+            userDefinedTypes={availableBlocks || []}
             liveVariables={liveVariables}
             isRunning={isRunning}
             isSimulationMode={isSimulationMode}
