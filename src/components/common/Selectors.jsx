@@ -2,10 +2,24 @@ import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 
 export const ELEMENTARY_TYPES = [
-    'BOOL', 'SINT', 'INT', 'DINT', 'LINT',
-    'USINT', 'UINT', 'UDINT', 'ULINT',
-    'REAL', 'LREAL', 'TIME', 'DATE', 'TOD', 'DT',
-    'STRING', 'WSTRING', 'BYTE', 'WORD', 'DWORD', 'LWORD'
+    'BOOL', 'SINT', 'INT', 'DINT',
+    'USINT', 'UINT', 'UDINT',
+    'REAL', 'TIME', 'DATE', 'TOD', 'DT',
+    'STRING', 'WSTRING', 'BYTE', 'WORD', 'DWORD'
+];
+
+export const STD_BLOCK_TYPES = [
+    { name: 'TON', category: 'Standard / Timers' },
+    { name: 'TOF', category: 'Standard / Timers' },
+    { name: 'TP', category: 'Standard / Timers' },
+    { name: 'TONR', category: 'Standard / Timers' },
+    { name: 'R_TRIG', category: 'Standard / Triggers' },
+    { name: 'F_TRIG', category: 'Standard / Triggers' },
+    { name: 'CTU', category: 'Standard / Counters' },
+    { name: 'CTD', category: 'Standard / Counters' },
+    { name: 'CTUD', category: 'Standard / Counters' },
+    { name: 'SR', category: 'Standard / Bistables' },
+    { name: 'RS', category: 'Standard / Bistables' }
 ];
 
 export const DataTypeSelector = ({ value, onChange, derivedTypes = [], userDefinedTypes = [] }) => {
@@ -90,7 +104,8 @@ export const DataTypeSelector = ({ value, onChange, derivedTypes = [], userDefin
     const filteredDerived = derivedTypes.filter(t => t.toLowerCase().includes(term));
 
     // Normalize user defined types to always have a name and category
-    const normalizedUserTypes = userDefinedTypes.map(b => {
+    // Also include standard FB types like TON, TOF...
+    const normalizedUserTypes = [...STD_BLOCK_TYPES, ...userDefinedTypes].map(b => {
         if (typeof b === 'string') return { name: b, category: 'Project Defined' };
         return { name: b.name, category: b.category || 'Project Defined' };
     });

@@ -70,27 +70,6 @@ const ProjectSidebar = ({ projectStructure, onSelectItem, activeId, onAddItem, o
                 onClick={() => toggle(key)}
             >
                 <span>{expanded[key] ? '▼' : '▶'} {t(`sidebar.${key}`)}</span>
-                {key !== 'resources' && (
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            if (!isRunning) onAddItem(key);
-                        }}
-                        disabled={isRunning}
-                        style={{
-                            background: 'none',
-                            border: 'none',
-                            color: isRunning ? '#666' : '#fff',
-                            cursor: isRunning ? 'not-allowed' : 'pointer',
-                            fontSize: '14px',
-                            padding: '0 4px',
-                            opacity: isRunning ? 0.4 : 1
-                        }}
-                        title={isRunning ? 'Simülasyon çalışırken düzenleme yapılamaz' : t('actions.addNew')}
-                    >
-                        +
-                    </button>
-                )}
             </div>
 
             {/* List */}
@@ -110,12 +89,12 @@ const ProjectSidebar = ({ projectStructure, onSelectItem, activeId, onAddItem, o
                         disabled={isRunning || !!dragItem}
                     />
                     {items.map((item, index) => {
-                            const isBeingDragged = dragItem && dragItem.category === key && item.id === dragItem.id;
-                            // dragOverIndex is an "insert-before" slot (0..items.length)
-                            const showLineAbove = dragItem && dragItem.category === key && dragOverIndex === index;
+                        const isBeingDragged = dragItem && dragItem.category === key && item.id === dragItem.id;
+                        // dragOverIndex is an "insert-before" slot (0..items.length)
+                        const showLineAbove = dragItem && dragItem.category === key && dragOverIndex === index;
 
-                            return (
-                                <React.Fragment key={item.id}>
+                        return (
+                            <React.Fragment key={item.id}>
                                 <div
                                     draggable={!isRunning && dragEnabled}
                                     onDragStart={(e) => {
@@ -261,21 +240,28 @@ const ProjectSidebar = ({ projectStructure, onSelectItem, activeId, onAddItem, o
                                         </button>
                                     </div>
                                 </div>
-                                <InsertZone
-                                    onInsert={() => onAddItem(key, index + 1)}
-                                    disabled={isRunning || !!dragItem}
-                                />
-                                </React.Fragment>
-                            );
-                        })}
-                    {items.length === 0 && (
-                        <div style={{ padding: '5px 15px', color: '#666', fontSize: '11px', fontStyle: 'italic' }}>
-                            {t('messages.empty')}
+                                {index < items.length - 1 && (
+                                    <InsertZone
+                                        onInsert={() => onAddItem(key, index + 1)}
+                                        disabled={isRunning || !!dragItem}
+                                    />
+                                )}
+                            </React.Fragment>
+                        );
+                    })}
+                    {key !== 'resources' && !isRunning && (
+                        <div
+                            onClick={() => onAddItem(key, items.length)}
+                            style={{ display: 'flex', justifyContent: 'center', padding: '4px 0', cursor: 'pointer', opacity: 0.45 }}
+                            onMouseEnter={e => e.currentTarget.style.opacity = 1}
+                            onMouseLeave={e => e.currentTarget.style.opacity = 0.45}
+                        >
+                            <div style={{ width: 18, height: 18, background: '#007acc', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14, fontWeight: 'bold', lineHeight: 1 }}>+</div>
                         </div>
                     )}
                     {/* Bottom drop zone: catches drags below all items */}
                     <div
-                        style={{ minHeight: 16 }}
+                        style={{ minHeight: dragItem ? 16 : 0 }}
                         onDragOver={(e) => {
                             if (isRunning || !dragItem || dragItem.category !== key) return;
                             e.preventDefault();

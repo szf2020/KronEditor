@@ -91,6 +91,7 @@
         "noTasks": "No tasks defined. Click \"Add Task\" to create one.",
         "noInstances": "No instances defined. Click \"Add Instance\" to create one.",
         "empty": "Empty",
+        "emptyRung": "To add a rung, hover over the space above and click the \"+\" icon",
         "plcCompileStarted": "Compilation started",
         "plcRunMode": "PLC Run Mode.",
         "plcStopped": "PLC Stopped.",

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { PLC_BLOCKS } from '../utils/plcStandards';
 import { LIBRARY_TREE } from '../utils/libraryTree';
 import DragDropManager from '../utils/DragDropManager';
@@ -40,9 +40,61 @@ const buildBlockMap = (libraryData) => {
   return map;
 };
 
+// ─── Ghost HTML builder ────────────────────────────────────────────────────────
+
+const getContactCoilSVG = (type, subType) => {
+  const base = type === 'Contact'
+    ? `<line x1="0" y1="20" x2="10" y2="20" stroke="white" stroke-width="2"/>
+       <line x1="10" y1="5" x2="10" y2="35" stroke="white" stroke-width="2"/>
+       <line x1="30" y1="5" x2="30" y2="35" stroke="white" stroke-width="2"/>
+       <line x1="30" y1="20" x2="40" y2="20" stroke="white" stroke-width="2"/>`
+    : `<line x1="0" y1="20" x2="10" y2="20" stroke="white" stroke-width="2"/>
+       <path d="M15,5 Q5,20 15,35" stroke="white" stroke-width="2" fill="none"/>
+       <path d="M25,5 Q35,20 25,35" stroke="white" stroke-width="2" fill="none"/>
+       <line x1="30" y1="20" x2="40" y2="20" stroke="white" stroke-width="2"/>`;
+  const extras = {
+    NC:      `<line x1="8" y1="35" x2="32" y2="5" stroke="white" stroke-width="2"/>`,
+    Rising:  `<text x="20" y="25" text-anchor="middle" font-size="14" fill="white">P</text>`,
+    Falling: `<text x="20" y="25" text-anchor="middle" font-size="14" fill="white">N</text>`,
+    Negated: `<line x1="15" y1="30" x2="25" y2="10" stroke="white" stroke-width="2"/>`,
+    Set:     `<text x="20" y="25" text-anchor="middle" font-size="12" fill="white">S</text>`,
+    Reset:   `<text x="20" y="25" text-anchor="middle" font-size="12" fill="white">R</text>`,
+  };
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="27" viewBox="0 0 40 40" style="overflow:visible">${base}${extras[subType] || ''}</svg>`;
+};
+
+const buildGhostHTML = (blockType, subType, label, customData) => {
+  if (blockType === 'Contact' || blockType === 'Coil') {
+    const st = subType || (blockType === 'Contact' ? 'NO' : 'Normal');
+    const bg = blockType === 'Contact' ? '#1a6b3a' : '#8b3a0f';
+    return `<div style="display:flex;flex-direction:column;align-items:center;padding:8px 12px;gap:4px;background:${bg};border-radius:4px;border:1px solid rgba(255,255,255,0.2)">
+      <div style="background:#252526;border:1px solid #444;color:#9cdcfe;padding:1px 8px;border-radius:2px;font-size:11px;min-width:72px;text-align:center">??</div>
+      ${getContactCoilSVG(blockType, st)}
+    </div>`;
+  }
+
+  const inputs  = (customData?.inputs  || []).filter(p => p.name !== 'EN');
+  const outputs = (customData?.outputs || []).filter(p => p.name !== 'ENO');
+
+  const inRows  = inputs.map(p  => `<div style="display:flex;align-items:center;gap:4px;height:20px"><div style="width:8px;height:8px;background:#4CAF50;border:1px solid #fff;flex-shrink:0"></div><span style="font-size:10px;font-weight:bold">${p.name}</span></div>`).join('');
+  const outRows = outputs.map(p => `<div style="display:flex;align-items:center;justify-content:flex-end;gap:4px;height:20px"><span style="font-size:10px;font-weight:bold">${p.name}</span><div style="width:8px;height:8px;background:#FF5722;border:1px solid #fff;flex-shrink:0"></div></div>`).join('');
+
+  return `<div style="background:#252526;border:1px solid #666;border-radius:4px;min-width:140px;color:#fff;font-size:11px;overflow:hidden">
+    <div style="background:#333;padding:2px 4px;text-align:center;font-size:10px;color:#ccc;border-bottom:1px solid #444">${label}0</div>
+    <div style="background:#0d47a1;padding:4px 8px;text-align:center;font-weight:bold">${label}</div>
+    <div style="display:flex;justify-content:space-between;padding:8px 4px;gap:16px">
+      <div style="display:flex;flex-direction:column;gap:10px">${inRows}</div>
+      <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-end">${outRows}</div>
+    </div>
+  </div>`;
+};
+
 // ─── ToolboxItem ──────────────────────────────────────────────────────────────
 
 const ToolboxItem = ({ blockType, subType, label, desc, color, customData }) => {
+  const ghostRef = useRef(null);
+  const listenerRef = useRef(null);
+
   const onDragStart = (event) => {
     const isContactOrCoil = blockType === 'Contact' || blockType === 'Coil';
     const nodeType = 'blockNode';
@@ -53,6 +105,7 @@ const ToolboxItem = ({ blockType, subType, label, desc, color, customData }) => 
     if (customData) event.dataTransfer.setData('customData', JSON.stringify(customData));
     event.dataTransfer.effectAllowed = 'copyMove';
 
+    let stSnippet;
     if (blockType && !isContactOrCoil) {
       const data = customData || (PLC_BLOCKS[blockType] ? {} : null);
       if (data) {
@@ -61,24 +114,54 @@ const ToolboxItem = ({ blockType, subType, label, desc, color, customData }) => 
       }
     }
 
-    // Pass the standard instance name format
-    let instanceNameLabel = `${blockType}0`;
-
     DragDropManager.setDragData({
       type: nodeType,
       blockType,
       label,
       customData,
       stSnippet,
-      instanceNamePattern: instanceNameLabel
+      instanceNamePattern: `${blockType}0`
     });
 
-    if (event.dataTransfer.setDragImage) {
-      event.dataTransfer.setDragImage(EMPTY_IMG, 0, 0);
-    }
+    // Suppress native browser ghost
+    event.dataTransfer.setDragImage(EMPTY_IMG, 0, 0);
+
+    // Create cursor-following ghost element (visual block preview)
+    const ghost = document.createElement('div');
+    ghost.style.cssText = `
+      position: fixed;
+      pointer-events: none;
+      font-family: Consolas, monospace;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.7);
+      z-index: 99999;
+      opacity: 0.85;
+      top: -9999px;
+      left: -9999px;
+    `;
+    ghost.innerHTML = buildGhostHTML(blockType, subType, label, customData);
+    document.body.appendChild(ghost);
+    ghostRef.current = ghost;
+
+    const moveGhost = (e) => {
+      if (!ghostRef.current) return;
+      ghostRef.current.style.left = `${e.clientX + 12}px`;
+      ghostRef.current.style.top  = `${e.clientY - 10}px`;
+    };
+    document.addEventListener('dragover', moveGhost);
+    listenerRef.current = moveGhost;
   };
 
-  const onDragEnd = () => DragDropManager.clear();
+  const onDragEnd = () => {
+    if (ghostRef.current) {
+      ghostRef.current.remove();
+      ghostRef.current = null;
+    }
+    if (listenerRef.current) {
+      document.removeEventListener('dragover', listenerRef.current);
+      listenerRef.current = null;
+    }
+    DragDropManager.clear();
+  };
 
   return (
     <div

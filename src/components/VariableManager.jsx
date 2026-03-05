@@ -2,8 +2,30 @@ import React, { useState } from 'react';
 import { DataTypeSelector, ModernSelect } from './common/Selectors';
 import ForceWriteModal from './common/ForceWriteModal';
 import { useTranslation } from 'react-i18next';
+import { formatTimeUs } from '../utils/plcStandards';
 
 const ALL_CLASSES = ['Local', 'Global', 'Input', 'Output', 'InOut', 'Temp'];
+
+const InsertZoneRow = ({ colSpan, onInsert }) => {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <tr
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={onInsert}
+      style={{ cursor: 'pointer', height: hovered ? 22 : 4, transition: 'height 0.1s ease' }}
+    >
+      <td colSpan={colSpan} style={{ padding: 0, position: 'relative' }}>
+        {hovered && (
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', height: 22 }}>
+            <div style={{ position: 'absolute', left: 0, right: 0, height: 2, background: '#007acc', borderRadius: 1 }} />
+            <div style={{ position: 'relative', zIndex: 1, width: 16, height: 16, background: '#007acc', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 13, fontWeight: 'bold', lineHeight: 1 }}>+</div>
+          </div>
+        )}
+      </td>
+    </tr>
+  );
+};
 
 // Helper Component for "Save on Enter" logic
 const EditableCell = ({ value, onCommit, placeholder = '' }) => {
@@ -49,6 +71,89 @@ const EditableCell = ({ value, onCommit, placeholder = '' }) => {
   );
 };
 
+// ── Popup for Array/Struct live values ───────────────────────────────────────
+const ComplexLivePopup = ({ variable, liveVariables, parentName, dataTypes, anchorRect, onClose }) => {
+  const [selectedIdx, setSelectedIdx] = useState(0);
+
+  React.useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const dtDef = (dataTypes || []).find(dt => dt.name === variable.type);
+  if (!dtDef) return null;
+
+  const safeProgName = (parentName || '').trim().replace(/\s+/g, '_');
+  const safeName = (variable.name || '').trim().replace(/\s+/g, '_');
+
+  const getLive = (suffix) => {
+    const pk = `prog_${safeProgName}_${safeName}${suffix}`;
+    const gk = `prog__${safeName}${suffix}`;
+    const v = liveVariables[pk] !== undefined ? liveVariables[pk]
+            : liveVariables[gk] !== undefined ? liveVariables[gk] : null;
+    if (v === null) return '---';
+    if (typeof v === 'boolean') return v ? 'TRUE' : 'FALSE';
+    return String(v);
+  };
+
+  // Position: below anchor, clamped to viewport
+  const top = Math.min((anchorRect?.bottom ?? 100) + 4, window.innerHeight - 200);
+  const left = Math.min((anchorRect?.left ?? 100), window.innerWidth - 220);
+
+  const cellStyle = { padding: '3px 8px', borderBottom: '1px solid #2a2a2a', display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 11 };
+  const labelStyle = { color: '#888' };
+  const valStyle = { color: '#00e676', fontFamily: 'Consolas, monospace', fontWeight: 'bold' };
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 9998 }} />
+      <div style={{
+        position: 'fixed', top, left, zIndex: 9999,
+        background: '#1e1e1e', border: '1px solid #007acc',
+        borderRadius: 4, minWidth: 200, maxWidth: 260,
+        boxShadow: '0 4px 16px rgba(0,0,0,0.6)'
+      }}>
+        <div style={{ padding: '5px 8px', background: '#0d47a1', borderRadius: '3px 3px 0 0', fontSize: 11, fontWeight: 'bold', color: '#fff', display: 'flex', justifyContent: 'space-between' }}>
+          <span>{variable.name} <span style={{ opacity: 0.7, fontWeight: 'normal' }}>({variable.type})</span></span>
+          <span onClick={onClose} style={{ cursor: 'pointer', opacity: 0.7, lineHeight: 1 }}>✕</span>
+        </div>
+
+        {dtDef.type === 'Array' && (() => {
+          const dim = dtDef.content.dimensions[0];
+          const minIdx = parseInt(dim.min), maxIdx = parseInt(dim.max);
+          const indices = Array.from({ length: maxIdx - minIdx + 1 }, (_, i) => minIdx + i);
+          return (
+            <div style={{ padding: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <select
+                  value={selectedIdx}
+                  onChange={e => setSelectedIdx(parseInt(e.target.value))}
+                  style={{ flex: 1, background: '#2d2d2d', color: '#ccc', border: '1px solid #555', borderRadius: 3, padding: '3px 6px', fontSize: 11 }}
+                >
+                  {indices.map(i => <option key={i} value={i}>[{i}]</option>)}
+                </select>
+                <span style={valStyle}>{getLive(`[${selectedIdx}]`)}</span>
+              </div>
+            </div>
+          );
+        })()}
+
+        {dtDef.type === 'Structure' && (
+          <div style={{ padding: '4px 0' }}>
+            {(dtDef.content.members || []).map(member => (
+              <div key={member.name} style={cellStyle}>
+                <span style={labelStyle}>{member.name} <span style={{ color: '#555' }}>({member.type})</span></span>
+                <span style={valStyle}>{getLive(`.${member.name}`)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+};
+
 const VariableManager = ({
   variables = [],
   onDelete,
@@ -68,13 +173,13 @@ const VariableManager = ({
   const { t } = useTranslation();
   const [selectedId, setSelectedId] = useState(null);
   const [forceModal, setForceModal] = useState(null); // { varName, varType, liveKey, liveVal }
+  const [complexPopup, setComplexPopup] = useState(null); // { variable, anchorRect }
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  const handleAddClick = () => {
+  const handleAddClick = (insertAfterIndex) => {
     let existingNames = [...variables, ...globalVars].map(v => v.name);
 
-    // If projectStructure is provided, we need to check across all programs/functions/FBs to avoid global naming collisions
     if (projectStructure) {
       const allLocalVars = [];
       ['programs'].forEach(category => {
@@ -98,7 +203,7 @@ const VariableManager = ({
       type: 'BOOL',
       initialValue: '',
       description: ''
-    });
+    }, insertAfterIndex);
   };
 
   const handleRemoveClick = () => {
@@ -158,15 +263,31 @@ const VariableManager = ({
     return (key && liveVariables[key] !== undefined) ? liveVariables[key] : null;
   };
 
-  const formatLiveDisplay = (val) => {
+  const formatLiveDisplay = (val, type) => {
     if (val === null || val === undefined) return '---';
     if (typeof val === 'boolean') return val ? 'TRUE' : 'FALSE';
     if (typeof val === 'object') {
-      if ('Q' in val && 'ET' in val) return `Q=${val.Q ? 'T' : 'F'} ET=${val.ET}ms`;
+      if ('Q' in val && 'ET' in val) return `Q=${val.Q ? 'T' : 'F'} ET=${formatTimeUs(val.ET)}`;
       if ('Q' in val && 'CV' in val) return `Q=${val.Q ? 'T' : 'F'} CV=${val.CV}`;
       return JSON.stringify(val);
     }
+    if (type === 'TIME') return formatTimeUs(val);
     return String(val);
+  };
+
+  const dataTypes = projectStructure?.dataTypes || [];
+  const isComplexType = (typeName) => dataTypes.some(dt => dt.name === typeName && (dt.type === 'Array' || dt.type === 'Structure'));
+
+  const showClass = allowedClasses.some(c => c === 'Input' || c === 'Output' || c === 'InOut');
+  const colCount = 5 + (liveVariables ? 1 : 0) + (showClass ? 1 : 0);
+
+  const CLASS_COLORS = {
+    Input:  { bg: '#0e4f7a', border: '#1177bb', text: '#6dbfff' },
+    Output: { bg: '#6b3a1f', border: '#b86030', text: '#ffb07a' },
+    InOut:  { bg: '#4a2060', border: '#8e2fad', text: '#ce8ff0' },
+    Local:  { bg: '#2a2a2a', border: '#555',    text: '#aaa'    },
+    Temp:   { bg: '#2a2a2a', border: '#555',    text: '#aaa'    },
+    Global: { bg: '#1a3a1a', border: '#3a7a3a', text: '#88cc88' },
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -174,29 +295,13 @@ const VariableManager = ({
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#252526', borderBottom: '2px solid #007acc' }}>
 
-      {/* Header */}
-      <div style={{ padding: '5px 10px', background: '#333', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #444' }}>
-        <span style={{ fontWeight: 'bold', color: '#fff', fontSize: '13px' }}>Variable Table</span>
-        <div style={{ display: 'flex', gap: '5px' }}>
-          <button
-            onClick={handleAddClick}
-            disabled={disabled || isSimulationMode}
-            style={{ background: '#388E3C', border: 'none', color: 'white', padding: '2px 8px', fontSize: '11px', cursor: (disabled || isSimulationMode) ? 'not-allowed' : 'pointer', borderRadius: '3px', opacity: (disabled || isSimulationMode) ? 0.5 : 1 }}
-          >+ {t('common.add')}</button>
-          <button
-            onClick={handleRemoveClick}
-            disabled={!selectedId || disabled || isSimulationMode}
-            style={{ background: (!selectedId || disabled || isSimulationMode) ? '#555' : '#D32F2F', border: 'none', color: (!selectedId || disabled || isSimulationMode) ? '#aaa' : 'white', padding: '2px 8px', fontSize: '11px', cursor: (!selectedId || disabled || isSimulationMode) ? 'default' : 'pointer', borderRadius: '3px' }}
-          >- {t('common.delete')}</button>
-        </div>
-      </div>
-
       {/* Table */}
       <div style={{ flex: 1, overflow: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', color: '#ccc', fontSize: '11px', textAlign: 'left' }}>
           <thead style={{ background: '#1e1e1e', position: 'sticky', top: 0, zIndex: 10 }}>
             <tr>
               <th style={{ padding: '5px', borderBottom: '1px solid #444' }}>{t('tables.name')}</th>
+              {showClass && <th style={{ padding: '5px', borderBottom: '1px solid #444', minWidth: '70px' }}>{t('tables.class') || 'Class'}</th>}
               <th style={{ padding: '5px', borderBottom: '1px solid #444', minWidth: '120px' }}>{t('tables.type')}</th>
               <th style={{ padding: '5px', borderBottom: '1px solid #444' }}>{t('tables.initialValue')}</th>
               {liveVariables && (
@@ -205,24 +310,48 @@ const VariableManager = ({
                 </th>
               )}
               <th style={{ padding: '5px', borderBottom: '1px solid #444' }}>{t('tables.description')}</th>
+              <th style={{ padding: '5px', borderBottom: '1px solid #444', width: 28 }}></th>
             </tr>
           </thead>
           <tbody>
-            {variables.map((v) => {
+            {variables.map((v, index) => {
               const liveVal = getLiveValue(v.name);
               const liveKey = getLiveKey(v.name);
               const hasValue = liveVal !== null && liveVal !== undefined;
               const canForce = !!onForceWrite && liveVariables;
+              const isComplex = isComplexType(v.type);
 
               return (
+                <React.Fragment key={v.id}>
                 <tr
-                  key={v.id}
                   onClick={() => setSelectedId(v.id)}
                   style={{ borderBottom: '1px solid #333', background: selectedId === v.id ? '#0d47a1' : 'transparent', cursor: 'pointer' }}
                 >
                   <td style={{ padding: '5px' }}>
                     <EditableCell value={v.name} onCommit={(val) => !isSimulationMode && !disabled && validateAndSaveName(v.id, val)} />
                   </td>
+                  {showClass && (() => {
+                    const cls = v.class || allowedClasses[0] || 'Local';
+                    const cc = CLASS_COLORS[cls] || CLASS_COLORS.Local;
+                    return (
+                      <td style={{ padding: '3px 5px' }}>
+                        <select
+                          value={cls}
+                          disabled={disabled || isSimulationMode}
+                          onChange={(e) => { if (!disabled && !isSimulationMode && onUpdate) onUpdate(v.id, 'class', e.target.value); }}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            background: cc.bg, color: cc.text, border: `1px solid ${cc.border}`,
+                            borderRadius: 3, fontSize: 10, fontWeight: 'bold', padding: '1px 3px',
+                            width: '100%', cursor: disabled || isSimulationMode ? 'default' : 'pointer',
+                            outline: 'none'
+                          }}
+                        >
+                          {allowedClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </td>
+                    );
+                  })()}
                   <td style={{ padding: '5px' }}>
                     <DataTypeSelector
                       value={v.type}
@@ -266,37 +395,63 @@ const VariableManager = ({
                   </td>
                   {liveVariables && (
                     <td
-                      style={{ padding: '5px', cursor: canForce ? 'pointer' : 'default' }}
+                      style={{ padding: '5px', cursor: (canForce || isComplex) ? 'pointer' : 'default' }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (canForce) setForceModal({ varName: v.name, varType: v.type, liveKey, liveVal });
+                        if (isComplex) {
+                          setComplexPopup({ variable: v, anchorRect: e.currentTarget.getBoundingClientRect() });
+                        } else if (canForce) {
+                          setForceModal({ varName: v.name, varType: v.type, liveKey, liveVal });
+                        }
                       }}
-                      title={canForce ? 'Click to force-write value' : ''}
+                      title={isComplex ? 'Click to inspect elements' : canForce ? 'Click to force-write value' : ''}
                     >
                       <span style={{
-                        color: hasValue ? '#00e676' : '#555',
+                        color: isComplex ? '#90caf9' : (hasValue ? '#00e676' : '#555'),
                         fontWeight: 'bold',
                         fontFamily: 'Consolas, monospace',
                         padding: '1px 6px',
                         borderRadius: 3,
-                        background: canForce && hasValue ? 'rgba(0,230,118,0.08)' : 'transparent',
-                        border: canForce ? `1px solid ${hasValue ? 'rgba(0,230,118,0.25)' : '#333'}` : 'none',
+                        background: isComplex ? 'rgba(144,202,249,0.08)' : (canForce && hasValue ? 'rgba(0,230,118,0.08)' : 'transparent'),
+                        border: isComplex ? '1px solid rgba(144,202,249,0.25)' : (canForce ? `1px solid ${hasValue ? 'rgba(0,230,118,0.25)' : '#333'}` : 'none'),
                         display: 'inline-block'
                       }}>
-                        {formatLiveDisplay(liveVal)}
+                        {isComplex ? (() => {
+                          const dtDef = dataTypes.find(dt => dt.name === v.type);
+                          return dtDef?.type === 'Array' ? '⊞ inspect' : '⊡ inspect';
+                        })() : formatLiveDisplay(liveVal, v.type)}
                       </span>
                     </td>
                   )}
                   <td style={{ padding: '5px' }}>
                     <EditableCell value={v.description} onCommit={(val) => !disabled && onUpdate && onUpdate(v.id, 'description', val)} />
                   </td>
+                  <td style={{ padding: '3px', textAlign: 'center' }}>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); if (!disabled && !isSimulationMode && onDelete) { onDelete(v.id); setSelectedId(null); } }}
+                      disabled={disabled || isSimulationMode}
+                      title={t('common.delete')}
+                      style={{ background: 'transparent', border: 'none', color: disabled || isSimulationMode ? '#444' : '#c62828', cursor: disabled || isSimulationMode ? 'default' : 'pointer', fontSize: 13, padding: '1px 3px', lineHeight: 1 }}
+                    >🗑</button>
+                  </td>
                 </tr>
+                {!disabled && !isSimulationMode && index < variables.length - 1 && (
+                  <InsertZoneRow colSpan={colCount} onInsert={() => handleAddClick(index)} />
+                )}
+                </React.Fragment>
               );
             })}
-            {variables.length === 0 && (
+            {!disabled && !isSimulationMode && (
               <tr>
-                <td colSpan={liveVariables ? 5 : 4} style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
-                  {t('messages.empty')}
+                <td colSpan={colCount} style={{ padding: '2px 0' }}>
+                  <div
+                    onClick={() => handleAddClick(variables.length - 1)}
+                    style={{ display: 'flex', justifyContent: 'center', padding: '4px 0', cursor: 'pointer', opacity: 0.45 }}
+                    onMouseEnter={e => e.currentTarget.style.opacity = 1}
+                    onMouseLeave={e => e.currentTarget.style.opacity = 0.45}
+                  >
+                    <div style={{ width: 18, height: 18, background: '#007acc', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14, fontWeight: 'bold', lineHeight: 1 }}>+</div>
+                  </div>
                 </td>
               </tr>
             )}
@@ -314,6 +469,18 @@ const VariableManager = ({
           currentValue={forceModal.liveVal}
           liveKey={forceModal.liveKey}
           onConfirm={(key, val) => { onForceWrite && onForceWrite(key, val); }}
+        />
+      )}
+
+      {/* Complex Type Live Popup (Array / Struct) */}
+      {complexPopup && liveVariables && (
+        <ComplexLivePopup
+          variable={complexPopup.variable}
+          liveVariables={liveVariables}
+          parentName={parentName}
+          dataTypes={dataTypes}
+          anchorRect={complexPopup.anchorRect}
+          onClose={() => setComplexPopup(null)}
         />
       )}
     </div>

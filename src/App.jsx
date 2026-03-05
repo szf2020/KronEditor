@@ -43,7 +43,7 @@ function App() {
       // Extract library blocks for the Variable Manager drop-down
       const blocks = [];
       data.forEach(cat => {
-        const catName = cat.category || 'Standard Libraries';
+        const catName = cat.title || cat.category || 'Standard Libraries';
         (cat.blocks || []).forEach(b => blocks.push({ name: b.blockType, category: catName }));
         (cat.subcategories || []).forEach(sub => {
           (sub.items || []).forEach(item => blocks.push({ name: item.blockType, category: catName }));
@@ -172,8 +172,9 @@ function App() {
         try {
           const parsed = typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload;
           if (parsed.vars) {
-            // Normal variable update from LLDB monitor
-            setLiveVariables(parsed.vars);
+            // Merge — initial/default values from compile time are kept for variables
+            // not tracked by the simulator (e.g. integers missing from symbol table)
+            setLiveVariables(prev => ({ ...prev, ...parsed.vars }));
           } else if (parsed.status === 'exited' || parsed.status === 'crashed') {
             // Simulation process ended on its own
             setIsRunning(false);
@@ -334,20 +335,11 @@ function App() {
 
         setIsSimulationMode(true);
 
-        // Load Default Initial Values
+        // Load Default Initial Values from debugDefaults (keyed by live variable key)
         let initialLiveVars = {};
-        if (cCode.variableTable && cCode.variableTable.programs) {
-          Object.values(cCode.variableTable.programs).forEach(prog => {
-            if (prog.variables) {
-              Object.values(prog.variables).forEach(v => {
-                initialLiveVars[v.c_symbol] = v.initialValue;
-              });
-            }
-          });
-        }
-        if (cCode.variableTable && cCode.variableTable.globalVars) {
-          Object.entries(cCode.variableTable.globalVars).forEach(([name, v]) => {
-            initialLiveVars[name] = v.initialValue;
+        if (cCode.variableTable && cCode.variableTable.debugDefaults) {
+          Object.entries(cCode.variableTable.debugDefaults).forEach(([liveKey, info]) => {
+            initialLiveVars[liveKey] = info.defaultValue;
           });
         }
 

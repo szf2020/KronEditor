@@ -34,6 +34,12 @@ export const transpileToC = (projectStructure, standardHeaders = []) => {
         }
     });
 
+    const IEC_TYPE_SIZES = {
+        'BOOL': 1, 'SINT': 1, 'USINT': 1,
+        'INT': 2, 'UINT': 2,
+        'DINT': 4, 'UDINT': 4, 'TIME': 4, 'REAL': 4
+    };
+
     const resolveInitialValue = (val, type) => {
         if (val !== undefined && val !== null && val !== '') {
             if (type === 'BOOL') return val.toString().toLowerCase() === 'true' || val === '1';
@@ -63,7 +69,10 @@ extern volatile uint64_t us_tick;
     let variableTable = {
         dataTypes: {},
         globalVars: {},
-        programs: {}
+        programs: {},
+        // Flat debug map: liveKey → {type, c_symbol, defaultValue}
+        // Written so the simulator/developer can verify symbol tracking
+        debugDefaults: {}
     };
 
     // 1. Data Types (Header only)
@@ -81,16 +90,50 @@ extern volatile uint64_t us_tick;
 
     // 2. Global Variables
     const config = projectStructure.resources?.find(r => r.id === 'res_config');
+
+    // Build lookup: typeName → data type definition (for array/struct/enum expansion)
+    const dataTypeDefs = (projectStructure.dataTypes || []).reduce((acc, dt) => {
+        acc[dt.name] = dt; return acc;
+    }, {});
+
     if (config && config.content.globalVars && config.content.globalVars.length > 0) {
         header += `// --- GLOBAL VARIABLES ---\n`;
         config.content.globalVars.forEach(v => {
-            let initVal = v.initialValue ? ` = ${v.initialValue}` : '';
+            const isUserType = !!dataTypeDefs[v.type];
+            let initVal = (!isUserType && v.initialValue) ? ` = ${v.initialValue}` : '';
             if (v.type === 'STRING' && v.initialValue) initVal = ` = "${v.initialValue}"`;
             header += `${mapType(v.type)} ${v.name}${initVal};\n`;
-            variableTable.globalVars[v.name] = {
-                type: v.type,
-                initialValue: resolveInitialValue(v.initialValue, v.type)
+            const gInitVal = resolveInitialValue(v.initialValue, v.type);
+            variableTable.globalVars[v.name] = { type: v.type, initialValue: gInitVal };
+            // Debug: top-level entry
+            variableTable.debugDefaults[`prog__${v.name}`] = {
+                type: v.type, c_symbol: v.name, defaultValue: gInitVal
             };
+            // Debug: expand array elements and struct members for monitoring
+            const dtDef = dataTypeDefs[v.type];
+            if (dtDef?.type === 'Array') {
+                const baseType = dtDef.content.baseType;
+                const elemSize = IEC_TYPE_SIZES[baseType.toUpperCase()] || 0;
+                dtDef.content.dimensions.forEach(dim => {
+                    for (let i = parseInt(dim.min); i <= parseInt(dim.max); i++) {
+                        variableTable.debugDefaults[`prog__${v.name}[${i}]`] = {
+                            type: baseType, c_symbol: `${v.name}[${i}]`,
+                            base_symbol: v.name, byte_offset: i * elemSize,
+                            defaultValue: 0
+                        };
+                    }
+                });
+            } else if (dtDef?.type === 'Structure') {
+                let memberOffset = 0;
+                (dtDef.content.members || []).forEach(member => {
+                    variableTable.debugDefaults[`prog__${v.name}.${member.name}`] = {
+                        type: member.type, c_symbol: `${v.name}.${member.name}`,
+                        base_symbol: v.name, byte_offset: memberOffset,
+                        defaultValue: 0
+                    };
+                    memberOffset += IEC_TYPE_SIZES[member.type.toUpperCase()] || 0;
+                });
+            }
         });
         header += `\n`;
     }
@@ -169,12 +212,64 @@ extern volatile uint64_t us_tick;
                     header += `${mapType(v.type)} prog_${progName}_${vName};\n`;
                 }
 
+                const isFB = isFBType(v.type, projectStructure) || stdFunctions[v.type];
+                const cSym = isFB ? `prog_${progName}_inst_${vName}` : `prog_${progName}_${vName}`;
+                const initVal = resolveInitialValue(v.initialValue, v.type);
                 variableTable.programs[progName].variables[vName] = {
-                    type: v.type,
-                    c_symbol: (isFBType(v.type, projectStructure) || stdFunctions[v.type]) ? `prog_${progName}_inst_${vName}` : `prog_${progName}_${vName}`,
-                    initialValue: resolveInitialValue(v.initialValue, v.type)
+                    type: v.type, c_symbol: cSym, initialValue: initVal
+                };
+                // Debug: top-level entry
+                variableTable.debugDefaults[`prog_${progName}_${vName}`] = {
+                    type: v.type, c_symbol: cSym, defaultValue: initVal
+                };
+                // Debug: expand array elements and struct members
+                if (!isFB) {
+                    const dtDef = dataTypeDefs[v.type];
+                    if (dtDef?.type === 'Array') {
+                        const baseType = dtDef.content.baseType;
+                        const elemSize = IEC_TYPE_SIZES[baseType.toUpperCase()] || 0;
+                        dtDef.content.dimensions.forEach(dim => {
+                            for (let i = parseInt(dim.min); i <= parseInt(dim.max); i++) {
+                                variableTable.debugDefaults[`prog_${progName}_${vName}[${i}]`] = {
+                                    type: baseType, c_symbol: `${cSym}[${i}]`,
+                                    base_symbol: cSym, byte_offset: i * elemSize,
+                                    defaultValue: 0
+                                };
+                            }
+                        });
+                    } else if (dtDef?.type === 'Structure') {
+                        let memberOffset = 0;
+                        (dtDef.content.members || []).forEach(member => {
+                            variableTable.debugDefaults[`prog_${progName}_${vName}.${member.name}`] = {
+                                type: member.type, c_symbol: `${cSym}.${member.name}`,
+                                base_symbol: cSym, byte_offset: memberOffset,
+                                defaultValue: 0
+                            };
+                            memberOffset += IEC_TYPE_SIZES[member.type.toUpperCase()] || 0;
+                        });
+                    }
+                }
+            });
+            // Collect shadow vars BEFORE transpiling so they can be declared before the function body
+            const shadowVars = prog.type === 'LD'
+                ? collectShadowVars(prog.content?.rungs, progName)
+                : [];
+            // Declare shadow tracking globals in header
+            shadowVars.forEach(sv => {
+                header += `${mapType(sv.type)} ${sv.symbol};\n`;
+                const shortKey = sv.symbol.replace(`prog_${progName}_`, '');
+                variableTable.programs[progName].variables[shortKey] = {
+                    type: sv.type,
+                    c_symbol: sv.symbol,
+                    initialValue: 0
+                };
+                variableTable.debugDefaults[`prog_${progName}_${shortKey}`] = {
+                    type: sv.type,
+                    c_symbol: sv.symbol,
+                    defaultValue: 0
                 };
             });
+
             header += transpilePOUSource(prog, 'program', stdFunctions, progName, globalVarNames);
         });
     }
@@ -418,6 +513,81 @@ const FB_Q_OUTPUT = {
     'NORM_X': 'ENO', 'SCALE_X': 'ENO'
 };
 
+// Returns the IEC type of an output pin for a given block type
+const getOutputPinType = (blockType, pinName) => {
+    if (['Q', 'Q1', 'QU', 'QD', 'ENO'].includes(pinName)) return 'BOOL';
+    if (pinName === 'ET') return 'TIME';
+    if (pinName === 'CV') return 'INT';
+    if (pinName === 'OUT') {
+        const m = blockType.match(/_TO_([A-Z]+)$/);
+        if (m) return m[1];
+        if (['ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'MOVE', 'SEL', 'MUX'].includes(blockType)) return 'DINT';
+        if (['ABS', 'SQRT', 'EXPT', 'MAX', 'MIN', 'LIMIT', 'SIN', 'COS', 'TAN', 'ASIN', 'ACOS', 'ATAN', 'NORM_X', 'SCALE_X'].includes(blockType)) return 'REAL';
+        if (['BAND', 'BOR', 'BXOR', 'BNOT', 'SHL', 'SHR', 'ROL', 'ROR'].includes(blockType)) return 'DWORD';
+    }
+    return 'BOOL';
+};
+
+// Pre-scan rungs and collect shadow variables for unassigned FB output pins.
+// These become global C variables so the simulator can track them.
+const collectShadowVars = (rungs, progName) => {
+    const seen = new Set();
+    const vars = [];
+    (rungs || []).forEach(rung => {
+        (rung.blocks || []).forEach(b => {
+            const type = b.type || '';
+            const data = b.data || {};
+            if (type === 'Contact' || type === 'Coil') return;
+            const instName = (data.instanceName || type).trim().replace(/\s+/g, '_');
+            const outPins = [
+                ...(FB_OUTPUTS[type] || []),
+                ...(data.customData?.content?.variables || [])
+                    .filter(v => v.class === 'Output').map(v => v.name)
+            ];
+            outPins.forEach(pinName => {
+                const assigned = ((data.values?.[pinName] || '') + '').replace(/[🌍🏠⊞⊡⊟]/g, '').trim();
+                const isAssigned = assigned && /^[A-Za-z_][A-Za-z0-9_]*(\[[^\]]*\]|\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(assigned);
+                if (!isAssigned) {
+                    const sym = `prog_${progName}_out_${instName}_${pinName}`;
+                    if (!seen.has(sym)) {
+                        seen.add(sym);
+                        vars.push({ symbol: sym, type: getOutputPinType(type, pinName) });
+                    }
+                }
+            });
+        });
+    });
+    return vars;
+};
+
+// Output pin names for each standard FB type (used to separate read-back assignments)
+const FB_OUTPUTS = {
+    'TON': ['Q', 'ET'], 'TOF': ['Q', 'ET'], 'TP': ['Q', 'ET'], 'TONR': ['Q', 'ET'],
+    'CTU': ['Q', 'CV'], 'CTD': ['Q', 'CV'], 'CTUD': ['QU', 'QD', 'CV'],
+    'SR': ['Q1'], 'RS': ['Q1'],
+    'R_TRIG': ['Q'], 'F_TRIG': ['Q'],
+    // Comparison — ENO only
+    'GT': ['ENO'], 'GE': ['ENO'], 'EQ': ['ENO'], 'NE': ['ENO'], 'LE': ['ENO'], 'LT': ['ENO'],
+    // Arithmetic / Math / Bitwise / Trig / Selection — ENO + OUT
+    'ADD': ['ENO', 'OUT'], 'SUB': ['ENO', 'OUT'], 'MUL': ['ENO', 'OUT'],
+    'DIV': ['ENO', 'OUT'], 'MOD': ['ENO', 'OUT'], 'MOVE': ['ENO', 'OUT'],
+    'ABS': ['ENO', 'OUT'], 'SQRT': ['ENO', 'OUT'], 'EXPT': ['ENO', 'OUT'],
+    'MAX': ['ENO', 'OUT'], 'MIN': ['ENO', 'OUT'], 'LIMIT': ['ENO', 'OUT'],
+    'BAND': ['ENO', 'OUT'], 'BOR': ['ENO', 'OUT'], 'BXOR': ['ENO', 'OUT'], 'BNOT': ['ENO', 'OUT'],
+    'SHL': ['ENO', 'OUT'], 'SHR': ['ENO', 'OUT'], 'ROL': ['ENO', 'OUT'], 'ROR': ['ENO', 'OUT'],
+    'SIN': ['ENO', 'OUT'], 'COS': ['ENO', 'OUT'], 'TAN': ['ENO', 'OUT'],
+    'ASIN': ['ENO', 'OUT'], 'ACOS': ['ENO', 'OUT'], 'ATAN': ['ENO', 'OUT'],
+    'SEL': ['ENO', 'OUT'], 'MUX': ['ENO', 'OUT'],
+    'NORM_X': ['ENO', 'OUT'], 'SCALE_X': ['ENO', 'OUT'],
+};
+// All conversion blocks (X_TO_Y) share ['ENO', 'OUT'] — built dynamically below
+Object.keys(FB_OUTPUTS).length; // dummy to close initializer
+['BOOL', 'BYTE', 'WORD', 'DWORD', 'INT', 'UINT', 'DINT', 'UDINT', 'REAL'].forEach(src => {
+    ['BOOL', 'BYTE', 'WORD', 'DWORD', 'INT', 'UINT', 'DINT', 'UDINT', 'REAL'].forEach(dst => {
+        if (src !== dst) FB_OUTPUTS[`${src}_TO_${dst}`] = ['ENO', 'OUT'];
+    });
+});
+
 // Ordered input pin names for each standard FB type (index matches in_0, in_1, ...)
 const FB_INPUTS = {
     'TON': ['IN', 'PT'],
@@ -509,6 +679,7 @@ const transpileSTLogics = (code, stdFunctions = {}, parentName = '', category = 
 
     const transformExpr = (expr) => {
         let result = expr
+            .replace(/\b[A-Za-z_][A-Za-z0-9_]*#([A-Za-z_][A-Za-z0-9_]*)\b/g, '$1') // TypeName#EnumValue → EnumValue
             .replace(/:=/g, '=')
             .replace(/\bAND\b/g, '&&')
             .replace(/\bOR\b/g, '||')
@@ -636,22 +807,30 @@ const transpileLDLogics = (rungs, stdFunctions = {}, parentName = '', category =
 
     let out = '';
 
-    // Resolve a variable/signal name to its C symbol, respecting scope
+    // Resolve a variable/signal name to its C symbol, respecting scope.
+    // Handles simple names, array elements (var[idx]), struct members (var.member).
     const resolveVar = (varName) => {
         if (!varName) return null;
-        const v = varName.trim().replace(/\s+/g, '_');
+        const s = varName.trim();
+        // Split base name from suffix (array index or struct member access)
+        const sepIdx = s.search(/[\[.]/);
+        const baseName = (sepIdx >= 0 ? s.slice(0, sepIdx) : s).replace(/\s+/g, '_');
+        const suffix = sepIdx >= 0 ? s.slice(sepIdx) : '';
         if (category === 'program') {
-            // Global variables are declared without prefix; local program vars get prog_ prefix
-            return globalVarNames.includes(v) ? v : `prog_${parentName}_${v}`;
+            // Global vars: no prefix; local program vars: prog_<name>_ prefix
+            const resolved = globalVarNames.includes(baseName) ? baseName : `prog_${parentName}_${baseName}`;
+            return resolved + suffix;
         }
-        if (category === 'function_block') return `instance->${v}`;
-        return v;
+        if (category === 'function_block') return `instance->${baseName}${suffix}`;
+        return s;
     };
 
-    // Resolve a value string: IEC time literal → us integer, numeric → as-is, identifier → scoped var
+    // Resolve a value string: IEC time literal → us integer, numeric → as-is,
+    // identifier (incl. arr[idx] and struct.member) → scoped C symbol
     const resolveVal = (val) => {
         if (!val && val !== 0) return null;
-        const s = val.toString().trim();
+        // Strip any UI scope/type icons (🌍🏠⊞⊡⊟)
+        const s = val.toString().replace(/[🌍🏠⊞⊡⊟]/g, '').trim();
         if (!s) return null;
         if (s.toUpperCase().startsWith('T#') || s.toUpperCase().startsWith('TIME#')) {
             return mapIECtoTimeUs(s).toString();
@@ -659,9 +838,12 @@ const transpileLDLogics = (rungs, stdFunctions = {}, parentName = '', category =
         // Numeric literal (int, float, hex)
         if (/^-?[0-9][0-9a-fA-FxX.]*$/.test(s)) return s;
         // Boolean literals
-        if (s === 'true' || s === 'false') return s;
-        // Otherwise treat as variable reference
-        return resolveVar(s);
+        if (/^(true|false|TRUE|FALSE)$/.test(s)) return s.toLowerCase();
+        // Variable reference: simple, arr[idx], or struct.member
+        if (/^[A-Za-z_][A-Za-z0-9_]*(\[[^\]]*\]|\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(s)) {
+            return resolveVar(s);
+        }
+        return null; // unrecognised
     };
 
     // Get the C call-target for an FB instance
@@ -766,7 +948,7 @@ const transpileLDLogics = (rungs, stdFunctions = {}, parentName = '', category =
             out += `    bool ${bOut} = false;\n`;
 
             if (type === 'Contact') {
-                const varName = data.values?.var || data.instanceName;
+                const varName = ((data.values?.var || data.instanceName) + '').replace(/[🌍🏠⊞⊡⊟]/g, '').trim() || null;
                 if (varName) {
                     const v = resolveVar(varName);
                     if (subType === 'NC' || subType === 'Falling') {
@@ -779,7 +961,7 @@ const transpileLDLogics = (rungs, stdFunctions = {}, parentName = '', category =
                 }
 
             } else if (type === 'Coil') {
-                const varName = data.values?.coil || data.instanceName;
+                const varName = ((data.values?.coil || data.instanceName) + '').replace(/[🌍🏠⊞⊡⊟]/g, '').trim() || null;
                 out += `    ${bOut} = ${inExpr};\n`;
                 if (varName) {
                     const v = resolveVar(varName);
@@ -800,10 +982,20 @@ const transpileLDLogics = (rungs, stdFunctions = {}, parentName = '', category =
                 const callTarget = getCallTarget(instName);
                 const inputPins = FB_INPUTS[type] || (stdFunctions[type] ? stdFunctions[type].inputs : []);
 
-                // Step 1: assign static pin values entered in the block's input fields
-                //         (these are overridden below for the trigger pin)
+                // Determine output pin names for this block type so we can separate
+                // write-back assignments (post-call) from input assignments (pre-call)
+                let outputPinNames = new Set(FB_OUTPUTS[type] || []);
+                if (data.customData?.content?.variables) {
+                    data.customData.content.variables
+                        .filter(v => v.class === 'Output')
+                        .forEach(v => outputPinNames.add(v.name));
+                }
+
+                // Step 1: assign static pin values entered in the block's INPUT fields
+                //         Skip output pins — those are written back after the call
                 if (data.values) {
                     Object.entries(data.values).forEach(([pinName, val]) => {
+                        if (outputPinNames.has(pinName)) return; // handled post-call
                         const resolved = resolveVal(val);
                         if (resolved !== null && resolved !== undefined) {
                             out += `    ${callTarget}.${pinName} = ${resolved};\n`;
@@ -864,6 +1056,19 @@ const transpileLDLogics = (rungs, stdFunctions = {}, parentName = '', category =
                 } else {
                     out += `    ${bOut} = false;\n`;
                 }
+
+                // Step 4: output pin write-back — all pins, to assigned var or shadow tracking var
+                const safeInst = instName.trim().replace(/\s+/g, '_');
+                outputPinNames.forEach(pinName => {
+                    const rawVal = data.values?.[pinName];
+                    const varStr = rawVal ? (rawVal + '').replace(/[🌍🏠⊞⊡⊟]/g, '').trim() : '';
+                    if (varStr && /^[A-Za-z_][A-Za-z0-9_]*(\[[^\]]*\]|\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(varStr)) {
+                        out += `    ${resolveVar(varStr)} = ${callTarget}.${pinName};\n`;
+                    } else {
+                        // No assignment → shadow tracking variable (declared by collectShadowVars)
+                        out += `    prog_${parentName}_out_${safeInst}_${pinName} = ${callTarget}.${pinName};\n`;
+                    }
+                });
             }
         });
     });
@@ -900,7 +1105,7 @@ const transpileDataType = (dt) => {
     if (dt.type === 'Enumerated') {
         code += `typedef enum {\n`;
         dt.content.values.forEach((val, i) => {
-            code += `    ${val.identifier}${val.value ? ` = ${val.value}` : ''}${i < dt.content.values.length - 1 ? ',' : ''}\n`;
+            code += `    ${val.name}${val.value !== undefined && val.value !== '' ? ` = ${val.value}` : ''}${i < dt.content.values.length - 1 ? ',' : ''}\n`;
         });
         code += `} ${dt.name};\n\n`;
     } else if (dt.type === 'Structure') {
@@ -910,10 +1115,8 @@ const transpileDataType = (dt) => {
         });
         code += `} ${dt.name};\n\n`;
     } else if (dt.type === 'Array') {
-        const totalSize = dt.content.dimensions.reduce((acc, dim) => acc * ((parseInt(dim.max) - parseInt(dim.min)) + 1), 1);
-        code += `typedef struct {\n`;
-        code += `    ${mapType(dt.content.baseType)} data[${totalSize}];\n`;
-        code += `} ${dt.name};\n\n`;
+        const sizes = dt.content.dimensions.map(d => `[${parseInt(d.max) - parseInt(d.min) + 1}]`).join('');
+        code += `typedef ${mapType(dt.content.baseType)} ${dt.name}${sizes};\n\n`;
     }
     return code;
 };

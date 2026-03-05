@@ -90,6 +90,7 @@
         "noTasks": "Görev tanımlanmadı. Oluşturmak için \"Görev Ekle\"ye tıklayın.",
         "noInstances": "Örnek tanımlanmadı. Oluşturmak için \"Örnek Ekle\"ye tıklayın.",
         "empty": "Boş",
+        "emptyRung": "Rung eklemek için yukarıdaki boşluğa gelin ve \"+\" ikonuna tıklayın",
         "plcCompileStarted": "Derleme başlatıldı",
         "plcRunMode": "PLC Run Modu.",
         "plcStopped": "PLC Durduruldu.",

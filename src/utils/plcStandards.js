@@ -1,5 +1,26 @@
 // src/utils/plcStandards.js
 
+/**
+ * Format a TIME value (stored as microseconds u32) into IEC T# notation.
+ * e.g. 1100000 → "T#1s100ms", 1020100 → "T#1s20ms100us"
+ */
+export const formatTimeUs = (us) => {
+    const v = Math.round(Number(us));
+    if (isNaN(v) || v < 0) return String(us);
+    if (v === 0) return 'T#0s';
+    let rem = v;
+    const m  = Math.floor(rem / 60_000_000); rem %= 60_000_000;
+    const s  = Math.floor(rem /  1_000_000); rem %=  1_000_000;
+    const ms = Math.floor(rem /      1_000); rem %=      1_000;
+    const uv = rem;
+    let result = 'T#';
+    if (m)  result += `${m}m`;
+    if (s)  result += `${s}s`;
+    if (ms) result += `${ms}ms`;
+    if (uv) result += `${uv}us`;
+    return result;
+};
+
 export const PLC_BLOCKS = {
   // --- ZAMANLAYICILAR ---
   TON: {

@@ -43,11 +43,13 @@ const EditorPane = ({
   // Refs for checking current state in callbacks/providers without dependencies
   const variablesRef = useRef(variables);
   const globalVarsRef = useRef(globalVars);
+  const projectStructureRef = useRef(projectStructure);
 
   useEffect(() => {
     variablesRef.current = variables;
     globalVarsRef.current = globalVars;
-  }, [variables, globalVars]);
+    projectStructureRef.current = projectStructure;
+  }, [variables, globalVars, projectStructure]);
 
   // --- SYNC WITH PARENT ---
   useEffect(() => {
@@ -66,8 +68,13 @@ const EditorPane = ({
   }, [code, rungs, variables, tasks, instances, fileType]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- VARIABLE MANAGERS HANDLERS ---
-  const handleAddVar = (newVar) => {
-    setVariables((prev) => [...prev, newVar]);
+  const handleAddVar = (newVar, insertAfterIndex) => {
+    setVariables((prev) => {
+      if (insertAfterIndex === undefined || insertAfterIndex < 0) return [...prev, newVar];
+      const next = [...prev];
+      next.splice(insertAfterIndex + 1, 0, newVar);
+      return next;
+    });
   };
 
   const handleDeleteVar = (id) => {
@@ -251,59 +258,117 @@ const EditorPane = ({
   useEffect(() => {
     if (!monacoInstance) return;
 
+    const CIK = monacoInstance.languages.CompletionItemKind;
+
+    // Helper: find members of a named data type
+    const getMembersOf = (typeName) => {
+      const dt = (projectStructureRef.current?.dataTypes || []).find(d => d.name === typeName);
+      if (!dt) return null;
+      return dt;
+    };
+
     // Register Completion Provider for 'pascal' (used for ST)
     const disposable = monacoInstance.languages.registerCompletionItemProvider('pascal', {
+      triggerCharacters: ['.', '['],
       provideCompletionItems: (model, position) => {
         const suggestions = [];
+        const lineContent = model.getLineContent(position.lineNumber);
+        const beforeCursor = lineContent.substring(0, position.column - 1);
+        const allVars = [...variablesRef.current, ...globalVarsRef.current];
 
-        // 1. Keywords
+        // ── Member access: varName.member ──────────────────────────────────
+        const dotMatch = beforeCursor.match(/(\w+)\.(\w*)$/);
+        if (dotMatch) {
+          const baseName = dotMatch[1];
+          const baseVar = allVars.find(v => v.name === baseName);
+          if (baseVar) {
+            const dt = getMembersOf(baseVar.type);
+            if (dt?.type === 'Structure') {
+              (dt.content?.members || []).forEach(m => {
+                suggestions.push({
+                  label: m.name,
+                  kind: CIK.Field,
+                  insertText: m.name,
+                  detail: `${m.type}  — ${baseVar.type}.${m.name}`,
+                  documentation: m.description || ''
+                });
+              });
+            } else if (dt?.type === 'Enumerated') {
+              (dt.content?.values || []).forEach(v => {
+                suggestions.push({
+                  label: v.name,
+                  kind: CIK.EnumMember,
+                  insertText: v.name,
+                  detail: `${baseVar.type}#${v.name}`,
+                  documentation: v.value !== undefined ? `= ${v.value}` : ''
+                });
+              });
+            }
+          }
+          return { suggestions, incomplete: false };
+        }
+
+        // ── Array index access: varName[ ───────────────────────────────────
+        const bracketMatch = beforeCursor.match(/(\w+)\[(\d*)$/);
+        if (bracketMatch) {
+          const baseName = bracketMatch[1];
+          const baseVar = allVars.find(v => v.name === baseName);
+          if (baseVar) {
+            const dt = getMembersOf(baseVar.type);
+            if (dt?.type === 'Array') {
+              const dims = dt.content?.dimensions || [];
+              const dim = dims[0];
+              if (dim) {
+                const lo = Number(dim.min), hi = Number(dim.max);
+                const count = Math.min(hi - lo + 1, 20);
+                for (let i = 0; i < count; i++) {
+                  const idx = lo + i;
+                  suggestions.push({
+                    label: String(idx),
+                    kind: CIK.Value,
+                    insertText: `${idx}]`,
+                    detail: `${dt.content?.baseType}  — index ${idx} of ${baseVar.type}[${lo}..${hi}]`
+                  });
+                }
+              }
+            }
+          }
+          return { suggestions, incomplete: false };
+        }
+
+        // ── Base completions ───────────────────────────────────────────────
         const keywords = [
           'IF', 'THEN', 'ELSE', 'ELSIF', 'END_IF',
           'CASE', 'OF', 'END_CASE',
           'FOR', 'TO', 'BY', 'DO', 'END_FOR',
           'WHILE', 'END_WHILE',
           'REPEAT', 'UNTIL', 'END_REPEAT',
-          'RETURN', 'EXIT',
-          'TRUE', 'FALSE'
+          'RETURN', 'EXIT', 'TRUE', 'FALSE'
         ];
-
         keywords.forEach(kw => {
-          suggestions.push({
-            label: kw,
-            kind: monacoInstance.languages.CompletionItemKind.Keyword,
-            insertText: kw,
-            detail: 'Keyword'
-          });
+          suggestions.push({ label: kw, kind: CIK.Keyword, insertText: kw, detail: 'Keyword' });
         });
 
-        // 2. Standard Functions/Blocks
         const stdBlocks = ['TON', 'TOF', 'TP', 'CTU', 'CTD', 'CTUD', 'R_TRIG', 'F_TRIG'];
         stdBlocks.forEach(blk => {
-          suggestions.push({
-            label: blk,
-            kind: monacoInstance.languages.CompletionItemKind.Class,
-            insertText: blk,
-            detail: 'Standard FB'
-          });
+          suggestions.push({ label: blk, kind: CIK.Class, insertText: blk, detail: 'Standard FB' });
         });
-
-        // 3. Variables (Local & Global)
-        // Access via Refs to get latest state
-        const allVars = [
-          ...variablesRef.current,
-          ...globalVarsRef.current
-        ];
 
         allVars.forEach(v => {
-          suggestions.push({
-            label: v.name,
-            kind: monacoInstance.languages.CompletionItemKind.Variable,
-            insertText: v.name,
-            detail: `${v.type} (${v.class || 'Var'})`
-          });
+          const dt = getMembersOf(v.type);
+          let insertText = v.name;
+          let detail = `${v.type} (${v.class || 'Var'})`;
+          if (dt?.type === 'Structure') {
+            detail += '  { }';
+          } else if (dt?.type === 'Array') {
+            detail += `  [${dt.content?.dimensions?.[0]?.min}..${dt.content?.dimensions?.[0]?.max}]`;
+          } else if (dt?.type === 'Enumerated') {
+            detail += '  (enum)';
+          }
+          suggestions.push({ label: v.name, kind: CIK.Variable, insertText, detail });
         });
 
-        return { suggestions: suggestions };
+        return { suggestions };
       }
     });
 
@@ -577,6 +642,7 @@ const EditorPane = ({
             isRunning={isRunning}
             isSimulationMode={isSimulationMode}
             onForceWrite={onForceWrite}
+            projectStructure={projectStructure}
           />
         </div>
       )}
@@ -606,6 +672,7 @@ const EditorPane = ({
             setRungs={setRungs}
             availableBlocks={availableBlocks}
             globalVars={globalVars}
+            dataTypes={projectStructure?.dataTypes || []}
             liveVariables={liveVariables}
             parentName={parentName}
             readOnly={isRunning}

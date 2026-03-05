@@ -7,20 +7,37 @@ const DataTypeCreationModal = ({ isOpen, onClose, onSave, existingNames }) => {
     const [type, setType] = useState('Array'); // Default selection
     const [error, setError] = useState('');
 
-    // Generate valid default name on open
+    // Generate valid default name based on type
+    const generateName = React.useCallback((selectedType) => {
+        let prefix = selectedType === 'Array' ? 'array' : (selectedType === 'Enumerated' ? 'enum' : 'struct');
+        let index = 0;
+        let candidate = `${prefix}${index}`;
+        while (existingNames.includes(candidate)) {
+            index++;
+            candidate = `${prefix}${index}`;
+        }
+        return candidate;
+    }, [existingNames]);
+
     useEffect(() => {
         if (isOpen) {
-            let index = 0;
-            let candidate = `DataType${index}`;
-            while (existingNames.includes(candidate)) {
-                index++;
-                candidate = `DataType${index}`;
-            }
-            setName(candidate);
-            setType('Array');
+            const defaultType = 'Array';
+            setType(defaultType);
+            setName(generateName(defaultType));
             setError('');
         }
-    }, [isOpen, existingNames]);
+    }, [isOpen, generateName]);
+
+    const handleTypeChange = (e) => {
+        const newType = e.target.value;
+        setType(newType);
+
+        // Update name if it matches a default pattern or is empty
+        const isDefaultName = /^(array|enum|struct|DataType)\d*$/i.test(name) || name === '';
+        if (isDefaultName) {
+            setName(generateName(newType));
+        }
+    };
 
     if (!isOpen) return null;
 
@@ -73,7 +90,7 @@ const DataTypeCreationModal = ({ isOpen, onClose, onSave, existingNames }) => {
                     </label>
                     <select
                         value={type}
-                        onChange={(e) => setType(e.target.value)}
+                        onChange={handleTypeChange}
                         style={{
                             width: '100%', padding: '8px', background: '#333',
                             border: '1px solid #555', color: 'white', borderRadius: '4px',

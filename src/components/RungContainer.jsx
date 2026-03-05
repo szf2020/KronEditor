@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import ForceWriteModal from './common/ForceWriteModal';
+import { formatTimeUs } from '../utils/plcStandards';
 import ReactFlow, {
   ReactFlowProvider,
   addEdge,
@@ -12,34 +13,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import DragDropManager from '../utils/DragDropManager';
-import { writeTextFile, readTextFile, exists, BaseDirectory } from '@tauri-apps/plugin-fs';
 
-const logDebug = async (msg) => {
-  try {
-    const timestamp = new Date().toISOString();
-    const line = `[${timestamp}] ${msg}\n`;
-    // Append requires reading first or just overwrite for simple debugging (append is harder in simple API)
-    // We will just try to append by reading first
-    // NOTE: This is slow but fine for debugging 1 event
-    /*
-    let content = '';
-    try {
-        content = await readTextFile('debug_log.txt', { baseDir: BaseDirectory.Document });
-    } catch(e) {}
-    await writeTextFile('debug_log.txt', content + line, { baseDir: BaseDirectory.Document });
-    */
-    // Let's just write to console AND try a fire-and-forget write to a new file per log or just one main log without read-append for speed.
-    // Actually, let's just use console.log but since user asked for file:
-    // We will overwrite a file 'last_debug_op.txt' to avoid complex append logic in this context
-    // await writeTextFile('plc_debug_log.txt', line, { baseDir: BaseDirectory.Home, append: true }); // append option exists in newer tauri fs?
-    // Let's assum tauri v2 writeTextFile has append options? Protocol says v2.
-    // Checking docs... it supports { append: true } usually.
-    // Hardcoded absolute path for reliability
-    await writeTextFile('/home/fehim/Documents/PLCEditor/debug_drag.txt', line, { append: true });
-  } catch (err) {
-    console.error("Log failed", err);
-  }
-};
 
 /**
  * Her rung'un kendi mini ladder editörü
@@ -400,7 +374,14 @@ const getSymbolPath = (type, subType) => {
 const BlockNode = ({ id, data, isConnectable, selected }) => {
   const { setNodes } = useReactFlow();
   const edges = useEdges();
-  const { variables = [], globalVars = [], liveVariables = null } = data; // Receive vars from data context
+  const { variables = [], globalVars = [], dataTypes = [], liveVariables = null } = data; // Receive vars from data context
+
+  // Build map of array type names → their definitions for validation
+  const arrayTypeMap = React.useMemo(() => {
+    const m = {};
+    dataTypes.forEach(dt => { if (dt.type === 'Array') m[dt.name] = dt; });
+    return m;
+  }, [dataTypes]);
 
   // LOCAL STATE to prevent cursor jumping due to async prop updates
   const [localInstanceName, setLocalInstanceName] = useState(
@@ -420,110 +401,6 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
     setLocalPinValues(data.values || {});
   }, [data.values]);
 
-
-  // SAFE MODE GHOST RENDERING
-  // Renders a pure visual copy without inputs/handles to prevent logic errors during drag
-  // SAFE MODE GHOST RENDERING (High Fidelity Visual Replica)
-  if (id === 'ghost-preview') {
-    // 1. Contact/Coil Ghost
-    if (data.type === 'Contact' || data.type === 'Coil') {
-      const subType = data.subType || (data.type === 'Contact' ? 'NO' : 'Normal');
-      const symbol = getSymbolPath(data.type, subType);
-      const instanceName = data.instanceName || (data.type === 'Contact' ? (data.values?.var || '') : (data.values?.coil || ''));
-      // Visual Clone of Contact/Coil
-      return (
-        <div style={{
-          position: 'relative', width: 27, height: 27, minWidth: 27, minHeight: 27,
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(255, 255, 255, 0.05)', // Match real block
-          border: '1px solid transparent', // Match real block when not selected
-          borderRadius: 4,
-          opacity: 0.8 // Slightly transparent for ghost effect
-        }}>
-          {/* Fake Input for visual consistency */}
-          <div style={{
-            position: 'absolute', top: -30, left: '50%', transform: 'translateX(-50%)',
-            display: 'flex', gap: 4, alignItems: 'center', justifyContent: 'center'
-          }}>
-            <div style={{
-              width: 80, height: 20, fontSize: 11, border: '1px solid #333', background: '#252526', color: 'white',
-              borderRadius: 2, padding: '0 4px', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden'
-            }}>
-              {instanceName || '??'}
-            </div>
-          </div>
-          <svg width="27" height="27" viewBox="0 0 40 40" style={{ color: '#fff', overflow: 'visible' }}>{symbol}</svg>
-        </div>
-      );
-    }
-
-    // 2. Standard Block Ghost (TON, CTU, etc.) - High Fidelity Clone
-    let ghostCfg = blockConfig[data.type];
-    // Custom block handling
-    if (data.customData && data.customData.content) {
-      const variables = data.customData.content?.variables || [];
-      ghostCfg = {
-        label: data.customData.name,
-        inputs: variables.filter(v => v.class === 'Input' || v.class === 'InOut').map(v => ({ name: v.name, type: v.type })),
-        outputs: variables.filter(v => v.class === 'Output').map(v => ({ name: v.name, type: v.type }))
-      };
-      if (data.customData.returnType) ghostCfg.outputs.push({ name: 'OUT', type: data.customData.returnType });
-    }
-    if (!ghostCfg) ghostCfg = { label: data.type, inputs: [], outputs: [] };
-
-    // Execution Control Simulation
-    const ghostInputs = data.executionControl ? [{ name: 'EN', type: 'BOOL' }, ...ghostCfg.inputs] : ghostCfg.inputs;
-    const ghostOutputs = data.executionControl ? [{ name: 'ENO', type: 'BOOL' }, ...ghostCfg.outputs] : ghostCfg.outputs;
-
-    return (
-      <div style={{
-        background: '#252526',
-        border: '1px solid #666',
-        borderRadius: 4,
-        minWidth: 140,
-        color: '#fff',
-        fontSize: 11,
-        overflow: 'hidden',
-        boxShadow: '0 4px 8px rgba(0,0,0,0.3)',
-        opacity: 0.9
-      }}>
-        {/* Header */}
-        <div style={{
-          background: '#333', padding: '2px 4px', textAlign: 'center', fontSize: '10px', color: '#ccc', borderBottom: '1px solid #444'
-        }}>
-          {data.instanceName || `${data.type}_?`}
-        </div>
-        {/* Label */}
-        <div style={{ background: '#0d47a1', padding: '4px 8px', textAlign: 'center', fontWeight: 'bold' }}>
-          {ghostCfg.label}
-        </div>
-
-        {/* Pins Body */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 4px' }}>
-          {/* INPUTS */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {ghostInputs.map((pin, i) => (
-              <div key={i} style={{ position: 'relative', display: 'flex', alignItems: 'center', height: 20 }}>
-                {/* Fake Handle */}
-                <div style={{ width: 10, height: 10, background: '#4CAF50', marginLeft: -14, border: '1px solid #fff', borderRadius: 0 }} />
-                <span style={{ fontSize: 10, fontWeight: 'bold', marginLeft: 6 }}>{pin.name}</span>
-              </div>
-            ))}
-          </div>
-          {/* OUTPUTS */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end', marginLeft: 10 }}>
-            {ghostOutputs.map((pin, i) => (
-              <div key={i} style={{ position: 'relative', display: 'flex', alignItems: 'center', height: 20, justifyContent: 'flex-end' }}>
-                <span style={{ fontSize: 10, fontWeight: 'bold', marginRight: 6 }}>{pin.name}</span>
-                {/* Fake Handle */}
-                <div style={{ width: 10, height: 10, background: '#FF5722', marginRight: -14, border: '1px solid #fff', borderRadius: 0 }} />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   const handleUpdate = useCallback((updates) => {
     setNodes((nds) => nds.map((n) => {
@@ -594,8 +471,8 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
         cursor: 'pointer',
         background: 'rgba(255, 255, 255, 0.05)',
         border: selected ? '2px solid #007acc' : (
-          ((data.type === 'Contact' || data.type === 'Coil') &&
-            ![...variables, ...globalVars].some(v => v.name === instanceName) && instanceName !== '')
+          ((data.type === 'Contact' || data.type === 'Coil') && instanceName !== '' &&
+            ![...variables, ...globalVars].some(v => v.name === instanceName.split(/[\[.]/)[0]))
             ? '2px solid #f44336' // RED ERROR BORDER
             : '1px solid transparent'
         ),
@@ -647,7 +524,7 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
               if (data.readOnly) return;
               const rawValue = e.target.value;
               setLocalInstanceName(rawValue);
-              const val = rawValue.replace(/[🌍🏠]/g, '').trim();
+              const val = rawValue.replace(/[🌍🏠⊞⊡⊟]/g, '').trim();
               handleUpdate({ instanceName: val });
             }}
             list={data.readOnly ? undefined : "ladder-vars-BOOL"}
@@ -776,7 +653,28 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
     };
   }
 
-
+  // Polymorphic type inference for basic math blocks:
+  // output type follows input type — REAL if any input is REAL or has a decimal, else DINT
+  const POLY_MATH = new Set(['ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'MOVE']);
+  if (!data.customData && POLY_MATH.has(data.type)) {
+    const allVars = [...variables, ...globalVars];
+    const numPinNames = cfg.inputs.filter(p => p.type !== 'BOOL').map(p => p.name);
+    let inferredType = 'DINT';
+    for (const pinName of numPinNames) {
+      const raw = (localPinValues[pinName] ?? data.values?.[pinName] ?? '');
+      const val = String(raw).replace(/[🌍🏠⊞⊡⊟]/g, '').trim();
+      if (!val) continue;
+      if (/^-?\d*\.\d+$|^-?\d+\.\d*$/.test(val)) { inferredType = 'REAL'; break; }
+      const baseName = val.split(/[\[.]/)[0];
+      const varDef = allVars.find(v => v.name === baseName);
+      if (varDef && (varDef.type === 'REAL' || varDef.type === 'LREAL')) { inferredType = 'REAL'; break; }
+    }
+    cfg = {
+      ...cfg,
+      inputs:  cfg.inputs.map(p  => (p.type  === 'DINT' || p.type  === 'INT') ? { ...p,  type: inferredType } : p),
+      outputs: cfg.outputs.map(p => (p.type === 'DINT' || p.type === 'INT') ? { ...p, type: inferredType } : p),
+    };
+  }
 
   // Execution Control (EN) varsa inputlara ekle
   const effectiveInputs = data.executionControl
@@ -828,28 +726,24 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
     }
   };
 
-  const isGhost = id === 'ghost-preview';
-
   return (
     <div style={{
-      // Force High Contrast for Debugging transparency issues
-      backgroundColor: isGhost ? '#e0e0e0' : (selected ? '#3c3c3c' : '#252526'),
-      border: selected ? '2px solid #007acc' : (isGhost ? '2px dashed #007acc' : '1px solid #666'),
+      backgroundColor: selected ? '#3c3c3c' : '#252526',
+      border: selected ? '2px solid #007acc' : '1px solid #666',
       borderRadius: 4,
       minWidth: 140,
-      color: isGhost ? '#000' : '#fff', // Black text on white/grey ghost
+      color: '#fff',
       fontSize: 11,
       overflow: 'visible',
       boxShadow: selected ? '0 0 8px rgba(0, 122, 204, 0.5)' : '0 2px 4px rgba(0,0,0,0.2)',
       transition: 'all 0.2s ease',
-      opacity: isGhost ? 0.9 : 1
     }}>
       <div style={{
-        background: isGhost ? '#ccc' : '#333',
+        background: '#333',
         padding: '2px 4px',
         textAlign: 'center',
         fontSize: '10px',
-        color: isGhost ? '#000' : '#ccc',
+        color: '#ccc',
         borderBottom: '1px solid #444',
         borderTopLeftRadius: 3,
         borderTopRightRadius: 3
@@ -875,7 +769,11 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
             const TIME_FORMAT_REGEX = /^(T|TIME)#-?(\d+(\.\d+)?(ms|d|h|m|s)_?)+$/i;
             const TIME_CHAR_REGEX = /^[0-9tihmds._#-]*$/i;
 
-            const isValid = !isTime || !val || TIME_FORMAT_REGEX.test(val);
+            const cleanVal = val.replace(/[🌍🏠⊞⊡⊟]/g, '').trim();
+            const baseValName = cleanVal.split(/[\[.]/)[0];
+            const valVarDef = [...variables, ...globalVars].find(v => v.name === baseValName);
+            const isArrayWithoutIndex = valVarDef && arrayTypeMap[valVarDef.type] && !cleanVal.includes('[');
+            const isValid = !isArrayWithoutIndex && (!isTime || !val || TIME_FORMAT_REGEX.test(val));
 
             return (
               <div key={handleId} style={{ position: 'relative', display: 'flex', alignItems: 'center', height: 20 }}>
@@ -894,7 +792,7 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
                       setLocalPinValues(prev => ({ ...prev, [pin.name]: rawValue }));
 
                       // Strip emojis coming from autocomplete suggestions (globally and trim)
-                      const newValue = rawValue.replace(/[🌍🏠]/g, '').trim();
+                      const newValue = rawValue.replace(/[🌍🏠⊞⊡⊟]/g, '').trim();
 
                       if (isTime && !TIME_CHAR_REGEX.test(newValue)) return;
                       handleInputChange(pin.name, newValue);
@@ -947,6 +845,35 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end', marginLeft: 10 }}>
           {effectiveOutputs.map((pin, i) => {
             const handleId = `out_${i}`;
+            const connected = isHandleConnected(handleId, 'source');
+            const val = data.values?.[pin.name] || '';
+            const outCleanVal = val.replace(/[🌍🏠⊞⊡⊟]/g, '').trim();
+            const outBaseVarName = outCleanVal.split(/[\[.]/)[0];
+            const outVarDef = [...variables, ...globalVars].find(v => v.name === outBaseVarName);
+            const outIsArrayWithoutIndex = outVarDef && arrayTypeMap[outVarDef.type] && !outCleanVal.includes('[');
+
+            // Live value lookup for this output pin
+            const lv = liveVariables;
+            let outLiveVal;
+            if (lv) {
+              const safeProgName = (data.parentName || '').trim().replace(/\s+/g, '_');
+              const safeInstName = (data.instanceName || '').trim().replace(/\s+/g, '_');
+              const assignedVar = val.replace(/[🌍🏠⊞⊡⊟]/g, '').trim();
+              if (assignedVar && /^[A-Za-z_]/.test(assignedVar)) {
+                const safeVar = assignedVar.replace(/\s+/g, '_');
+                const progKey = `prog_${safeProgName}_${safeVar}`;
+                outLiveVal = lv[progKey] !== undefined ? lv[progKey] : lv[`prog__${safeVar}`];
+              }
+              if (outLiveVal === undefined && safeInstName) {
+                outLiveVal = lv[`prog_${safeProgName}_out_${safeInstName}_${pin.name}`];
+              }
+            }
+            const hasLive = outLiveVal !== undefined;
+            const liveDisplay = hasLive
+              ? (typeof outLiveVal === 'boolean'
+                  ? (outLiveVal ? '1' : '0')
+                  : pin.type === 'TIME' ? formatTimeUs(outLiveVal) : String(outLiveVal))
+              : null;
 
             return (
               <div key={handleId} style={{ position: 'relative', display: 'flex', alignItems: 'center', height: 20 }}>
@@ -965,12 +892,67 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
                     width: 10,
                     height: 10,
                     background: '#FF5722',
-                    right: -10, // Kutu dışına
+                    right: -10,
                     top: '50%',
                     transform: 'translateY(-50%)',
                     border: '1px solid #fff'
                   }}
                 />
+
+                {/* Live value badge (simulation mode) */}
+                {!connected && lv && (
+                  <span style={{
+                    position: 'absolute',
+                    left: '100%',
+                    marginLeft: 15,
+                    minWidth: 36,
+                    fontSize: 10,
+                    background: hasLive ? 'rgba(0,230,118,0.12)' : 'transparent',
+                    border: `1px solid ${hasLive ? 'rgba(0,230,118,0.4)' : '#444'}`,
+                    color: hasLive ? '#00e676' : '#555',
+                    padding: '1px 4px',
+                    borderRadius: 2,
+                    fontFamily: 'Consolas, monospace',
+                    textAlign: 'center',
+                    pointerEvents: 'none'
+                  }}>
+                    {hasLive ? liveDisplay : '---'}
+                  </span>
+                )}
+
+                {/* Edit-mode variable assignment field */}
+                {!connected && !lv && (
+                  <input
+                    type="text"
+                    className="nodrag"
+                    value={localPinValues[pin.name] !== undefined ? localPinValues[pin.name] : val}
+                    list={data.readOnly ? undefined : (pin.type === 'ANY' ? "ladder-vars-ANY" : `ladder-vars-${pin.type}`)}
+                    readOnly={!!data.readOnly}
+                    onDoubleClick={(e) => e.stopPropagation()}
+                    onChange={(e) => {
+                      if (data.readOnly) return;
+                      const rawValue = e.target.value;
+                      setLocalPinValues(prev => ({ ...prev, [pin.name]: rawValue }));
+                      const newValue = rawValue.replace(/[🌍🏠⊞⊡⊟]/g, '').trim();
+                      handleInputChange(pin.name, newValue);
+                    }}
+                    style={{
+                      position: 'absolute',
+                      left: '100%',
+                      marginLeft: 15,
+                      width: 40,
+                      fontSize: 10,
+                      background: '#1e1e1e',
+                      border: outIsArrayWithoutIndex ? '1px solid #f44336' : '1px solid #444',
+                      color: outIsArrayWithoutIndex ? '#f44336' : '#ddd',
+                      padding: '2px 4px',
+                      borderRadius: 2,
+                      outline: 'none',
+                      textAlign: 'left'
+                    }}
+                    placeholder="..."
+                  />
+                )}
               </div>
             );
           })}
@@ -1004,6 +986,7 @@ const RungContainer = ({
   availableBlocks = [],
   variables = [],
   globalVars = [],
+  dataTypes = [],
   liveVariables = null,
   parentName = "",
   readOnly = false,
@@ -1014,8 +997,6 @@ const RungContainer = ({
 }) => {
   const containerRef = useRef(null);
   const [containerWidth, setContainerWidth] = React.useState(800);
-  const [dragGhost, setDragGhost] = useState(null);
-
   // Container ve Rung boyutları
 
 
@@ -1113,6 +1094,7 @@ const RungContainer = ({
           onForceWrite: (key, val) => onForceWriteRef.current?.(key, val),
           variables: variables, // Pass to node data
           globalVars: globalVars, // Pass to node data
+          dataTypes: dataTypes,
           liveVariables: liveVariables, // Pass online mode data mapping
           parentName: parentName,
           readOnly: readOnly
@@ -1122,12 +1104,41 @@ const RungContainer = ({
         extent: [[bounds.minX, 0], [bounds.maxX, RUNG_HEIGHT]] // Fully relaxed Y constraint
       };
     });
-  }, [getBlockHeight, variables, globalVars, liveVariables, parentName, readOnly]); // Added variables dependencies
+  }, [getBlockHeight, variables, globalVars, dataTypes, liveVariables, parentName, readOnly]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState([
     ...createTerminalNodes(containerWidth),
     ...mapBlocksToNodes(rung.blocks, containerWidth)
   ]);
+
+  // Space key → toggle selected Contact variable in simulation mode
+  React.useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.code !== 'Space' || !onForceWrite || !liveVariables) return;
+      const safeProgName = (parentName || '').trim().replace(/\s+/g, '_');
+      nodes.forEach(node => {
+        if (!node.selected || node.data?.type !== 'Contact') return;
+        const varName = ((node.data.values?.var || node.data.instanceName) + '').replace(/[🌍🏠⊞⊡⊟]/g, '').trim();
+        if (!varName) return;
+        const safeVar = varName.replace(/\s+/g, '_');
+        const progKey = `prog_${safeProgName}_${safeVar}`;
+        const globalKey = `prog__${safeVar}`;
+        let liveKey = progKey;
+        let currentVal = false;
+        if (liveVariables[progKey] !== undefined) {
+          liveKey = progKey;
+          currentVal = !!liveVariables[progKey];
+        } else if (liveVariables[globalKey] !== undefined) {
+          liveKey = globalKey;
+          currentVal = !!liveVariables[globalKey];
+        }
+        e.preventDefault();
+        onForceWrite(liveKey, !currentVal);
+      });
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [nodes, liveVariables, parentName, onForceWrite]);
 
   // onNodesChange'i sarmalayarak pozisyon kontrolü ekle
   const handleNodesChange = useCallback((changes) => {
@@ -1382,12 +1393,10 @@ const RungContainer = ({
     };
 
     onAddBlock(blockType, clampedPosition, customData);
-    setDragGhost(null);
     DragDropManager.clear();
   }, [screenToFlowPosition, onAddBlock, RUNG_BOUNDS, getBlockHeight]);
 
   const onDragLeave = useCallback(() => {
-    setDragGhost(null);
   }, []);
 
   const isValidConnection = useCallback((connection) => {
@@ -1461,72 +1470,10 @@ const RungContainer = ({
     // logDebug(`DragOver: ${JSON.stringify(dragData)}`); // Performance optimization
 
     if (!dragData) {
-      if (dragGhost) setDragGhost(null);
       return;
     }
 
-    const { blockType, customData } = dragData;
-
-    // Calculate Position
-    const position = screenToFlowPosition({
-      x: event.clientX,
-      y: event.clientY
-    });
-    // logDebug(`Pos: ${JSON.stringify(position)}`); 
-
-    const height = getBlockHeight(blockType || 'Contact'); // default safe
-
-    // Grid Snap Logic [10, 10]
-    const rawX = Math.max(RUNG_BOUNDS.minX, Math.min(RUNG_BOUNDS.maxX, position.x));
-
-    // CLAMP Y to FIXED RUNG HEIGHT
-    const maxAllowedY = Math.max(0, RUNG_HEIGHT - height - 5);
-    const maxGridY = Math.floor(maxAllowedY / 10) * 10;
-
-    // First calculate Raw Snap, then Clamp
-    const rawSnappedY = Math.round(position.y / 10) * 10;
-    const constrainedY = Math.max(0, Math.min(maxGridY, rawSnappedY));
-
-    const snappedX = Math.round(rawX / 10) * 10;
-
-    const clampedPosition = {
-      x: snappedX,
-      y: constrainedY
-    };
-
-    // logDebug(`GhostPos: ${JSON.stringify(clampedPosition)}`);
-
-    // Optimization: Only update if position changed significantly
-    if (dragGhost &&
-      dragGhost.position.x === clampedPosition.x &&
-      dragGhost.position.y === clampedPosition.y) {
-      return;
-    }
-
-    setDragGhost({
-      id: 'ghost-preview',
-      type: 'blockNode',
-      position: clampedPosition,
-      data: {
-        type: blockType,
-        label: blockType,
-        customData: customData, // Pass only if necessary
-        executionControl: false
-      },
-      style: {
-        opacity: 0.9,
-        pointerEvents: 'none',
-        zIndex: 99999,
-        filter: 'brightness(1.5)',
-        // Restore explicit dimensions to ensure visibility
-        width: blockType === 'Contact' || blockType === 'Coil' ? 40 : 140,
-        height: height
-      },
-      zIndex: 99999,
-      draggable: false,
-      selectable: false
-    });
-  }, [screenToFlowPosition, RUNG_BOUNDS, getBlockHeight, RUNG_HEIGHT, dragGhost, setDragGhost, logDebug]);
+  }, []);
 
   const onNodeDragStop = useCallback((event, node) => {
     // Blok pozisyonu değişince ana state'i güncelle
@@ -1547,7 +1494,7 @@ const RungContainer = ({
       {/* RUNG HEADER */}
       <div style={{
         background: isFocused ? '#333333' : '#252526',
-        padding: '10px 15px',
+        padding: '7px 11px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -1555,6 +1502,7 @@ const RungContainer = ({
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
           <div
+            className="rung-drag-handle"
             title="Sürükleyip Bırak"
             style={{
               padding: '4px',
@@ -1578,10 +1526,10 @@ const RungContainer = ({
               <div style={{ width: 3, height: 3, background: 'white', borderRadius: '50%' }}></div>
             </div>
           </div>
-          <span style={{ color: isFocused ? '#4da6ff' : '#fff', fontWeight: 'bold', fontSize: 14 }}>
+          <span style={{ color: isFocused ? '#4da6ff' : '#fff', fontWeight: 'bold', fontSize: 10 }}>
             Rung {index}: {rung.label}
           </span>
-          <span style={{ color: '#888', fontSize: 11 }}>
+          <span style={{ color: '#888', fontSize: 8 }}>
             ({rung.blocks.length} blok)
           </span>
         </div>
@@ -1595,10 +1543,10 @@ const RungContainer = ({
               background: index === 0 ? '#444' : '#0d47a1',
               color: '#fff',
               border: 'none',
-              padding: '5px 10px',
+              padding: '3.5px 7px',
               borderRadius: 3,
               cursor: index === 0 ? 'not-allowed' : 'pointer',
-              fontSize: 11,
+              fontSize: 8,
               fontWeight: 'bold'
             }}
           >
@@ -1611,10 +1559,10 @@ const RungContainer = ({
               background: index === totalRungs - 1 ? '#444' : '#0d47a1',
               color: '#fff',
               border: 'none',
-              padding: '5px 10px',
+              padding: '3.5px 7px',
               borderRadius: 3,
               cursor: index === totalRungs - 1 ? 'not-allowed' : 'pointer',
-              fontSize: 11,
+              fontSize: 8,
               fontWeight: 'bold'
             }}
           >
@@ -1626,10 +1574,10 @@ const RungContainer = ({
               background: '#c62828',
               color: '#fff',
               border: 'none',
-              padding: '5px 10px',
+              padding: '3.5px 7px',
               borderRadius: 3,
               cursor: 'pointer',
-              fontSize: 11,
+              fontSize: 8,
               fontWeight: 'bold'
             }}
           >
@@ -1676,7 +1624,7 @@ const RungContainer = ({
 
         <ReactFlow
           style={{ zIndex: 5 }}
-          nodes={dragGhost ? [...nodes, dragGhost] : nodes}
+          nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}
           onNodesChange={handleNodesChange}

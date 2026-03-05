@@ -1,8 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import RungContainer, { blockConfig } from './RungContainer';
 import ErrorBoundary from './ErrorBoundary';
 import BlockSettingsModal from './BlockSettingsModal';
-import DraggableBlock from './DraggableBlock';
 import DragDropManager from '../utils/DragDropManager';
 
 const EMPTY_IMG = new Image();
@@ -45,7 +45,8 @@ const InsertZone = ({ onInsert, disabled }) => {
  * - Rung hareket ederken, içindeki her şey beraber hareket ediyor
  */
 
-const RungEditorNew = ({ variables, setVariables, rungs, setRungs, availableBlocks, globalVars = [], liveVariables = null, parentName = "", readOnly = false, onForceWrite = null }) => {
+const RungEditorNew = ({ variables, setVariables, rungs, setRungs, availableBlocks, globalVars = [], dataTypes = [], liveVariables = null, parentName = "", readOnly = false, onForceWrite = null }) => {
+  const { t } = useTranslation();
 
   // Undo/Redo history - her snapshot { rungs, variables } çiftini saklıyor
   const historyRef = useRef([{
@@ -54,6 +55,7 @@ const RungEditorNew = ({ variables, setVariables, rungs, setRungs, availableBloc
   }]);
   const historyIndexRef = useRef(0);
   const [historyStats, setHistoryStats] = useState({ canUndo: 0, canRedo: 0 });
+  const dragAllowedRef = useRef(false);
 
   // Settings modal state
   const [editingBlock, setEditingBlock] = useState(null);
@@ -240,7 +242,7 @@ const RungEditorNew = ({ variables, setVariables, rungs, setRungs, availableBloc
   }, [readOnly, rungs, variables, saveHistory]);
 
   const handleDragStart = (e, index) => {
-    if (readOnly) {
+    if (readOnly || !dragAllowedRef.current) {
       e.preventDefault();
       return;
     }
@@ -504,19 +506,43 @@ const RungEditorNew = ({ variables, setVariables, rungs, setRungs, availableBloc
     saveHistory(newRungs, variables);
   }, [readOnly, rungs, variables, saveHistory]);
 
-  // Helpers to Group Variables by Type
-  const processVars = (vars, scope) => vars.map(v => ({ name: v.name, type: v.type, scope }));
-  const allProccessedVars = [
-    ...processVars(variables, 'Local'),
-    ...processVars(globalVars || [], 'Global')
+  // Type icons for complex types (stripped on input in RungContainer)
+  // ⊞ = Array, ⊡ = Struct, ⊟ = Enum
+  const dtMap = (dataTypes || []).reduce((acc, dt) => { acc[dt.name] = dt; return acc; }, {});
+
+  const allRawVars = [
+    ...(variables || []).map(v => ({ ...v, scope: 'Local' })),
+    ...(globalVars || []).map(v => ({ ...v, scope: 'Global' })),
   ];
 
-  const varsByType = allProccessedVars.reduce((acc, v) => {
-    if (!acc[v.type]) acc[v.type] = [];
-    acc[v.type].push(v);
-    return acc;
-  }, {});
-  const uniqueTypes = Object.keys(varsByType);
+  const varsByType = {};
+  const addOption = (type, value) => {
+    if (!varsByType[type]) varsByType[type] = [];
+    varsByType[type].push(value);
+    if (type !== 'ANY') {
+      if (!varsByType['ANY']) varsByType['ANY'] = [];
+      varsByType['ANY'].push(value);
+    }
+  };
+
+  allRawVars.forEach(v => {
+    const s = v.scope === 'Global' ? '🌍' : '🏠';
+    const dt = dtMap[v.type];
+    if (dt?.type === 'Array') {
+      const minIdx = parseInt(dt.content.dimensions[0].min);
+      addOption(dt.content.baseType, `${s}⊞ ${v.name}[${minIdx}]`);
+    } else if (dt?.type === 'Structure') {
+      (dt.content.members || []).forEach(member => {
+        addOption(member.type, `${s}⊡ ${v.name}.${member.name}`);
+      });
+    } else if (dt?.type === 'Enumerated') {
+      addOption(v.type, `${s}⊟ ${v.name}`);
+    } else {
+      addOption(v.type, `${s} ${v.name}`);
+    }
+  });
+
+  const uniqueTypes = Object.keys(varsByType).filter(t => t !== 'ANY');
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', background: '#1e1e1e' }}>
@@ -524,76 +550,17 @@ const RungEditorNew = ({ variables, setVariables, rungs, setRungs, availableBloc
       {/* Type-Specific Datalists */}
       {uniqueTypes.map(type => (
         <datalist key={type} id={`ladder-vars-${type}`}>
-          {[...new Map(varsByType[type].map(item => [item.name, item])).values()].map(v => (
-            <option
-              key={v.name}
-              value={`${v.scope === 'Global' ? '🌍' : '🏠'} ${v.name}`}
-            />
-          ))}
+          {[...new Set(varsByType[type])].map((val, i) => <option key={i} value={val} />)}
         </datalist>
       ))}
 
       {/* Fallback 'ALL' Datalist (for ANY type) */}
       <datalist id="ladder-vars-ANY">
-        {[...new Map(allProccessedVars.map(item => [item.name, item])).values()].map(v => (
-          <option
-            key={v.name}
-            value={`${v.scope === 'Global' ? '🌍' : '🏠'} ${v.name}`}
-          />
-        ))}
+        {[...new Set(varsByType['ANY'] || [])].map((val, i) => <option key={i} value={val} />)}
       </datalist>
 
       {/* TOOLBAR */}
       <div style={{ background: readOnly ? '#1a1a1a' : '#252526', borderBottom: '1px solid #333', padding: '6px 10px', display: 'flex', gap: '8px', alignItems: 'center' }}>
-        <button
-          onClick={() => addRung()}
-          disabled={readOnly}
-          style={{
-            background: readOnly ? '#444' : '#2e7d32',
-            color: readOnly ? '#888' : 'white',
-            border: 'none',
-            padding: '4px 8px',
-            fontSize: '12px',
-            borderRadius: 4,
-            cursor: readOnly ? 'default' : 'pointer',
-            fontWeight: 'bold',
-            marginRight: '10px',
-            opacity: readOnly ? 0.5 : 1
-          }}
-        >
-          + Rung
-        </button>
-
-        {/* Draggable Blocks */}
-        <div style={{ display: 'flex', gap: '10px', paddingLeft: '10px', borderLeft: '1px solid #444', opacity: readOnly ? 0.4 : 1, pointerEvents: readOnly ? 'none' : 'auto' }}>
-          <DraggableBlock
-            type="Contact"
-            label="Contact"
-            style={{ width: '42px', height: '35px' }}
-            icon={
-              <svg width="11" height="11" viewBox="0 0 40 40" stroke="currentColor" strokeWidth="2" fill="none">
-                <line x1="0" y1="20" x2="10" y2="20" />
-                <line x1="10" y1="5" x2="10" y2="35" />
-                <line x1="30" y1="5" x2="30" y2="35" />
-                <line x1="30" y1="20" x2="40" y2="20" />
-              </svg>
-            }
-          />
-          <DraggableBlock
-            type="Coil"
-            label="Coil"
-            style={{ width: '42px', height: '35px' }}
-            icon={
-              <svg width="11" height="11" viewBox="0 0 40 40" stroke="currentColor" strokeWidth="2" fill="none">
-                <line x1="0" y1="20" x2="10" y2="20" />
-                <path d="M15,5 Q5,20 15,35" />
-                <path d="M25,5 Q35,20 25,35" />
-                <line x1="30" y1="20" x2="40" y2="20" />
-              </svg>
-            }
-          />
-        </div>
-
         <div style={{ color: '#888', fontSize: 11, display: 'flex', alignItems: 'center', gap: 10, marginLeft: 'auto' }}>
           <span title="Ctrl+Z">
             ↩ {historyStats.canUndo > 0
@@ -619,58 +586,67 @@ const RungEditorNew = ({ variables, setVariables, rungs, setRungs, availableBloc
               {draggedRungIndex !== null && dragOverRungIndex === index && (
                 <div style={{ height: 3, background: '#007acc', borderRadius: 2, margin: '0 4px' }} />
               )}
-            <div
-              draggable={!readOnly}
-              onDragStart={(e) => handleDragStart(e, index)}
-              onDragOver={(e) => handleDragOver(e, index)}
-              onDrop={handleDrop}
-              onDragEnd={handleDragEnd}
-              style={{
-                opacity: draggedRungIndex === index ? 0.4 : 1,
-                border: focusedRungId === rung.id ? '1px solid #007acc' : '1px solid transparent',
-                borderRadius: '4px',
-                transition: 'border 0.2s',
-              }}
-              onClick={() => {
-                if (!readOnly) setFocusedRungId(rung.id);
-              }}
-            >
-              <ErrorBoundary>
-                <RungContainer
-                  rung={rung}
-                  index={index}
-                  totalRungs={rungs.length}
-                  isFocused={focusedRungId === rung.id}
-                  onDelete={() => deleteRung(rung.id)}
-                  onMoveUp={() => moveRung(rung.id, 'up')}
-                  onMoveDown={() => moveRung(rung.id, 'down')}
-                  onAddBlock={(blockType, position, customData) => addBlockToRung(rung.id, blockType, position, customData)}
-                  onDeleteBlock={(blockId) => deleteBlockFromRung(rung.id, blockId)}
-                  onAddConnection={(connection) => addConnectionToRung(rung.id, connection)}
-                  onDeleteConnection={(connectionId) => deleteConnectionFromRung(rung.id, connectionId)}
-                  onUpdateBlock={(blockId, newData) => updateBlockData(rung.id, blockId, newData)}
-                  onUpdateBlockPosition={(blockId, position) => updateBlockPosition(rung.id, blockId, position)}
-                  onNodeDoubleClick={(e, node) => handleNodeDoubleClick(e, node, rung.id)}
-                  availableBlocks={availableBlocks}
-                  variables={variables}
-                  globalVars={globalVars}
-                  liveVariables={liveVariables}
-                  parentName={parentName}
-                  readOnly={readOnly}
-                  onForceWrite={onForceWrite}
-                />
-              </ErrorBoundary>
-            </div>
-              <InsertZone onInsert={() => addRung(rung.id, false)} disabled={readOnly || draggedRungIndex !== null} />
+              <div
+                draggable={!readOnly}
+                onMouseDown={(e) => { dragAllowedRef.current = !!e.target.closest('.rung-drag-handle'); }}
+                onDragStart={(e) => handleDragStart(e, index)}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDrop={handleDrop}
+                onDragEnd={handleDragEnd}
+                style={{
+                  opacity: draggedRungIndex === index ? 0.4 : 1,
+                  border: focusedRungId === rung.id ? '1px solid #007acc' : '1px solid transparent',
+                  borderRadius: '4px',
+                  transition: 'border 0.2s',
+                }}
+                onClick={() => {
+                  if (!readOnly) setFocusedRungId(rung.id);
+                }}
+              >
+                <ErrorBoundary>
+                  <RungContainer
+                    rung={rung}
+                    index={index}
+                    totalRungs={rungs.length}
+                    isFocused={focusedRungId === rung.id}
+                    onDelete={() => deleteRung(rung.id)}
+                    onMoveUp={() => moveRung(rung.id, 'up')}
+                    onMoveDown={() => moveRung(rung.id, 'down')}
+                    onAddBlock={(blockType, position, customData) => addBlockToRung(rung.id, blockType, position, customData)}
+                    onDeleteBlock={(blockId) => deleteBlockFromRung(rung.id, blockId)}
+                    onAddConnection={(connection) => addConnectionToRung(rung.id, connection)}
+                    onDeleteConnection={(connectionId) => deleteConnectionFromRung(rung.id, connectionId)}
+                    onUpdateBlock={(blockId, newData) => updateBlockData(rung.id, blockId, newData)}
+                    onUpdateBlockPosition={(blockId, position) => updateBlockPosition(rung.id, blockId, position)}
+                    onNodeDoubleClick={(e, node) => handleNodeDoubleClick(e, node, rung.id)}
+                    availableBlocks={availableBlocks}
+                    variables={variables}
+                    globalVars={globalVars}
+                    dataTypes={dataTypes}
+                    liveVariables={liveVariables}
+                    parentName={parentName}
+                    readOnly={readOnly}
+                    onForceWrite={onForceWrite}
+                  />
+                </ErrorBoundary>
+              </div>
+              {index < rungs.length - 1 && (
+                <InsertZone onInsert={() => addRung(rung.id, false)} disabled={readOnly || draggedRungIndex !== null} />
+              )}
             </div>
           ))}
           {/* Drag drop indicator after last rung */}
           {draggedRungIndex !== null && dragOverRungIndex === rungs.length && (
             <div style={{ height: 3, background: '#007acc', borderRadius: 2, margin: '0 4px' }} />
           )}
-          {rungs.length === 0 && (
-            <div style={{ color: '#666', textAlign: 'center', padding: '40px' }}>
-              Rung eklemek için yukarıdaki butona tıklayın
+          {!readOnly && (
+            <div
+              onClick={() => addRung(null, false)}
+              style={{ display: 'flex', justifyContent: 'center', padding: '6px 0', cursor: 'pointer', opacity: 0.5 }}
+              onMouseEnter={e => e.currentTarget.style.opacity = 1}
+              onMouseLeave={e => e.currentTarget.style.opacity = 0.5}
+            >
+              <div style={{ width: 22, height: 22, background: '#007acc', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 16, fontWeight: 'bold', lineHeight: 1 }}>+</div>
             </div>
           )}
           {/* Bottom drop zone: catches drags below all rungs */}
