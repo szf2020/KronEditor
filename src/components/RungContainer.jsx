@@ -469,7 +469,8 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
         alignItems: 'center',
         justifyContent: 'center',
         cursor: 'pointer',
-        background: 'rgba(255, 255, 255, 0.05)',
+        pointerEvents: 'auto', // Explicitly allow clicks here
+        background: selected ? 'rgba(0, 122, 204, 0.2)' : 'rgba(255, 255, 255, 0.05)',
         border: selected ? '2px solid #007acc' : (
           ((data.type === 'Contact' || data.type === 'Coil') && instanceName !== '' &&
             ![...variables, ...globalVars].some(v => v.name === instanceName.replace(/[🌍🏠⊞⊡⊟]/g, '').trim().split(/[\[.]/)[0]))
@@ -486,15 +487,15 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
             title={canForce ? 'Click to force-write value' : ''}
             style={{
               position: 'absolute',
-              top: -50,
+              top: -42,
               left: '50%',
               transform: 'translateX(-50%)',
               background: liveVariables[lookupKey] ? '#00e676' : '#252526',
               color: liveVariables[lookupKey] ? '#000' : '#888',
               border: `1px solid ${liveVariables[lookupKey] ? '#00e676' : '#888'}`,
-              padding: '2px 6px',
+              padding: '1px 4px',
               borderRadius: 4,
-              fontSize: 10,
+              fontSize: 8,
               fontWeight: 'bold',
               zIndex: 20,
               cursor: canForce ? 'pointer' : 'default',
@@ -507,14 +508,14 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
         {/* Interactive Controls (Top) */}
         <div style={{
           position: 'absolute',
-          top: -30,
+          top: -24,
           left: '50%',
           transform: 'translateX(-50%)',
           display: 'flex',
           gap: 4,
           alignItems: 'center',
           zIndex: 10
-        }} onClick={(e) => e.stopPropagation()}>
+        }}>
           {/* Variable Input */}
           <input
             className="nodrag"
@@ -530,9 +531,9 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
             list={data.readOnly ? undefined : "ladder-vars-BOOL"}
             placeholder="??"
             style={{
-              width: 80,
-              height: 20,
-              fontSize: 11,
+              width: 65,
+              height: 16,
+              fontSize: 9,
               border: selected ? '1px solid #007acc' : '1px solid #333',
               background: '#252526',
               color: 'white',
@@ -547,18 +548,18 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
             onClick={cycleType}
             className="nodrag"
             style={{
-              height: 20,
+              height: 16,
               padding: '0 6px',
               background: '#007acc',
               color: 'white',
-              fontSize: 10,
+              fontSize: 8,
               fontWeight: 'bold',
               borderRadius: 2,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              minWidth: 18,
+              minWidth: 14,
               userSelect: 'none'
             }}
             title={`Current Type: ${subType}. Click to change.`}
@@ -568,7 +569,7 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
         </div>
 
         {/* SVG Symbol */}
-        <svg width="27" height="27" viewBox="0 0 40 40" style={{ color: selected ? '#007acc' : '#fff', overflow: 'visible' }}>
+        <svg width="27" height="27" viewBox="0 0 40 40" style={{ color: selected ? '#007acc' : '#fff', overflow: 'visible', pointerEvents: 'none' }}>
           {symbol}
         </svg>
 
@@ -687,7 +688,7 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
     }
     cfg = {
       ...cfg,
-      inputs:  cfg.inputs.map(p  => p.type === 'ANY_NUM' ? { ...p, type: inferredType } : p),
+      inputs: cfg.inputs.map(p => p.type === 'ANY_NUM' ? { ...p, type: inferredType } : p),
       outputs: cfg.outputs.map(p => p.type === 'ANY_NUM' ? { ...p, type: inferredType } : p),
     };
   }
@@ -776,8 +777,8 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
         </div>
         {/* INPUTS */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {effectiveInputs.map((pin, i) => {
-            const handleId = `in_${i}`;
+          {effectiveInputs.map((pin) => {
+            const handleId = `in_${pin.name}`;
             const connected = isHandleConnected(handleId, 'target');
             const isTime = pin.type === 'TIME';
             const val = data.values?.[pin.name] || '';
@@ -801,19 +802,28 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
               <div key={handleId} style={{ position: 'relative', display: 'flex', alignItems: 'center', height: 20 }}>
                 {/* External Input Field (Blok dışında, solda) */}
                 {!connected && (
-                  <div style={{ position: 'absolute', right: '100%', marginRight: 15, display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                  <div style={{
+                    position: 'absolute',
+                    right: '100%',
+                    marginRight: 15,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-end',
+                    transform: (liveVariables && val && valVarDef) ? 'translateY(8px)' : 'none',
+                    transition: 'transform 0.2s ease'
+                  }}>
                     {/* Live value badge (simulation mode) - Positioned above the input if a variable is assigned, or in place of it if not */}
-                    {liveVariables && (
+                    {(liveVariables && (!val || valVarDef)) && (
                       <span style={{
                         position: 'absolute',
-                        top: val ? -16 : 0, // Move above if there is text, otherwise overlay
+                        top: val ? -15 : 0, // Move above if there is text, otherwise overlay
                         right: 0,
                         minWidth: 36,
-                        fontSize: 10,
+                        fontSize: 9,
                         background: (liveVariables[`prog_${safeProgName}_${baseValName}`] !== undefined || liveVariables[`prog__${baseValName}`] !== undefined) ? 'rgba(0,230,118,0.12)' : 'transparent',
                         border: `1px solid ${(liveVariables[`prog_${safeProgName}_${baseValName}`] !== undefined || liveVariables[`prog__${baseValName}`] !== undefined) ? 'rgba(0,230,118,0.4)' : '#444'}`,
                         color: (liveVariables[`prog_${safeProgName}_${baseValName}`] !== undefined || liveVariables[`prog__${baseValName}`] !== undefined) ? '#00e676' : '#555',
-                        padding: '1px 4px',
+                        padding: '0px 3px',
                         borderRadius: 2,
                         fontFamily: 'Consolas, monospace',
                         textAlign: 'center',
@@ -821,10 +831,10 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
                         zIndex: 10,
                         whiteSpace: 'nowrap'
                       }}>
-                        {(liveVariables[`prog_${safeProgName}_${baseValName}`] !== undefined || liveVariables[`prog__${baseValName}`] !== undefined) ? 
-                          (typeof (liveVariables[`prog_${safeProgName}_${baseValName}`] !== undefined ? liveVariables[`prog_${safeProgName}_${baseValName}`] : liveVariables[`prog__${baseValName}`]) === 'boolean' 
-                            ? ((liveVariables[`prog_${safeProgName}_${baseValName}`] !== undefined ? liveVariables[`prog_${safeProgName}_${baseValName}`] : liveVariables[`prog__${baseValName}`]) ? '1' : '0') 
-                            : (pin.type === 'TIME' ? formatTimeUs(liveVariables[`prog_${safeProgName}_${baseValName}`] !== undefined ? liveVariables[`prog_${safeProgName}_${baseValName}`] : liveVariables[`prog__${baseValName}`]) : String((liveVariables[`prog_${safeProgName}_${baseValName}`] !== undefined ? liveVariables[`prog_${safeProgName}_${baseValName}`] : liveVariables[`prog__${baseValName}`])))) 
+                        {(liveVariables[`prog_${safeProgName}_${baseValName}`] !== undefined || liveVariables[`prog__${baseValName}`] !== undefined) ?
+                          (typeof (liveVariables[`prog_${safeProgName}_${baseValName}`] !== undefined ? liveVariables[`prog_${safeProgName}_${baseValName}`] : liveVariables[`prog__${baseValName}`]) === 'boolean'
+                            ? ((liveVariables[`prog_${safeProgName}_${baseValName}`] !== undefined ? liveVariables[`prog_${safeProgName}_${baseValName}`] : liveVariables[`prog__${baseValName}`]) ? '1' : '0')
+                            : (pin.type === 'TIME' ? formatTimeUs(liveVariables[`prog_${safeProgName}_${baseValName}`] !== undefined ? liveVariables[`prog_${safeProgName}_${baseValName}`] : liveVariables[`prog__${baseValName}`]) : String((liveVariables[`prog_${safeProgName}_${baseValName}`] !== undefined ? liveVariables[`prog_${safeProgName}_${baseValName}`] : liveVariables[`prog__${baseValName}`]))))
                           : '---'}
                       </span>
                     )}
@@ -849,13 +859,13 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
                       }}
                       style={{
                         minWidth: 40,
-                        width: `${Math.max(40, (localPinValues[pin.name] !== undefined ? localPinValues[pin.name].length : (val || '').length) * 6.5 + 8)}px`,
+                        width: `${Math.max(40, (localPinValues[pin.name] !== undefined ? localPinValues[pin.name].length : (val || '').length) * 6 + 8)}px`,
                         maxWidth: 160,
-                        fontSize: 10,
+                        fontSize: 9,
                         background: '#1e1e1e',
                         border: isValid ? '1px solid #444' : '1px solid #f44336',
                         color: isValid ? '#ddd' : '#f44336',
-                        padding: '2px 4px',
+                        padding: '1px 3px',
                         borderRadius: 2,
                         outline: 'none',
                         textAlign: 'right',
@@ -894,8 +904,8 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
 
         {/* OUTPUTS */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end', marginLeft: 10 }}>
-          {effectiveOutputs.map((pin, i) => {
-            const handleId = `out_${i}`;
+          {effectiveOutputs.map((pin) => {
+            const handleId = `out_${pin.name}`;
             const connected = isHandleConnected(handleId, 'source');
             const val = data.values?.[pin.name] || '';
             const outCleanVal = val.replace(/[🌍🏠⊞⊡⊟]/g, '').trim();
@@ -922,8 +932,8 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
             const hasLive = outLiveVal !== undefined;
             const liveDisplay = hasLive
               ? (typeof outLiveVal === 'boolean'
-                  ? (outLiveVal ? '1' : '0')
-                  : pin.type === 'TIME' ? formatTimeUs(outLiveVal) : String(outLiveVal))
+                ? (outLiveVal ? '1' : '0')
+                : pin.type === 'TIME' ? formatTimeUs(outLiveVal) : String(outLiveVal))
               : null;
 
             return (
@@ -952,19 +962,28 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
 
                 {/* Edit-mode variable assignment field (Always show when not connected) */}
                 {!connected && (
-                  <div style={{ position: 'absolute', left: '100%', marginLeft: 15, display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                  <div style={{
+                    position: 'absolute',
+                    left: '100%',
+                    marginLeft: 15,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-start',
+                    transform: (lv && val && outVarDef) ? 'translateY(8px)' : 'none',
+                    transition: 'transform 0.2s ease'
+                  }}>
                     {/* Live value badge (simulation mode) - Positioned above the input if a variable is assigned, or in place of it if not */}
-                    {lv && (
+                    {(lv && (!val || outVarDef)) && (
                       <span style={{
                         position: 'absolute',
-                        top: val ? -16 : 0, // Move above if there is text, otherwise overlay
+                        top: val ? -15 : 0, // Move above if there is text, otherwise overlay
                         left: 0,
                         minWidth: 36,
-                        fontSize: 10,
+                        fontSize: 9,
                         background: hasLive ? 'rgba(0,230,118,0.12)' : 'transparent',
                         border: `1px solid ${hasLive ? 'rgba(0,230,118,0.4)' : '#444'}`,
                         color: hasLive ? '#00e676' : '#555',
-                        padding: '1px 4px',
+                        padding: '0px 3px',
                         borderRadius: 2,
                         fontFamily: 'Consolas, monospace',
                         textAlign: 'center',
@@ -992,13 +1011,13 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
                       }}
                       style={{
                         minWidth: 40,
-                        width: `${Math.max(40, (localPinValues[pin.name] !== undefined ? String(localPinValues[pin.name]).length : String(val).length) * 6.5 + 8)}px`,
+                        width: `${Math.max(40, (localPinValues[pin.name] !== undefined ? String(localPinValues[pin.name]).length : String(val).length) * 6 + 8)}px`,
                         maxWidth: 160,
-                        fontSize: 10,
+                        fontSize: 9,
                         background: '#1e1e1e',
                         border: outIsArrayWithoutIndex ? '1px solid #f44336' : '1px solid #444',
                         color: outIsArrayWithoutIndex ? '#f44336' : '#ddd',
-                        padding: '2px 4px',
+                        padding: '1px 3px',
                         borderRadius: 2,
                         outline: 'none',
                         textAlign: 'left',
@@ -1038,6 +1057,8 @@ const RungContainer = ({
   onUpdateBlockPosition,
 
   onNodeDoubleClick,
+  onSelectBlock,
+  globalSelectedBlockId,
   availableBlocks = [],
   variables = [],
   globalVars = [],
@@ -1047,6 +1068,7 @@ const RungContainer = ({
   readOnly = false,
   onForceWrite,
   isFocused = false,
+  onFocusRung,
   onInsertAbove,
   onInsertBelow = null
 }) => {
@@ -1233,10 +1255,38 @@ const RungContainer = ({
     onForceWriteRef.current = onForceWrite;
   }, [onForceWrite]);
 
+  const handleNodeClick = useCallback((event, node) => {
+    if (readOnly) return;
+    // Don't toggle terminal nodes
+    if (node.id.startsWith('terminal_')) return;
+
+    const targetNode = nodes.find(n => n.id === node.id);
+    const wasSelected = targetNode ? targetNode.selected : false;
+
+    if (wasSelected) {
+      // Toggle off if already selected
+      setNodes((nds) => nds.map((n) => (n.id === node.id ? { ...n, selected: false } : n)));
+      if (onSelectBlock) onSelectBlock(null);
+    } else {
+      // Select this node, deselect all others in this rung
+      setNodes((nds) => nds.map((n) => ({ ...n, selected: n.id === node.id })));
+      if (onSelectBlock) onSelectBlock(rung.id, node);
+    }
+  }, [readOnly, onSelectBlock, rung.id, setNodes, nodes]);
+
+  // Sync global selection state
+  React.useEffect(() => {
+    if (globalSelectedBlockId !== undefined) {
+      setNodes((nds) => nds.map((n) => {
+        // preserve terminal node selection (always false)
+        if (n.id.startsWith('terminal_')) return n;
+        return { ...n, selected: n.id === globalSelectedBlockId };
+      }));
+    }
+  }, [globalSelectedBlockId, setNodes]);
+
   // Rung.blocks değişince nodes'u güncelle
   React.useEffect(() => {
-
-
     setNodes((prevNodes) => {
       // Mevcut seçim durumlarını sakla
       const selectedMap = {};
@@ -1637,7 +1687,9 @@ const RungContainer = ({
       boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
     }}>
       {/* RUNG HEADER */}
-      <div style={{
+      <div
+        onClick={(e) => { e.stopPropagation(); if (onFocusRung) onFocusRung(); }}
+        style={{
         background: isFocused ? '#333333' : '#252526',
         padding: '7px 11px',
         display: 'flex',
@@ -1772,8 +1824,10 @@ const RungContainer = ({
           nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}
+          elementsSelectable={false}
           onNodesChange={handleNodesChange}
           onEdgesChange={onEdgesChange}
+          onNodeClick={handleNodeClick}
           onConnect={onConnect}
           onConnectStart={onConnectStart}
           onConnectEnd={onConnectEnd}

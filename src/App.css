@@ -253,3 +253,20 @@ body {
   font-weight: bold;
   opacity: 0.9;
 }
+
+/* --- LIGHT THEME INVERSION --- */
+/* Sine the entire app is built with hardcoded dark mode colors, 
+   we invert everything and rotate the hue back 180deg to preserve colored accents 
+   (so blues stay blue, reds stay red) while flipping dark to light. */
+body.light {
+  filter: invert(1) hue-rotate(180deg);
+  background-color: #f0f0f0; 
+  min-height: 100vh;
+}
+
+body.light img,
+body.light video,
+body.light iframe {
+  /* re-invert images and iframe content so they look normal */
+  filter: invert(1) hue-rotate(180deg);
+}

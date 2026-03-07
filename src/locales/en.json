@@ -137,6 +137,7 @@
         "theme": "Theme",
         "dark": "Dark",
         "light": "Light",
+        "auto": "Auto (System)",
         "editorConfiguration": "Editor Configuration",
         "fontSize": "Font Size",
         "showMinimap": "Show Minimap",

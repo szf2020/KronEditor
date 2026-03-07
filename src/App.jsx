@@ -112,7 +112,7 @@ function App() {
   const [plcTarget, setPlcTarget] = useState('imx8m');
 
   // App Settings State - Persisted to LocalStorage
-  const [theme, setTheme] = useState(() => localStorage.getItem('appTheme') || 'dark');
+  const [theme, setTheme] = useState(() => localStorage.getItem('appTheme') || 'auto');
   const [editorSettings, setEditorSettings] = useState(() => {
     const saved = localStorage.getItem('editorSettings');
     return saved ? JSON.parse(saved) : { fontSize: 14, minimap: true, wordWrap: false };
@@ -126,7 +126,22 @@ function App() {
   // Persist settings
   useEffect(() => {
     localStorage.setItem('appTheme', theme);
-    document.body.className = theme; // Optional: apply class if needed globally
+    
+    const applyTheme = (isDark) => {
+      document.body.classList.remove('light', 'dark');
+      document.body.classList.add(isDark ? 'dark' : 'light');
+    };
+
+    if (theme === 'auto') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      applyTheme(mediaQuery.matches);
+      
+      const handleChange = (e) => applyTheme(e.matches);
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
+    } else {
+      applyTheme(theme === 'dark');
+    }
   }, [theme]);
 
   useEffect(() => {
@@ -211,10 +226,7 @@ function App() {
   const handleSaveAs = useCallback(async () => {
     try {
       let filePath = await save({
-        filters: [{
-          name: 'PLC Project Files',
-          extensions: ['xml']
-        }]
+        filters: []
       });
       if (!filePath) return;
 
@@ -264,14 +276,7 @@ function App() {
     if (isTauri) {
       try {
         const selected = await open({
-          multiple: false,
-          filters: [{
-            name: 'PLC Project Files',
-            extensions: ['xml']
-          }, {
-            name: 'All Files',
-            extensions: ['*']
-          }]
+          multiple: false
         });
 
         if (!selected) return;
@@ -720,6 +725,30 @@ function App() {
     });
   };
 
+  // Paste a sidebar item (deep-copied) at a given index within a category
+  const handlePasteItem = (category, newItem, insertIndex) => {
+    // Ensure unique name
+    const existingNames = new Set(projectStructure[category].map(i => i.name));
+    let name = newItem.name;
+    let counter = 1;
+    while (existingNames.has(name)) {
+      name = `${newItem.name.replace(/_copy\d*$/, '')}_copy${counter}`;
+      counter++;
+    }
+    const item = { ...newItem, name };
+    setProjectStructure(prev => {
+      const items = [...prev[category]];
+      if (insertIndex !== null && insertIndex !== undefined && insertIndex >= 0 && insertIndex <= items.length) {
+        items.splice(insertIndex, 0, item);
+      } else {
+        items.push(item);
+      }
+      return { ...prev, [category]: items };
+    });
+    setActiveId(item.id);
+    addLog('info', `Pasted ${category} item: ${item.name}`);
+  };
+
   const handleEditItemDetails = (category, id) => {
     const item = projectStructure[category].find(i => i.id === id);
     if (!item) return;
@@ -978,6 +1007,7 @@ function App() {
                 onDeleteItem={handleDeleteItem}
                 onEditItem={handleEditItemDetails}
                 onReorderItem={handleReorderItem}
+                onPasteItem={handlePasteItem}
                 onSettingsClick={() => setActiveId('SETTINGS')}
                 onShortcutsClick={() => setShortcutsModalOpen(true)}
                 isRunning={isRunning || isSimulationMode}

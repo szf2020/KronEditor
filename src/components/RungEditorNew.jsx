@@ -9,14 +9,13 @@ const EMPTY_IMG = new Image();
 EMPTY_IMG.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
 // Hover'da beliren "araya ekle" çizgisi
-const InsertZone = ({ onInsert, disabled }) => {
+const InsertZone = ({ onInsert, onPaste, canPaste, disabled }) => {
   const [hovered, setHovered] = useState(false);
   if (disabled) return <div style={{ height: 6 }} />;
   return (
     <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      onClick={onInsert}
       style={{
         height: hovered ? 24 : 6,
         cursor: 'pointer',
@@ -26,12 +25,24 @@ const InsertZone = ({ onInsert, disabled }) => {
         position: 'relative',
         transition: 'height 0.1s ease',
         margin: '0 4px',
+        gap: 6,
       }}
     >
       {hovered && (
         <>
           <div style={{ position: 'absolute', left: 0, right: 0, height: 2, background: '#007acc', borderRadius: 1 }} />
-          <div style={{ position: 'relative', zIndex: 1, width: 18, height: 18, background: '#007acc', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14, fontWeight: 'bold', lineHeight: 1 }}>+</div>
+          <div
+            onClick={onInsert}
+            style={{ position: 'relative', zIndex: 1, width: 18, height: 18, background: '#007acc', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14, fontWeight: 'bold', lineHeight: 1 }}
+            title="Yeni ekle"
+          >+</div>
+          {canPaste && (
+            <div
+              onClick={(e) => { e.stopPropagation(); onPaste && onPaste(); }}
+              style={{ position: 'relative', zIndex: 1, width: 18, height: 18, background: '#4caf50', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 'bold', lineHeight: 1, cursor: 'pointer' }}
+              title="Yapıştır"
+            >📋</div>
+          )}
         </>
       )}
     </div>
@@ -64,6 +75,7 @@ const RungEditorNew = ({ variables, setVariables, rungs, setRungs, availableBloc
   const [focusedRungId, setFocusedRungId] = useState(null);
   const [draggedRungIndex, setDraggedRungIndex] = useState(null);
   const [dragOverRungIndex, setDragOverRungIndex] = useState(null);
+  const [globalSelectedBlockId, setGlobalSelectedBlockId] = useState(null);
 
   // History kaydet - hem rungs hem variables birlikte
   const saveHistory = useCallback((newRungs, newVariables) => {
@@ -104,22 +116,167 @@ const RungEditorNew = ({ variables, setVariables, rungs, setRungs, availableBloc
     }
   }, [setRungs, setVariables]);
 
-  // Keyboard Shortcuts for Undo/Redo
+  // Keyboard Shortcuts for Undo/Redo/Copy/Paste
+  const selectedNodeRef = useRef(null);
+  const clipboardRef = useRef(null);
+  const [clipboardType, setClipboardType] = useState(null); // 'rung' | 'block' | null
+
+  const handleCopy = useCallback(() => {
+    if (readOnly) return;
+    // Block-level copy (only when a block is selected and no rung is focused)
+    if (selectedNodeRef.current && !focusedRungId) {
+      clipboardRef.current = { type: 'block', rungId: selectedNodeRef.current.rungId, payload: JSON.parse(JSON.stringify(selectedNodeRef.current)) };
+      setClipboardType('block');
+      return;
+    }
+    // Rung-level copy (only when a rung is focused and no block is selected)
+    if (focusedRungId && !selectedNodeRef.current) {
+      const rung = rungs.find(r => r.id === focusedRungId);
+      if (rung) {
+        clipboardRef.current = { type: 'rung', payload: JSON.parse(JSON.stringify(rung)) };
+        setClipboardType('rung');
+      }
+    }
+  }, [readOnly, focusedRungId, rungs]);
+
+  const handlePaste = useCallback(() => {
+    if (readOnly || !clipboardRef.current) return;
+    const clip = clipboardRef.current;
+
+    if (clip.type === 'rung') {
+      // ── Rung paste ─────────────────────────────────────
+      const src = clip.payload;
+      const idMap = {};
+      const ts = Date.now();
+      const newBlocks = src.blocks.map((b, i) => {
+        const newId = `node_${ts}_${i}`;
+        idMap[b.id] = newId;
+        return { ...b, id: newId };
+      });
+      const newConns = (src.connections || []).map((c, i) => ({
+        ...c,
+        id: `conn_${ts}_${i}`,
+        source: idMap[c.source] || c.source,
+        target: idMap[c.target] || c.target,
+      }));
+      const newRung = {
+        ...src,
+        id: `rung_${ts}`,
+        label: `${src.label || ''} (copy)`,
+        blocks: newBlocks,
+        connections: newConns,
+      };
+      // FB instance variables for copied blocks
+      const fbBlocks = newBlocks.filter(b => b.data?.type !== 'Contact' && b.data?.type !== 'Coil' && b.data?.instanceName);
+      if (fbBlocks.length) {
+        setVariables(prev => {
+          const names = new Set(prev.map(v => v.name));
+          const extra = [];
+          fbBlocks.forEach(b => {
+            if (!names.has(b.data.instanceName)) {
+              const orig = prev.find(v => v.name === src.blocks.find(ob => ob.id === Object.keys(idMap).find(k => idMap[k] === b.id))?.data?.instanceName);
+              if (orig) extra.push({ ...orig, id: `var_${Date.now()}_${Math.random()}`, name: b.data.instanceName });
+            }
+          });
+          return extra.length ? [...prev, ...extra] : prev;
+        });
+      }
+      setRungs(prev => {
+        const idx = focusedRungId ? prev.findIndex(r => r.id === focusedRungId) : prev.length - 1;
+        const newRungs = [...prev];
+        newRungs.splice(idx + 1, 0, newRung);
+        setTimeout(() => setVariables(v => { saveHistory(newRungs, v); return v; }), 0);
+        return newRungs;
+      });
+      setFocusedRungId(newRung.id);
+      return;
+    }
+
+    // ── Block paste ─────────────────────────────────────
+    // Block can only be pasted into the same rung it was copied from
+    const copied = clip.payload;
+    const sourceRungId = clip.rungId || copied.rungId;
+    if (!sourceRungId) return;
+    let targetRungId = sourceRungId;
+    
+    setRungs(prevRungs => {
+      const targetRung = prevRungs.find(r => r.id === targetRungId);
+      if (!targetRung) return prevRungs;
+      
+      const newBlockId = `node_${Date.now()}_${Math.random()}`;
+      const newPosition = {
+        x: (copied.position?.x || 0) + 20,
+        y: (copied.position?.y || 0) + 20
+      };
+      
+      const newBlock = {
+        ...copied,
+        id: newBlockId,
+        position: newPosition,
+        selected: true,
+      };
+      
+      if (newBlock.data.type !== 'Contact' && newBlock.data.type !== 'Coil') {
+          newBlock.data.instanceName = `${newBlock.data.instanceName}_copy`;
+          setVariables(prevVars => {
+             const newVars = [...prevVars];
+             if(!newVars.some(v => v.name === newBlock.data.instanceName)) {
+                const varDef = prevVars.find(v => v.name === copied.data.instanceName);
+                if(varDef) {
+                   newVars.push({ ...varDef, id: `var_${Date.now()}`, name: newBlock.data.instanceName });
+                }
+             }
+             return newVars;
+          });
+      }
+
+      const newRungs = prevRungs.map(r => {
+        if (r.id === targetRung.id) {
+          return {
+            ...r,
+            blocks: [...r.blocks.map(b => ({...b, selected: false})), newBlock]
+          };
+        }
+        return r;
+      });
+      
+      setTimeout(() => setVariables(v => { saveHistory(newRungs, v); return v; }), 0);
+      return newRungs;
+    });
+
+    selectedNodeRef.current = { rungId: targetRungId, ...copied, selected: true };
+    
+  }, [readOnly, focusedRungId, setRungs, setVariables, saveHistory, rungs]);
+
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.shiftKey) {
-          redo();
-        } else {
-          undo();
+      // Don't trigger if user is typing in an input field (except possibly read-only ones)
+      if (document.activeElement && document.activeElement.tagName === 'INPUT' && document.activeElement.type === 'text') {
+        return;
+      }
+
+      if (e.ctrlKey || e.metaKey) {
+        const key = e.key.toLowerCase();
+        if (key === 'z') {
+          e.preventDefault();
+          e.stopPropagation();
+          if (e.shiftKey) {
+            redo();
+          } else {
+            undo();
+          }
+        } else if (key === 'c') {
+          e.preventDefault();
+          handleCopy();
+        } else if (key === 'v') {
+          e.preventDefault();
+          handlePaste();
         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo]);
+  }, [undo, redo, handleCopy, handlePaste]);
 
   // Blok verisini güncelleme
   const updateBlockData = useCallback((rungId, blockId, newData) => {
@@ -144,13 +301,16 @@ const RungEditorNew = ({ variables, setVariables, rungs, setRungs, availableBloc
       });
 
       // instanceName değiştiyse variables'ı da güncelle
-      let newVariables = variables;
       if (newData.instanceName && oldInstanceName && newData.instanceName !== oldInstanceName) {
-         newVariables = variables.map(v => v.name === oldInstanceName ? { ...v, name: newData.instanceName } : v);
-         setVariables(newVariables);
+         setVariables(prev => {
+            const newVars = prev.map(v => v.name === oldInstanceName ? { ...v, name: newData.instanceName } : v);
+            setTimeout(() => saveHistory(newRungs, newVars), 0);
+            return newVars;
+         });
+      } else {
+         saveHistory(newRungs, variables);
       }
 
-      saveHistory(newRungs, newVariables);
       return newRungs;
     });
   }, [readOnly, variables, saveHistory, setVariables]);
@@ -186,6 +346,63 @@ const RungEditorNew = ({ variables, setVariables, rungs, setRungs, availableBloc
     updateBlockData(editingBlock.rungId, blockId, newSettings);
     setEditingBlock(null);
   }, [editingBlock, updateBlockData]);
+
+  // Paste rung at a specific position (called from InsertZone paste button)
+  const pasteRungAt = useCallback((targetId, before) => {
+    if (readOnly || !clipboardRef.current || clipboardRef.current.type !== 'rung') return;
+    const src = clipboardRef.current.payload;
+    const idMap = {};
+    const ts = Date.now();
+    const newBlocks = src.blocks.map((b, i) => {
+      const newId = `node_${ts}_${i}`;
+      idMap[b.id] = newId;
+      return { ...b, id: newId };
+    });
+    const newConns = (src.connections || []).map((c, i) => ({
+      ...c,
+      id: `conn_${ts}_${i}`,
+      source: idMap[c.source] || c.source,
+      target: idMap[c.target] || c.target,
+    }));
+    const newRung = {
+      ...src,
+      id: `rung_${ts}`,
+      label: '',
+      blocks: newBlocks,
+      connections: newConns,
+    };
+    const fbBlocks = newBlocks.filter(b => b.data?.type !== 'Contact' && b.data?.type !== 'Coil' && b.data?.instanceName);
+    if (fbBlocks.length) {
+      setVariables(prev => {
+        const names = new Set(prev.map(v => v.name));
+        const extra = [];
+        fbBlocks.forEach(b => {
+          if (!names.has(b.data.instanceName)) {
+            const origBlockId = Object.keys(idMap).find(k => idMap[k] === b.id);
+            const origBlock = src.blocks.find(ob => ob.id === origBlockId);
+            const orig = prev.find(v => v.name === origBlock?.data?.instanceName);
+            if (orig) extra.push({ ...orig, id: `var_${Date.now()}_${Math.random()}`, name: b.data.instanceName });
+          }
+        });
+        return extra.length ? [...prev, ...extra] : prev;
+      });
+    }
+    let newRungs = [...rungs];
+    if (targetId) {
+      const idx = newRungs.findIndex(r => r.id === targetId);
+      if (idx !== -1) {
+        newRungs.splice(before ? idx : idx + 1, 0, newRung);
+      } else {
+        newRungs.push(newRung);
+      }
+    } else {
+      newRungs.push(newRung);
+    }
+    newRungs = newRungs.map((r, i) => ({ ...r, label: String(i).padStart(3, '0') }));
+    setRungs(newRungs);
+    setFocusedRungId(newRung.id);
+    saveHistory(newRungs, variables);
+  }, [readOnly, rungs, variables, saveHistory, setRungs, setVariables]);
 
   // Rung ekleme
   // targetId: hangi rung'un yanına eklenecek (null = sona ekle)
@@ -590,7 +807,7 @@ const RungEditorNew = ({ variables, setVariables, rungs, setRungs, availableBloc
       {/* RUNGS AREA */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px', background: '#1e1e1e', minHeight: 0 }}>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <InsertZone onInsert={() => addRung(rungs[0]?.id, true)} disabled={readOnly || draggedRungIndex !== null} />
+          <InsertZone onInsert={() => addRung(rungs[0]?.id, true)} onPaste={() => pasteRungAt(rungs[0]?.id, true)} canPaste={clipboardType === 'rung'} disabled={readOnly || draggedRungIndex !== null} />
           {rungs.map((rung, index) => (
             <div key={rung.id}>
               {/* Drag drop indicator above */}
@@ -610,9 +827,6 @@ const RungEditorNew = ({ variables, setVariables, rungs, setRungs, availableBloc
                   borderRadius: '4px',
                   transition: 'border 0.2s',
                 }}
-                onClick={() => {
-                  if (!readOnly) setFocusedRungId(rung.id);
-                }}
               >
                 <ErrorBoundary>
                   <RungContainer
@@ -630,6 +844,18 @@ const RungEditorNew = ({ variables, setVariables, rungs, setRungs, availableBloc
                     onUpdateBlock={(blockId, newData) => updateBlockData(rung.id, blockId, newData)}
                     onUpdateBlockPosition={(blockId, position) => updateBlockPosition(rung.id, blockId, position)}
                     onNodeDoubleClick={(e, node) => handleNodeDoubleClick(e, node, rung.id)}
+                    globalSelectedBlockId={globalSelectedBlockId}
+                    onSelectBlock={(rungId, node) => {
+                      if (!node) {
+                        selectedNodeRef.current = null;
+                        setGlobalSelectedBlockId(null);
+                      } else {
+                        // Block selected → clear rung focus (mutual exclusion)
+                        setFocusedRungId(null);
+                        selectedNodeRef.current = { rungId, ...node };
+                        setGlobalSelectedBlockId(node.id);
+                      }
+                    }}
                     availableBlocks={availableBlocks}
                     variables={variables}
                     globalVars={globalVars}
@@ -638,11 +864,18 @@ const RungEditorNew = ({ variables, setVariables, rungs, setRungs, availableBloc
                     parentName={parentName}
                     readOnly={readOnly}
                     onForceWrite={onForceWrite}
+                    onFocusRung={() => {
+                      if (readOnly) return;
+                      // Rung focused → clear block selection (mutual exclusion)
+                      selectedNodeRef.current = null;
+                      setGlobalSelectedBlockId(null);
+                      setFocusedRungId(rung.id);
+                    }}
                   />
                 </ErrorBoundary>
               </div>
               {index < rungs.length - 1 && (
-                <InsertZone onInsert={() => addRung(rung.id, false)} disabled={readOnly || draggedRungIndex !== null} />
+                <InsertZone onInsert={() => addRung(rung.id, false)} onPaste={() => pasteRungAt(rung.id, false)} canPaste={clipboardType === 'rung'} disabled={readOnly || draggedRungIndex !== null} />
               )}
             </div>
           ))}

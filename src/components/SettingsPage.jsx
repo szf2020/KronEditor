@@ -143,6 +143,16 @@ const SettingsPage = ({ theme, setTheme, editorSettings, setEditorSettings }) =>
                                 >
                                     ☀️ {t('settingsPage.light')}
                                 </button>
+                                <button
+                                    onClick={() => setTheme('auto')}
+                                    style={{
+                                        flex: 1, padding: '10px',
+                                        backgroundColor: theme === 'auto' ? '#007acc' : '#2d2d2d',
+                                        color: '#fff', border: '1px solid #444', borderRadius: '4px', cursor: 'pointer'
+                                    }}
+                                >
+                                    💻 {t('settingsPage.auto') || 'Auto'}
+                                </button>
                             </div>
                         </div>
                     </div>

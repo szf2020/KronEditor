@@ -145,6 +145,7 @@
         "theme": "Tema",
         "dark": "Koyu",
         "light": "Açık",
+        "auto": "Otomatik (Sistem)",
         "editorConfiguration": "Editör Yapılandırması",
         "fontSize": "Yazı Tipi Boyutu",
         "showMinimap": "Minimap Göster",

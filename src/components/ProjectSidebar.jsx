@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ask } from '@tauri-apps/plugin-dialog';
 import PlcIcon from '../assets/icons/plc-icon.png';
@@ -7,14 +7,13 @@ const EMPTY_IMG = new Image();
 EMPTY_IMG.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
 // Hover'da beliren "araya ekle" çizgisi
-const InsertZone = ({ onInsert, disabled }) => {
+const InsertZone = ({ onInsert, onPaste, canPaste, disabled }) => {
     const [hovered, setHovered] = React.useState(false);
     if (disabled) return <div style={{ height: 3 }} />;
     return (
         <div
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
-            onClick={(e) => { e.stopPropagation(); onInsert(); }}
             style={{
                 height: hovered ? 20 : 3,
                 cursor: 'pointer',
@@ -24,23 +23,37 @@ const InsertZone = ({ onInsert, disabled }) => {
                 position: 'relative',
                 transition: 'height 0.1s ease',
                 margin: '0 6px',
+                gap: 4,
             }}
         >
             {hovered && (
                 <>
                     <div style={{ position: 'absolute', left: 0, right: 0, height: 2, background: '#007acc', borderRadius: 1 }} />
-                    <div style={{ position: 'relative', zIndex: 1, width: 16, height: 16, background: '#007acc', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 13, fontWeight: 'bold', lineHeight: 1 }}>+</div>
+                    <div
+                        onClick={(e) => { e.stopPropagation(); onInsert(); }}
+                        style={{ position: 'relative', zIndex: 1, width: 16, height: 16, background: '#007acc', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 13, fontWeight: 'bold', lineHeight: 1 }}
+                        title="Yeni ekle"
+                    >+</div>
+                    {canPaste && (
+                        <div
+                            onClick={(e) => { e.stopPropagation(); onPaste && onPaste(); }}
+                            style={{ position: 'relative', zIndex: 1, width: 16, height: 16, background: '#4caf50', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 10, fontWeight: 'bold', lineHeight: 1, cursor: 'pointer' }}
+                            title="Yapıştır"
+                        >📋</div>
+                    )}
                 </>
             )}
         </div>
     );
 };
 
-const ProjectSidebar = ({ projectStructure, onSelectItem, activeId, onAddItem, onDeleteItem, onEditItem, onReorderItem, onSettingsClick, onShortcutsClick, isRunning = false }) => {
+const ProjectSidebar = ({ projectStructure, onSelectItem, activeId, onAddItem, onDeleteItem, onEditItem, onReorderItem, onPasteItem, onSettingsClick, onShortcutsClick, isRunning = false }) => {
     const { t } = useTranslation();
     const [dragItem, setDragItem] = useState(null);
     const [dragEnabled, setDragEnabled] = useState(false);
     const [dragOverIndex, setDragOverIndex] = useState(null);
+    const clipboardRef = useRef(null);
+    const [clipboardCategory, setClipboardCategory] = useState(null);
     const [expanded, setExpanded] = useState({
         dataTypes: true,
         functionBlocks: true,
@@ -51,6 +64,56 @@ const ProjectSidebar = ({ projectStructure, onSelectItem, activeId, onAddItem, o
     const toggle = (key) => {
         setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
     };
+
+    // Copy currently active sidebar item
+    const handleSidebarCopy = useCallback(() => {
+        if (isRunning || !activeId) return;
+        for (const cat of ['dataTypes', 'functions', 'functionBlocks', 'programs']) {
+            const item = projectStructure[cat]?.find(i => i.id === activeId);
+            if (item) {
+                clipboardRef.current = { category: cat, payload: JSON.parse(JSON.stringify(item)) };
+                setClipboardCategory(cat);
+                return;
+            }
+        }
+    }, [isRunning, activeId, projectStructure]);
+
+    // Paste sidebar item at a specific index within a category
+    const handleSidebarPaste = useCallback((targetCategory, insertIndex) => {
+        if (isRunning || !clipboardRef.current) return;
+        const clip = clipboardRef.current;
+        if (clip.category !== targetCategory) return;
+        const src = clip.payload;
+        const ts = Date.now();
+        const newItem = {
+            ...src,
+            id: `${targetCategory}_${ts}`,
+            name: `${src.name}_copy`,
+            content: JSON.parse(JSON.stringify(src.content || {})),
+        };
+        if (onPasteItem) onPasteItem(targetCategory, newItem, insertIndex);
+    }, [isRunning, onPasteItem]);
+
+    // Ctrl+C / Ctrl+V keyboard handler for sidebar
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            // Only act when focus is NOT in an input/textarea
+            if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) return;
+            if (!(e.ctrlKey || e.metaKey)) return;
+            const key = e.key.toLowerCase();
+            if (key === 'c') {
+                handleSidebarCopy();
+            } else if (key === 'v') {
+                // Paste at end of the same category
+                if (!clipboardRef.current) return;
+                const cat = clipboardRef.current.category;
+                const len = projectStructure[cat]?.length || 0;
+                handleSidebarPaste(cat, len);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [handleSidebarCopy, handleSidebarPaste, projectStructure]);
 
     const renderSection = (title, key, items, allowTypes = []) => (
         <div style={{ marginBottom: 10 }}>
@@ -86,6 +149,8 @@ const ProjectSidebar = ({ projectStructure, onSelectItem, activeId, onAddItem, o
                     <InsertZone
                         key="insert-top"
                         onInsert={() => onAddItem(key, 0)}
+                        onPaste={() => handleSidebarPaste(key, 0)}
+                        canPaste={clipboardCategory === key}
                         disabled={isRunning || !!dragItem}
                     />
                     {items.map((item, index) => {
@@ -192,6 +257,27 @@ const ProjectSidebar = ({ projectStructure, onSelectItem, activeId, onAddItem, o
 
                                     {/* Action Buttons */}
                                     <div style={{ display: 'flex', gap: '4px' }}>
+                                        {/* Copy Button */}
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (isRunning) return;
+                                                clipboardRef.current = { category: key, payload: JSON.parse(JSON.stringify(item)) };
+                                                setClipboardCategory(key);
+                                            }}
+                                            disabled={isRunning}
+                                            style={{
+                                                background: 'none',
+                                                border: 'none',
+                                                color: '#666',
+                                                cursor: isRunning ? 'not-allowed' : 'pointer',
+                                                fontSize: '12px',
+                                                opacity: isRunning ? 0.2 : activeId === item.id ? 1 : 0.5
+                                            }}
+                                            title="Kopyala"
+                                        >
+                                            📋
+                                        </button>
                                         {/* Edit Button */}
                                         <button
                                             onClick={(e) => {
@@ -243,6 +329,8 @@ const ProjectSidebar = ({ projectStructure, onSelectItem, activeId, onAddItem, o
                                 {index < items.length - 1 && (
                                     <InsertZone
                                         onInsert={() => onAddItem(key, index + 1)}
+                                        onPaste={() => handleSidebarPaste(key, index + 1)}
+                                        canPaste={clipboardCategory === key}
                                         disabled={isRunning || !!dragItem}
                                     />
                                 )}
