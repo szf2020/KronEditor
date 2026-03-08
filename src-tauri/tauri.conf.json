@@ -1,0 +1,58 @@
+{
+    "$schema": "https://schema.tauri.app/config/2",
+    "productName": "KronEditor",
+    "version": "0.1.0",
+    "identifier": "com.plceditor.app",
+    "build": {
+        "beforeDevCommand": "npm run web",
+        "beforeBuildCommand": "npm run build:web",
+        "devUrl": "http://localhost:1420",
+        "frontendDist": "../dist"
+    },
+    "app": {
+        "windows": [
+            {
+                "title": "KronEditor",
+                "width": 1200,
+                "height": 800,
+                "decorations": false
+            }
+        ],
+        "security": {
+            "csp": null
+        }
+    },
+    "bundle": {
+        "active": true,
+        "targets": [
+            "appimage",
+            "nsis",
+            "dmg"
+        ],
+        "resources": [
+            "tcc/linux-x64/tcc",
+            "tcc/linux-x64/libtcc1.a",
+            "tcc/linux-x64/include/*",
+            "tcc/windows-x64/tcc.exe",
+            "tcc/windows-x64/libtcc.dll",
+            "tcc/windows-x64/libtcc1.a",
+            "tcc/windows-x64/include/**/*",
+            "tcc/windows-x64/lib/*",
+            "../resources/include/*",
+            "../resources/Simulation/Linux/*",
+            "../resources/Simulation/Windows/*",
+            "../resources/Simulation/MacOS/*",
+            "../resources/CortexM0/*",
+            "../resources/CortexM4F/*",
+            "../resources/CortexM7F/*"
+        ],
+        "icon": [
+            "../images/icons/32x32.png",
+            "../images/icons/128x128.png",
+            "../images/icons/128x128@2x.png",
+            "../images/icons/512x512.png",
+            "../images/icons/icon.icns",
+            "../images/icons/icon.ico"
+        ]
+    }
+}

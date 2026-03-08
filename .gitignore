@@ -25,7 +25,19 @@ dist-ssr
 
 
 src-tauri/*
+!src-tauri/src/
+!src-tauri/build.rs
+!src-tauri/Cargo.toml
+!src-tauri/tauri.conf.json
+!src-tauri/capabilities/
+!src-tauri/grammar.lalrpop
 Releases/*
+
+# Pre-built kron libraries and headers (closed-source, distributed with releases)
+resources/
+
+# TCC toolchain binaries (downloaded separately, not in repo)
+src-tauri/tcc/
 
 # Backend Artifacts
 bin/
