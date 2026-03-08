@@ -30,21 +30,14 @@
             "dmg"
         ],
         "resources": [
-            "tcc/linux-x64/tcc",
-            "tcc/linux-x64/libtcc1.a",
-            "tcc/linux-x64/include/*",
-            "tcc/windows-x64/tcc.exe",
-            "tcc/windows-x64/libtcc.dll",
-            "tcc/windows-x64/libtcc1.a",
-            "tcc/windows-x64/include/**/*",
-            "tcc/windows-x64/lib/*",
-            "../resources/include/*",
-            "../resources/Simulation/Linux/*",
-            "../resources/Simulation/Windows/*",
-            "../resources/Simulation/MacOS/*",
-            "../resources/CortexM0/*",
-            "../resources/CortexM4F/*",
-            "../resources/CortexM7F/*"
+            "mingw/windows-x64/**/*",
+            "resources/include/*",
+            "resources/Simulation/Linux/*",
+            "resources/Simulation/Windows/*",
+            "resources/Simulation/MacOS/*",
+            "resources/CortexM0/*",
+            "resources/CortexM4F/*",
+            "resources/CortexM7F/*"
         ],
         "icon": [
             "../images/icons/32x32.png",

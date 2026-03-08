@@ -11,9 +11,10 @@ use std::sync::Mutex;
 use lalrpop_util::lalrpop_mod;
 use logos::Logos;
 use serde_json::{json, Value};
+use std::process::Command;
 
 #[cfg(not(target_os = "windows"))]
-use std::process::{Command, Child, Stdio};
+use std::process::{Child, Stdio};
 #[cfg(not(target_os = "windows"))]
 use std::thread;
 #[cfg(not(target_os = "windows"))]
@@ -30,13 +31,10 @@ lalrpop_mod!(pub grammar);
 // ---------------------------------------------------------------------------
 
 #[cfg(not(target_os = "windows"))]
-const TCC_SUBDIR: &str = "tcc/linux-x64";
-
-#[cfg(not(target_os = "windows"))]
-const TCC_BIN: &str = "tcc";
-
-#[cfg(not(target_os = "windows"))]
 const SIM_BIN: &str = "simulation";
+
+#[cfg(target_os = "windows")]
+const MINGW_GCC: &str = "mingw/windows-x64/bin/gcc.exe";
 
 // ---------------------------------------------------------------------------
 // Path helpers
@@ -50,7 +48,8 @@ fn get_build_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 }
 
 fn get_resource_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    app.path().resource_dir().map_err(|e| e.to_string())
+    let p = app.path().resource_dir().map_err(|e| e.to_string())?;
+    Ok(plain_path(&p))
 }
 
 /// Strip the \\?\ long-path UNC prefix that Windows sometimes adds.
@@ -67,283 +66,66 @@ fn plain_path(p: &Path) -> PathBuf {
 fn plain_path(p: &Path) -> PathBuf { p.to_path_buf() }
 
 // ---------------------------------------------------------------------------
-// Windows in-process TCC simulation
+// Windows in-process simulation via MinGW-compiled DLL
 // ---------------------------------------------------------------------------
 
 #[cfg(target_os = "windows")]
 mod win_sim {
-    use libloading::{Library, Symbol};
-    use serde_json::{json, Map, Value};
-    use std::cell::RefCell;
-    use std::ffi::{CStr, CString, c_void};
-    use std::os::raw::{c_char, c_int};
-    use std::path::Path;
+    use std::ffi::CString;
     use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
     use std::thread;
     use std::time::Duration;
+    use serde_json::{json, Map, Value};
     use tauri::Emitter;
-
-    const TCC_OUTPUT_MEMORY: c_int = 1;
-    // TCC_RELOCATE_AUTO = (void*)1  — allocate and manage memory internally
-    const TCC_RELOCATE_AUTO: *mut c_void = 1usize as *mut c_void;
+    use windows_sys::Win32::Foundation::{FreeLibrary, GetLastError, HMODULE};
+    use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
 
     // -------------------------------------------------------------------------
-    // Thread-local error capture
+    // WinCtx — running DLL simulation stored in SimState
     // -------------------------------------------------------------------------
 
-    thread_local! {
-        static TCC_ERRORS: RefCell<Vec<String>> = RefCell::new(Vec::new());
-    }
-
-    unsafe extern "C" fn error_cb(_opaque: *mut c_void, msg: *const c_char) {
-        TCC_ERRORS.with(|e| {
-            if let Ok(s) = CStr::from_ptr(msg).to_str() {
-                e.borrow_mut().push(s.to_owned());
-            }
-        });
-    }
-
-    fn flush_errors() -> String {
-        TCC_ERRORS.with(|e| e.borrow_mut().drain(..).collect::<Vec<_>>().join("\n"))
-    }
-
-    // -------------------------------------------------------------------------
-    // TCC context — owns the library handle and the TCCState*
-    // Does NOT implement Drop (caller must call delete() explicitly before
-    // dropping the Library, to avoid calling tcc_delete after DLL unload).
-    // -------------------------------------------------------------------------
-
-    pub struct TccCtx {
-        pub lib: Library,
-        pub state: *mut c_void,
-    }
-    unsafe impl Send for TccCtx {}
-
-    impl TccCtx {
-        /// Call tcc_delete then drop the Library (unloads DLL).
-        /// Must be called after all threads using this code have exited.
-        pub unsafe fn free(self) {
-            let TccCtx { lib, state } = self;
-            if let Ok(f) = lib.get::<unsafe extern "C" fn(*mut c_void)>(b"tcc_delete\0") {
-                f(state);
-            }
-            drop(lib); // unload DLL after tcc_delete
-        }
-
-        pub unsafe fn get_symbol(&self, name: &str) -> *mut c_void {
-            if let Ok(f) = self.lib.get::<
-                unsafe extern "C" fn(*mut c_void, *const c_char) -> *mut c_void
-            >(b"tcc_get_symbol\0") {
-                let c = CString::new(name).unwrap();
-                f(self.state, c.as_ptr())
-            } else {
-                std::ptr::null_mut()
-            }
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    // Compiled — code loaded in memory, not yet running
-    // -------------------------------------------------------------------------
-
-    pub struct Compiled {
-        ctx: Option<TccCtx>,
-    }
-    unsafe impl Send for Compiled {}
-
-    impl Drop for Compiled {
-        fn drop(&mut self) {
-            if let Some(ctx) = self.ctx.take() {
-                unsafe { ctx.free(); }
-            }
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    // Running — main() thread started, var reader running
-    // -------------------------------------------------------------------------
-
-    pub struct Running {
-        ctx:          Option<TccCtx>,
-        stop_ptr:     *mut i32,
-        main_thr:     Option<thread::JoinHandle<i32>>,
-        reader_stop:  Arc<AtomicBool>,
-        reader_thr:   Option<thread::JoinHandle<()>>,
-    }
-    unsafe impl Send for Running {}
-
-    impl Drop for Running {
-        fn drop(&mut self) {
-            unsafe { self.do_stop(); }
-        }
-    }
-
-    impl Running {
-        unsafe fn do_stop(&mut self) {
-            // Signal PLC loop to exit
-            if !self.stop_ptr.is_null() {
-                *self.stop_ptr = 1;
-            }
-            // Join PLC main thread (exits after plc_stop check, ≤1ms)
-            if let Some(h) = self.main_thr.take() { let _ = h.join(); }
-            // Signal and join reader thread
-            self.reader_stop.store(true, Ordering::Relaxed);
-            if let Some(h) = self.reader_thr.take() { let _ = h.join(); }
-            // Safe to free TCC memory — all threads have exited
-            if let Some(ctx) = self.ctx.take() { ctx.free(); }
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    // WinCtx — stored in SimState
-    // -------------------------------------------------------------------------
-
-    #[allow(dead_code)] // Running variant is dropped (not read) to trigger stop-on-drop
-    pub enum WinCtx {
-        Compiled(Compiled),
-        Running(Running),
+    pub struct WinCtx {
+        hlib:        HMODULE,
+        stop_ptr:    *mut i32,
+        main_thr:    Option<thread::JoinHandle<i32>>,
+        reader_stop: Arc<AtomicBool>,
+        reader_thr:  Option<thread::JoinHandle<()>>,
     }
     unsafe impl Send for WinCtx {}
 
-    // -------------------------------------------------------------------------
-    // compile() — load libtcc.dll, compile in memory, relocate
-    // -------------------------------------------------------------------------
-
-    pub unsafe fn compile(
-        dll_path:     &Path,
-        lib_dir:      &Path,   // where libtcc1-64.a + .def files live
-        inc_dir:      &Path,   // TCC system headers
-        build_dir:    &Path,   // plc.h location (generated files)
-        resource_dir: &Path,   // bundled resources (include/, lib/)
-        plc_c:        &Path,
-    ) -> Result<Compiled, String> {
-        TCC_ERRORS.with(|e| e.borrow_mut().clear());
-
-        let lib = Library::new(dll_path)
-            .map_err(|e| format!("Cannot load libtcc.dll: {}", e))?;
-
-        // tcc_new
-        let tcc_new: Symbol<unsafe extern "C" fn() -> *mut c_void> =
-            lib.get(b"tcc_new\0").map_err(|e| e.to_string())?;
-        let state = tcc_new();
-        if state.is_null() {
-            return Err("tcc_new() returned NULL".into());
-        }
-
-        // Error callback
-        type ErrFn = unsafe extern "C" fn(*mut c_void, *const c_char);
-        let set_err: Symbol<unsafe extern "C" fn(*mut c_void, *mut c_void, ErrFn)> =
-            lib.get(b"tcc_set_error_func\0").map_err(|e| e.to_string())?;
-        set_err(state, std::ptr::null_mut(), error_cb);
-
-        // Output type: in-memory
-        let set_out: Symbol<unsafe extern "C" fn(*mut c_void, c_int) -> c_int> =
-            lib.get(b"tcc_set_output_type\0").map_err(|e| e.to_string())?;
-        set_out(state, TCC_OUTPUT_MEMORY);
-
-        // Library path (libtcc1-64.a, .def files)
-        let set_lib: Symbol<unsafe extern "C" fn(*mut c_void, *const c_char)> =
-            lib.get(b"tcc_set_lib_path\0").map_err(|e| e.to_string())?;
-        let p = CString::new(lib_dir.to_str().unwrap_or("")).unwrap();
-        set_lib(state, p.as_ptr());
-
-        // Include paths
-        let add_sys_inc: Symbol<unsafe extern "C" fn(*mut c_void, *const c_char) -> c_int> =
-            lib.get(b"tcc_add_sysinclude_path\0").map_err(|e| e.to_string())?;
-        let add_inc: Symbol<unsafe extern "C" fn(*mut c_void, *const c_char) -> c_int> =
-            lib.get(b"tcc_add_include_path\0").map_err(|e| e.to_string())?;
-
-        add_sys_inc(state, CString::new(inc_dir.to_str().unwrap_or("")).unwrap().as_ptr());
-        add_inc(state,     CString::new(build_dir.to_str().unwrap_or("")).unwrap().as_ptr());
-        
-        // Bundled resource includes (kron*.h headers)
-        let res_inc = resource_dir.join("resources/include");
-        add_inc(state, CString::new(res_inc.to_str().unwrap_or("")).unwrap().as_ptr());
-
-        // Compile source files
-        let add_file: Symbol<unsafe extern "C" fn(*mut c_void, *const c_char) -> c_int> =
-            lib.get(b"tcc_add_file\0").map_err(|e| e.to_string())?;
-
-        // The bundled libtcc.dll uses ELF format internally (same as TCC on Linux).
-        // Load pre-built TCC-ELF archives from Simulation/Windows/.
-        let res_sim_win = resource_dir.join("resources/Simulation/Windows");
-        if res_sim_win.exists() {
-            if let Ok(entries) = std::fs::read_dir(&res_sim_win) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if path.extension().map_or(false, |e| e == "a") {
-                        let r = add_file(state, CString::new(path.to_str().unwrap_or("")).unwrap().as_ptr());
-                        let errs = flush_errors();
-                        if r < 0 || !errs.is_empty() {
-                            if let Ok(f) = lib.get::<unsafe extern "C" fn(*mut c_void)>(b"tcc_delete\0") { f(state); }
-                            return Err(format!("TCC error loading {}:\n{}",
-                                path.file_name().unwrap_or_default().to_string_lossy(),
-                                if errs.is_empty() { "tcc_add_file failed".into() } else { errs }));
-                        }
-                    }
-                }
+    impl Drop for WinCtx {
+        fn drop(&mut self) {
+            if !self.stop_ptr.is_null() {
+                unsafe { *self.stop_ptr = 1; }
+            }
+            if let Some(h) = self.main_thr.take() { let _ = h.join(); }
+            self.reader_stop.store(true, Ordering::Relaxed);
+            if let Some(h) = self.reader_thr.take() { let _ = h.join(); }
+            if !self.hlib.is_null() {
+                unsafe { FreeLibrary(self.hlib); }
             }
         }
-
-
-
-        for (path, label) in &[(plc_c, "plc.c")] {
-            let r = add_file(state, CString::new(path.to_str().unwrap_or("")).unwrap().as_ptr());
-            let errs = flush_errors();
-            if r < 0 || !errs.is_empty() {
-                if let Ok(f) = lib.get::<unsafe extern "C" fn(*mut c_void)>(b"tcc_delete\0") { f(state); }
-                return Err(format!("TCC error in {}:\n{}", label,
-                    if errs.is_empty() { "tcc_add_file failed".into() } else { errs }));
-            }
-        }
-
-        // Relocate — allocates executable memory and resolves all symbols/imports
-        let relocate: Symbol<unsafe extern "C" fn(*mut c_void, *mut c_void) -> c_int> =
-            lib.get(b"tcc_relocate\0").map_err(|e| e.to_string())?;
-        let r = relocate(state, TCC_RELOCATE_AUTO);
-        let errs = flush_errors();
-        if r < 0 || !errs.is_empty() {
-            if let Ok(f) = lib.get::<unsafe extern "C" fn(*mut c_void)>(b"tcc_delete\0") { f(state); }
-            return Err(format!("TCC link/relocate error:\n{}",
-                if errs.is_empty() { "tcc_relocate failed".into() } else { errs }));
-        }
-
-        Ok(Compiled { ctx: Some(TccCtx { lib, state }) })
     }
 
-    // -------------------------------------------------------------------------
-    // start() — get symbol ptrs, launch main() thread + reader thread
-    // -------------------------------------------------------------------------
-
-    pub unsafe fn start(
-        compiled:  Compiled,
-        var_table: &Value,
-        app:       tauri::AppHandle,
-    ) -> Result<(Running, Vec<super::VarSpec>), String> {
-        // Move TccCtx out of Compiled without triggering Drop's free
-        let mut c = compiled;
-        let ctx = c.ctx.take().ok_or("No TCC context")?;
-        // c.Drop() now does nothing (ctx is None)
-
-        // Locate main() and plc_stop
-        let main_ptr = ctx.get_symbol("main");
-        if main_ptr.is_null() {
-            ctx.free();
-            return Err("Symbol 'main' not found — check generated C code".into());
+    fn get_proc(hlib: HMODULE, name: &str) -> *mut u8 {
+        let c = CString::new(name).unwrap();
+        unsafe {
+            let fp = GetProcAddress(hlib, c.as_ptr() as *const u8);
+            fp.map(|f| std::mem::transmute(f)).unwrap_or(std::ptr::null_mut())
         }
-        let stop_ptr = ctx.get_symbol("plc_stop") as *mut i32;
+    }
 
-        // Build VarSpec list from symbol pointers
-        let mut var_specs: Vec<super::VarSpec> = Vec::new();
+    fn build_var_specs(hlib: HMODULE, var_table: &Value) -> Vec<super::VarSpec> {
+        let mut specs = Vec::new();
         if let Some(progs) = var_table.get("programs").and_then(|v| v.as_object()) {
             for (prog, info) in progs {
                 if let Some(vars) = info.get("variables").and_then(|v| v.as_object()) {
                     for (var_name, var_info) in vars {
                         let c_sym = var_info.get("c_symbol").and_then(|v| v.as_str()).unwrap_or("");
                         let vtype = var_info.get("type").and_then(|v| v.as_str()).unwrap_or("BOOL");
-                        let ptr = ctx.get_symbol(c_sym);
+                        let ptr = get_proc(hlib, c_sym);
                         if !ptr.is_null() {
-                            var_specs.push(super::VarSpec {
+                            specs.push(super::VarSpec {
                                 key:     format!("prog_{}_{}", prog, var_name),
                                 address: ptr as u64,
                                 vtype:   vtype.to_string(),
@@ -357,9 +139,9 @@ mod win_sim {
             for (var_name, var_info) in gvars {
                 let c_sym = var_info.get("c_symbol").and_then(|v| v.as_str()).unwrap_or(var_name);
                 let vtype = var_info.get("type").and_then(|v| v.as_str()).unwrap_or("BOOL");
-                let ptr = ctx.get_symbol(c_sym);
+                let ptr = get_proc(hlib, c_sym);
                 if !ptr.is_null() {
-                    var_specs.push(super::VarSpec {
+                    specs.push(super::VarSpec {
                         key:     format!("prog__{}", var_name),
                         address: ptr as u64,
                         vtype:   vtype.to_string(),
@@ -367,18 +149,17 @@ mod win_sim {
                 }
             }
         }
-        // Process debugDefaults entries with base_symbol: array elements and struct members
         if let Some(debug) = var_table.get("debugDefaults").and_then(|v| v.as_object()) {
             for (key, entry) in debug {
                 let base_sym = match entry.get("base_symbol").and_then(|v| v.as_str()) {
                     Some(s) => s,
-                    None => continue, // top-level var entries — already handled above
+                    None    => continue,
                 };
                 let byte_offset = entry.get("byte_offset").and_then(|v| v.as_u64()).unwrap_or(0);
                 let vtype = entry.get("type").and_then(|v| v.as_str()).unwrap_or("BOOL");
-                let ptr = ctx.get_symbol(base_sym);
+                let ptr = get_proc(hlib, base_sym);
                 if !ptr.is_null() {
-                    var_specs.push(super::VarSpec {
+                    specs.push(super::VarSpec {
                         key:     key.clone(),
                         address: ptr as u64 + byte_offset,
                         vtype:   vtype.to_string(),
@@ -386,32 +167,57 @@ mod win_sim {
                 }
             }
         }
+        specs
+    }
 
-        if var_specs.is_empty() {
-            ctx.free();
-            return Err("No variables matched in compiled symbols".into());
+    // -------------------------------------------------------------------------
+    // load_and_run() — LoadLibrary(plc.dll), spawn threads
+    // -------------------------------------------------------------------------
+
+    pub fn load_and_run(
+        app:       tauri::AppHandle,
+        build_dir: &std::path::Path,
+        var_table: &Value,
+    ) -> Result<(WinCtx, Vec<super::VarSpec>), String> {
+        let dll_path = build_dir.join("plc.dll");
+        let dll_cstr = CString::new(
+            dll_path.to_str().ok_or("Invalid DLL path")?)
+            .map_err(|e| e.to_string())?;
+
+        let hlib = unsafe { LoadLibraryA(dll_cstr.as_ptr() as *const u8) };
+        if hlib.is_null() {
+            let err = unsafe { GetLastError() };
+            return Err(format!(
+                "LoadLibrary('{}') failed — Windows error {}",
+                dll_path.display(), err
+            ));
         }
 
-        // Launch PLC main() in a dedicated thread
-        let main_fn: unsafe extern "C" fn() -> i32 = std::mem::transmute(main_ptr);
+        let var_specs = build_var_specs(hlib, var_table);
+
+        let main_ptr = get_proc(hlib, "main");
+        if main_ptr.is_null() {
+            unsafe { FreeLibrary(hlib); }
+            return Err("Symbol 'main' not found in plc.dll — check generated C code".into());
+        }
+        let stop_ptr = get_proc(hlib, "plc_stop") as *mut i32;
+
+        let main_fn: unsafe extern "C" fn() -> i32 = unsafe { std::mem::transmute(main_ptr) };
         let main_thr = thread::spawn(move || unsafe { main_fn() });
 
-        // Launch variable reader thread
         let reader_stop = Arc::new(AtomicBool::new(false));
         let rs_clone    = reader_stop.clone();
         let specs_clone = var_specs.clone();
-        let reader_thr = thread::spawn(move || {
-            thread::sleep(Duration::from_millis(100)); // let PLC initialise
+        let reader_thr  = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(100));
             loop {
                 thread::sleep(Duration::from_millis(200));
                 if rs_clone.load(Ordering::Relaxed) { break; }
-
                 let mut vars_data: Map<String, Value> = Map::new();
                 let mut any_ok = false;
                 for spec in &specs_clone {
                     let size = super::type_size(&spec.vtype);
                     if size == 0 { continue; }
-                    // Direct pointer read — same process, no OS call needed
                     let buf = unsafe {
                         let ptr = spec.address as *const u8;
                         std::slice::from_raw_parts(ptr, size)
@@ -426,8 +232,8 @@ mod win_sim {
         });
 
         Ok((
-            Running {
-                ctx:         Some(ctx),
+            WinCtx {
+                hlib,
                 stop_ptr,
                 main_thr:    Some(main_thr),
                 reader_stop,
@@ -437,88 +243,6 @@ mod win_sim {
         ))
     }
 
-    // -------------------------------------------------------------------------
-    // compile_c_to_obj() — compile a single .c file to .o using libtcc.dll
-    // -------------------------------------------------------------------------
-
-    #[allow(dead_code)]
-    const TCC_OUTPUT_OBJ: c_int = 4;
-
-    #[allow(dead_code)]
-    pub unsafe fn compile_c_to_obj(
-        dll_path:  &Path,
-        lib_dir:   &Path,    // where libtcc1-64.a lives
-        inc_dir:   &Path,    // TCC system headers
-        extra_inc: &[&Path], // additional include paths (clone dir, kron headers)
-        c_file:    &Path,
-        obj_file:  &Path,
-    ) -> Result<(), String> {
-        TCC_ERRORS.with(|e| e.borrow_mut().clear());
-
-        let lib = Library::new(dll_path)
-            .map_err(|e| format!("Cannot load libtcc.dll: {}", e))?;
-
-        let tcc_new: Symbol<unsafe extern "C" fn() -> *mut c_void> =
-            lib.get(b"tcc_new\0").map_err(|e| e.to_string())?;
-        let state = tcc_new();
-        if state.is_null() {
-            return Err("tcc_new() returned NULL".into());
-        }
-
-        // Error callback
-        type ErrFn = unsafe extern "C" fn(*mut c_void, *const c_char);
-        let set_err: Symbol<unsafe extern "C" fn(*mut c_void, *mut c_void, ErrFn)> =
-            lib.get(b"tcc_set_error_func\0").map_err(|e| e.to_string())?;
-        set_err(state, std::ptr::null_mut(), error_cb);
-
-        // Output type: object file
-        let set_out: Symbol<unsafe extern "C" fn(*mut c_void, c_int) -> c_int> =
-            lib.get(b"tcc_set_output_type\0").map_err(|e| e.to_string())?;
-        set_out(state, TCC_OUTPUT_OBJ);
-
-        // Library path (libtcc1-64.a)
-        let set_lib: Symbol<unsafe extern "C" fn(*mut c_void, *const c_char)> =
-            lib.get(b"tcc_set_lib_path\0").map_err(|e| e.to_string())?;
-        set_lib(state, CString::new(lib_dir.to_str().unwrap_or("")).unwrap().as_ptr());
-
-        // System include path
-        let add_sys_inc: Symbol<unsafe extern "C" fn(*mut c_void, *const c_char) -> c_int> =
-            lib.get(b"tcc_add_sysinclude_path\0").map_err(|e| e.to_string())?;
-        let add_inc: Symbol<unsafe extern "C" fn(*mut c_void, *const c_char) -> c_int> =
-            lib.get(b"tcc_add_include_path\0").map_err(|e| e.to_string())?;
-
-        add_sys_inc(state, CString::new(inc_dir.to_str().unwrap_or("")).unwrap().as_ptr());
-
-        for dir in extra_inc {
-            add_inc(state, CString::new(dir.to_str().unwrap_or("")).unwrap().as_ptr());
-        }
-
-        // Add source file
-        let add_file: Symbol<unsafe extern "C" fn(*mut c_void, *const c_char) -> c_int> =
-            lib.get(b"tcc_add_file\0").map_err(|e| e.to_string())?;
-        let r = add_file(state, CString::new(c_file.to_str().unwrap_or("")).unwrap().as_ptr());
-        let errs = flush_errors();
-        if r < 0 || !errs.is_empty() {
-            if let Ok(f) = lib.get::<unsafe extern "C" fn(*mut c_void)>(b"tcc_delete\0") { f(state); }
-            return Err(format!("TCC compile error: {}",
-                if errs.is_empty() { "tcc_add_file failed".into() } else { errs }));
-        }
-
-        // Output to .o file
-        let output_file: Symbol<unsafe extern "C" fn(*mut c_void, *const c_char) -> c_int> =
-            lib.get(b"tcc_output_file\0").map_err(|e| e.to_string())?;
-        let r = output_file(state, CString::new(obj_file.to_str().unwrap_or("")).unwrap().as_ptr());
-        let errs = flush_errors();
-
-        // Cleanup
-        if let Ok(f) = lib.get::<unsafe extern "C" fn(*mut c_void)>(b"tcc_delete\0") { f(state); }
-
-        if r < 0 || !errs.is_empty() {
-            return Err(format!("TCC output error: {}",
-                if errs.is_empty() { "tcc_output_file failed".into() } else { errs }));
-        }
-        Ok(())
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -652,22 +376,19 @@ fn do_update_libraries(app: &tauri::AppHandle, repos: Vec<String>) -> Result<(),
         targets.push(BuildTarget { name: tname, dir, dev_dir: None });
     }
 
-    // In dev mode, also copy to the source tree so they persist across builds
+    // In dev mode, also copy to the project-root resources/ tree so files persist across builds.
+    // Walk up from cwd until we find a directory that contains BOTH "src-tauri" and "resources".
+    // This works regardless of whether cargo is invoked from the project root or from src-tauri/.
     let mut dev_include_dir = None;
     if let Ok(cwd) = std::env::current_dir() {
-        // resources/ is at the project root (sibling of src-tauri/)
-        let target_res = if cwd.join("resources").exists() {
-            Some(cwd.join("resources"))           // cwd = project root
-        } else if cwd.ends_with("src-tauri") {
-            cwd.parent().map(|p| p.join("resources"))  // cwd = src-tauri/
-        } else {
-            None
-        };
-        if let Some(res) = target_res {
+        let project_root = std::iter::successors(Some(cwd.as_ref() as &std::path::Path), |p| p.parent())
+            .find(|p| p.join("src-tauri").exists() && p.join("resources").exists())
+            .map(|p| p.to_path_buf());
+        if let Some(root) = project_root {
+            let res = root.join("resources");
             let i = res.join("include");
             let _ = fs::create_dir_all(&i);
             dev_include_dir = Some(i);
-
             for t in &mut targets {
                 let d = res.join(t.name);
                 let _ = fs::create_dir_all(&d);
@@ -704,8 +425,8 @@ fn do_update_libraries(app: &tauri::AppHandle, repos: Vec<String>) -> Result<(),
     let mut errors: Vec<String> = Vec::new();
 
     // --- Clone all repos, gather headers and sources ---
-    let mut all_c_files: Vec<PathBuf> = Vec::new();
-    let mut cloned_dirs: Vec<PathBuf> = Vec::new();
+    let mut repo_sources: Vec<(String, PathBuf)> = Vec::new(); // (lib_name, c_file)
+    let mut cloned_dirs:  Vec<PathBuf>            = Vec::new();
 
     for repo_name in &repos {
         let repo_url = format!("https://github.com/Krontek/{}.git", repo_name);
@@ -745,11 +466,34 @@ fn do_update_libraries(app: &tauri::AppHandle, repos: Vec<String>) -> Result<(),
             format!("[{}] Copied {} header(s)", repo_name, h_files.len()),
         );
 
-        all_c_files.extend(find_files_with_ext(&clone_dir, "c"));
+        // Each repo has exactly one main source: <reponame>.c (lowercase).
+        // Skip test.c, example.c and any other auxiliary files.
+        let lib_name = repo_name.to_lowercase();
+        let main_c = clone_dir.join(format!("{}.c", lib_name));
+        if main_c.exists() {
+            repo_sources.push((lib_name, main_c));
+        } else {
+            // Fallback: accept .c files NOT named test*.c or example*.c
+            let candidates: Vec<PathBuf> = find_files_with_ext(&clone_dir, "c")
+                .into_iter()
+                .filter(|p| {
+                    let n = p.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
+                    !n.starts_with("test") && !n.starts_with("example")
+                })
+                .collect();
+            if candidates.is_empty() {
+                let _ = app.emit("library-update-progress",
+                    format!("[{}] WARN: no .c source found", repo_name));
+            }
+            for c in candidates {
+                let stem = c.file_stem().unwrap_or_default().to_string_lossy().to_string();
+                repo_sources.push((stem, c));
+            }
+        }
         cloned_dirs.push(clone_dir);
     }
 
-    if all_c_files.is_empty() {
+    if repo_sources.is_empty() {
         let _ = fs::remove_dir_all(&temp_base);
         if errors.is_empty() {
             return Ok(());
@@ -760,279 +504,156 @@ fn do_update_libraries(app: &tauri::AppHandle, repos: Vec<String>) -> Result<(),
 
     // --- Compile for each target ---
 
-    // Helper: compile .c files then create .a archive
-    let compile_target = |
-        target_name: &str,
-        compiler: &str,
-        cc_args: &[&str],
-        ar_cmd: &str,
-        target_lib_dir: &Path,
-        dev_lib_dir: &Option<PathBuf>,
+    // Helper: compile one .c → lib<lib_name>.a  (used for Linux TCC and ARM targets)
+    let compile_one_ar = |
+        target_tag: &str,
+        compiler:   &str,
+        cc_args:    &[&str],
+        ar_cmd:     &str,
+        lib_dir:    &Path,
+        dev_dir:    &Option<PathBuf>,
+        lib_name:   &str,
+        c_file:     &Path,
     | -> Result<(), String> {
-        // Check compiler availability
-        let check = std::process::Command::new(compiler)
-            .arg("--version")
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status();
-        if check.is_err() || !check.unwrap().success() {
-            return Err(format!("{} not found, skipping {}", compiler, target_name));
+        let obj_path = temp_base.join(format!("{}_{}.o", target_tag.replace('/', "_"), lib_name));
+        let mut cmd = std::process::Command::new(compiler);
+        for arg in cc_args { cmd.arg(arg); }
+        cmd.arg("-I").arg(&include_dir);
+        for cdir in &cloned_dirs { cmd.arg("-I").arg(cdir); }
+        cmd.arg("-c").arg(c_file).arg("-o").arg(&obj_path);
+
+        let out = cmd.output().map_err(|e| format!("[{}] {} spawn error: {}", target_tag, lib_name, e))?;
+        if !out.status.success() {
+            let _ = fs::remove_file(&obj_path);
+            return Err(format!("[{}] {} compile error: {}",
+                target_tag, lib_name, String::from_utf8_lossy(&out.stderr).trim()));
         }
 
-        let obj_dir = temp_base.join(format!("obj_{}", target_name.replace('/', "_")));
-        let _ = fs::create_dir_all(&obj_dir);
-
-        let mut obj_files: Vec<PathBuf> = Vec::new();
-
-        for c_file in &all_c_files {
-            let stem = c_file.file_stem().unwrap_or_default().to_string_lossy().to_string();
-            let obj_path = obj_dir.join(format!("{}.o", stem));
-
-            let mut cmd = std::process::Command::new(compiler);
-            for arg in cc_args {
-                cmd.arg(arg);
-            }
-            cmd.arg("-I").arg(&include_dir)
-               .arg("-I").arg(tcc_dir.join("include"))
-               .arg("-c").arg(c_file)
-               .arg("-o").arg(&obj_path);
-
-            // Add clone dirs as include paths
-            for cdir in &cloned_dirs {
-                cmd.arg("-I").arg(cdir);
-            }
-
-            let out = cmd.output();
-            match out {
-                Ok(o) if o.status.success() => obj_files.push(obj_path),
-                Ok(o) => {
-                    let _ = app.emit(
-                        "library-update-progress",
-                        format!(
-                            "  [{}] WARN {}: {}",
-                            target_name,
-                            c_file.file_name().unwrap_or_default().to_string_lossy(),
-                            String::from_utf8_lossy(&o.stderr).trim()
-                        ),
-                    );
-                }
-                Err(e) => {
-                    let _ = app.emit(
-                        "library-update-progress",
-                        format!("  [{}] compile error: {}", target_name, e),
-                    );
-                }
-            }
+        let lib_path = lib_dir.join(format!("lib{}.a", lib_name));
+        let ar_out = std::process::Command::new(ar_cmd)
+            .arg("rcs").arg(&lib_path).arg(&obj_path)
+            .output()
+            .map_err(|e| format!("[{}] {} ar error: {}", target_tag, lib_name, e))?;
+        let _ = fs::remove_file(&obj_path);
+        if !ar_out.status.success() {
+            return Err(format!("[{}] {} archive error: {}",
+                target_tag, lib_name, String::from_utf8_lossy(&ar_out.stderr).trim()));
         }
-
-        if !obj_files.is_empty() {
-            let lib_path = target_lib_dir.join("libkron.a");
-
-            let ar_out = std::process::Command::new(ar_cmd)
-                .arg("rcs")
-                .arg(&lib_path)
-                .args(&obj_files)
-                .output();
-
-            match ar_out {
-                Ok(o) if o.status.success() => {
-                    let _ = app.emit(
-                        "library-update-progress",
-                        format!("  [{}] Created libkron.a ({} objects)", target_name, obj_files.len()),
-                    );
-                    if let Some(ref dev_dir) = dev_lib_dir {
-                        let _ = fs::copy(&lib_path, dev_dir.join("libkron.a"));
-                    }
-                }
-                Ok(o) => {
-                    let _ = app.emit(
-                        "library-update-progress",
-                        format!("  [{}] archive warn: {}", target_name, String::from_utf8_lossy(&o.stderr).trim()),
-                    );
-                }
-                Err(e) => {
-                    let _ = app.emit(
-                        "library-update-progress",
-                        format!("  [{}] archive error: {}", target_name, e),
-                    );
-                }
-            }
-
-            for obj in &obj_files {
-                let _ = fs::remove_file(obj);
-            }
+        if let Some(ref d) = dev_dir {
+            let _ = fs::copy(&lib_path, d.join(format!("lib{}.a", lib_name)));
         }
-        let _ = fs::remove_dir_all(&obj_dir);
         Ok(())
     };
 
-    // ---- Simulation/Linux — TCC ----
+    // ---- Simulation/Linux — TCC (per-repo .a archives) ----
     {
         let _ = app.emit("library-update-progress", "--- Building for Simulation/Linux ---".to_string());
-        let t = &targets[0]; // Simulation/Linux
-        let obj_dir = temp_base.join("obj_sim_linux");
-        let _ = fs::create_dir_all(&obj_dir);
-
-        let mut obj_files: Vec<PathBuf> = Vec::new();
-        for c_file in &all_c_files {
-            let stem = c_file.file_stem().unwrap_or_default().to_string_lossy().to_string();
-            let obj_path = obj_dir.join(format!("{}.o", stem));
-
+        let t = &targets[0];
+        for (lib_name, c_file) in &repo_sources {
+            let obj_path = temp_base.join(format!("linux_{}.o", lib_name));
             let mut cmd = std::process::Command::new(&tcc_bin);
             cmd.arg("-B").arg(&tcc_dir)
                .arg("-I").arg(&include_dir)
                .arg("-I").arg(tcc_dir.join("include"))
                .arg("-c").arg(c_file)
                .arg("-o").arg(&obj_path);
-            for cdir in &cloned_dirs {
-                cmd.arg("-I").arg(cdir);
-            }
+            for cdir in &cloned_dirs { cmd.arg("-I").arg(cdir); }
 
-            let out = cmd.output();
-            match out {
-                Ok(o) if o.status.success() => obj_files.push(obj_path),
-                Ok(o) => {
-                    let _ = app.emit("library-update-progress", format!(
-                        "  [Simulation/Linux] WARN {}: {}",
-                        c_file.file_name().unwrap_or_default().to_string_lossy(),
-                        String::from_utf8_lossy(&o.stderr).trim()
-                    ));
-                }
-                Err(e) => {
-                    let _ = app.emit("library-update-progress", format!(
-                        "  [Simulation/Linux] TCC error: {}", e
-                    ));
-                }
-            }
-        }
-
-        if !obj_files.is_empty() {
-            let lib_path = t.dir.join("libkron.a");
-            let mut ar_args = vec!["-ar".to_string(), "rcs".to_string(), lib_path.to_string_lossy().to_string()];
-            for obj in &obj_files {
-                ar_args.push(obj.to_string_lossy().to_string());
-            }
-            let ar_out = std::process::Command::new(&tcc_bin).args(&ar_args).output();
-            match ar_out {
+            match cmd.output() {
                 Ok(o) if o.status.success() => {
-                    let _ = app.emit("library-update-progress", format!(
-                        "  [Simulation/Linux] Created libkron.a ({} objects)", obj_files.len()
-                    ));
-                    if let Some(ref dev_dir) = t.dev_dir {
-                        let _ = fs::copy(&lib_path, dev_dir.join("libkron.a"));
+                    let lib_path = t.dir.join(format!("lib{}.a", lib_name));
+                    let ar_args = [
+                        "-ar", "rcs",
+                        lib_path.to_str().unwrap_or(""),
+                        obj_path.to_str().unwrap_or(""),
+                    ];
+                    match std::process::Command::new(&tcc_bin).args(&ar_args).output() {
+                        Ok(ar) if ar.status.success() => {
+                            let _ = app.emit("library-update-progress", format!(
+                                "  [Simulation/Linux] lib{}.a OK", lib_name));
+                            if let Some(ref dev_dir) = t.dev_dir {
+                                let _ = fs::copy(&lib_path, dev_dir.join(format!("lib{}.a", lib_name)));
+                            }
+                        }
+                        Ok(ar) => { let _ = app.emit("library-update-progress", format!(
+                            "  [Simulation/Linux] lib{}.a archive warn: {}",
+                            lib_name, String::from_utf8_lossy(&ar.stderr).trim())); }
+                        Err(e) => { let _ = app.emit("library-update-progress", format!(
+                            "  [Simulation/Linux] lib{}.a archive error: {}", lib_name, e)); }
                     }
+                    let _ = fs::remove_file(&obj_path);
                 }
-                Ok(o) => {
-                    let _ = app.emit("library-update-progress", format!(
-                        "  [Simulation/Linux] archive warn: {}", String::from_utf8_lossy(&o.stderr).trim()
-                    ));
-                }
-                Err(e) => {
-                    let _ = app.emit("library-update-progress", format!(
-                        "  [Simulation/Linux] archive error: {}", e
-                    ));
-                }
+                Ok(o) => { let _ = app.emit("library-update-progress", format!(
+                    "  [Simulation/Linux] WARN {}: {}",
+                    lib_name, String::from_utf8_lossy(&o.stderr).trim())); }
+                Err(e) => { let _ = app.emit("library-update-progress", format!(
+                    "  [Simulation/Linux] TCC error {}: {}", lib_name, e)); }
             }
-            for obj in &obj_files { let _ = fs::remove_file(obj); }
         }
-        let _ = fs::remove_dir_all(&obj_dir);
     }
 
-    // ---- Simulation/Windows — TCC (ELF format, same as Linux) ----
-    // libtcc.dll uses ELF format internally, so we build with Linux TCC.
-    // MinGW (COFF format) archives crash TCC's in-memory linker.
+    // ---- Simulation/Windows — per-lib MinGW .a archives ----
+    // Built with x86_64-w64-mingw32-gcc so the archives are Windows PE COFF format.
+    // At runtime, win_sim::compile() loads them via tcc_add_file().
     {
-        let _ = app.emit("library-update-progress", "--- Building for Simulation/Windows (TCC/ELF) ---".to_string());
-        let t = &targets[1]; // Simulation/Windows
-        let obj_dir = temp_base.join("obj_sim_windows");
-        let _ = fs::create_dir_all(&obj_dir);
-
-        let mut obj_files: Vec<PathBuf> = Vec::new();
-        for c_file in &all_c_files {
-            let stem = c_file.file_stem().unwrap_or_default().to_string_lossy().to_string();
-            let obj_path = obj_dir.join(format!("{}.o", stem));
-
-            let mut cmd = std::process::Command::new(&tcc_bin);
-            cmd.arg("-B").arg(&tcc_dir)
-               .arg("-I").arg(&include_dir)
-               .arg("-I").arg(tcc_dir.join("include"))
-               .arg("-c").arg(c_file)
-               .arg("-o").arg(&obj_path);
-            for cdir in &cloned_dirs {
-                cmd.arg("-I").arg(cdir);
-            }
-
-            let out = cmd.output();
-            match out {
-                Ok(o) if o.status.success() => obj_files.push(obj_path),
-                Ok(o) => {
-                    let _ = app.emit("library-update-progress", format!(
-                        "  [Simulation/Windows] WARN {}: {}",
-                        c_file.file_name().unwrap_or_default().to_string_lossy(),
-                        String::from_utf8_lossy(&o.stderr).trim()
-                    ));
-                }
-                Err(e) => {
-                    let _ = app.emit("library-update-progress", format!(
-                        "  [Simulation/Windows] TCC error: {}", e
-                    ));
+        let _ = app.emit("library-update-progress", "--- Building for Simulation/Windows ---".to_string());
+        let cc = "x86_64-w64-mingw32-gcc";
+        let ar = "x86_64-w64-mingw32-ar";
+        let has_cc = std::process::Command::new(cc)
+            .arg("--version")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status().map(|s| s.success()).unwrap_or(false);
+        if !has_cc {
+            let _ = app.emit("library-update-progress",
+                "  [Simulation/Windows] SKIP: x86_64-w64-mingw32-gcc not found".to_string());
+        } else {
+            let t = &targets[1];
+            let cc_args: &[&str] = &["-O2", "-ffunction-sections", "-fdata-sections"];
+            for (lib_name, c_file) in &repo_sources {
+                match compile_one_ar(
+                    "Simulation/Windows", cc, cc_args, ar,
+                    &t.dir, &t.dev_dir, lib_name, c_file,
+                ) {
+                    Ok(()) => { let _ = app.emit("library-update-progress", format!(
+                        "  [Simulation/Windows] lib{}.a OK", lib_name)); }
+                    Err(e) => { let _ = app.emit("library-update-progress",
+                        format!("  [Simulation/Windows] {}", e)); }
                 }
             }
         }
-
-        if !obj_files.is_empty() {
-            let lib_path = t.dir.join("libkron.a");
-            let mut ar_args = vec!["-ar".to_string(), "rcs".to_string(), lib_path.to_string_lossy().to_string()];
-            for obj in &obj_files {
-                ar_args.push(obj.to_string_lossy().to_string());
-            }
-            let ar_out = std::process::Command::new(&tcc_bin).args(&ar_args).output();
-            match ar_out {
-                Ok(o) if o.status.success() => {
-                    let _ = app.emit("library-update-progress", format!(
-                        "  [Simulation/Windows] Created libkron.a ({} objects)", obj_files.len()
-                    ));
-                    if let Some(ref dev_dir) = t.dev_dir {
-                        let _ = fs::copy(&lib_path, dev_dir.join("libkron.a"));
-                    }
-                }
-                Ok(o) => {
-                    let _ = app.emit("library-update-progress", format!(
-                        "  [Simulation/Windows] archive warn: {}", String::from_utf8_lossy(&o.stderr).trim()
-                    ));
-                }
-                Err(e) => {
-                    let _ = app.emit("library-update-progress", format!(
-                        "  [Simulation/Windows] archive error: {}", e
-                    ));
-                }
-            }
-            for obj in &obj_files { let _ = fs::remove_file(obj); }
-        }
-        let _ = fs::remove_dir_all(&obj_dir);
     }
 
-    // ---- ARM targets — arm-none-eabi-gcc ----
+    // ---- ARM targets — arm-none-eabi-gcc (per-repo .a archives) ----
     let arm_targets: &[(&str, usize, &[&str])] = &[
         ("CortexM0", 2, &["-mcpu=cortex-m0", "-mthumb", "-mfloat-abi=soft", "-O2", "-ffunction-sections", "-fdata-sections"]),
         ("CortexM4F", 3, &["-mcpu=cortex-m4", "-mthumb", "-mfloat-abi=hard", "-mfpu=fpv4-sp-d16", "-O2", "-ffunction-sections", "-fdata-sections"]),
         ("CortexM7F", 4, &["-mcpu=cortex-m7", "-mthumb", "-mfloat-abi=hard", "-mfpu=fpv5-d16", "-O2", "-ffunction-sections", "-fdata-sections"]),
     ];
 
+    let has_arm = std::process::Command::new("arm-none-eabi-gcc")
+        .arg("--version")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status().map(|s| s.success()).unwrap_or(false);
+
     for (name, idx, cc_args) in arm_targets {
         let _ = app.emit("library-update-progress", format!("--- Building for {} ---", name));
+        if !has_arm {
+            let _ = app.emit("library-update-progress",
+                format!("  [{}] SKIP: arm-none-eabi-gcc not found", name));
+            continue;
+        }
         let t = &targets[*idx];
-        match compile_target(
-            name,
-            "arm-none-eabi-gcc",
-            cc_args,
-            "arm-none-eabi-ar",
-            &t.dir,
-            &t.dev_dir,
-        ) {
-            Ok(()) => {}
-            Err(e) => {
-                let _ = app.emit("library-update-progress", format!("  SKIP: {}", e));
+        for (lib_name, c_file) in &repo_sources {
+            match compile_one_ar(
+                name, "arm-none-eabi-gcc", cc_args, "arm-none-eabi-ar",
+                &t.dir, &t.dev_dir, lib_name, c_file,
+            ) {
+                Ok(()) => { let _ = app.emit("library-update-progress", format!(
+                    "  [{}] lib{}.a OK", name, lib_name)); }
+                Err(e) => { let _ = app.emit("library-update-progress",
+                    format!("  [{}] {}", name, e)); }
             }
         }
     }
@@ -1075,82 +696,97 @@ fn update_libraries(app: tauri::AppHandle, repos: Vec<String>) -> Result<String,
 // compile_simulation
 // ---------------------------------------------------------------------------
 
-/// Windows: compile plc.c in-memory via libtcc.dll, store compiled state.
+/// Windows: compile plc.c → plc.dll using bundled MinGW gcc.
 #[cfg(target_os = "windows")]
-#[tauri::command]
-fn compile_simulation(
-    app: tauri::AppHandle,
-    state: State<'_, SimState>,
-) -> Result<String, String> {
-    let resource_dir = get_resource_dir(&app)?;
-    let build_dir    = plain_path(&get_build_dir(&app)?);
-    let tcc_dir      = plain_path(&resource_dir.join("tcc/windows-x64"));
-    let dll_path     = tcc_dir.join("libtcc.dll");
-    let lib_dir      = tcc_dir.join("lib");
-    let inc_dir      = tcc_dir.join("include");
-    let plc_c        = build_dir.join("plc.c");
-
-    let compiled = unsafe {
-        win_sim::compile(&dll_path, &lib_dir, &inc_dir, &build_dir, &resource_dir, &plc_c)
-    }?;
-
-    *state.win.lock().unwrap() = Some(win_sim::WinCtx::Compiled(compiled));
-    Ok("Compiled in-memory".to_string())
-}
-
-/// Linux/macOS: compile via tcc subprocess, produce simulation binary.
-#[cfg(not(target_os = "windows"))]
 #[tauri::command]
 fn compile_simulation(app: tauri::AppHandle) -> Result<String, String> {
     let resource_dir = get_resource_dir(&app)?;
     let build_dir    = plain_path(&get_build_dir(&app)?);
-    let tcc_dir      = resource_dir.join(TCC_SUBDIR);
-    let tcc_bin      = tcc_dir.join(TCC_BIN);
+    let gcc_path     = resource_dir.join(MINGW_GCC);
     let plc_c        = build_dir.join("plc.c");
-    let out_file     = build_dir.join(SIM_BIN);
+    let plc_dll      = build_dir.join("plc.dll");
+    let res_include  = resource_dir.join("resources/include");
+    let sim_win      = resource_dir.join("resources/Simulation/Windows");
 
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        if let Ok(meta) = fs::metadata(&tcc_bin) {
-            let mut perms = meta.permissions();
-            perms.set_mode(0o755);
-            let _ = fs::set_permissions(&tcc_bin, perms);
-        }
-    }
+    let gcc_bin_dir = gcc_path.parent().unwrap_or(&gcc_path);
 
-    // Headers and libs come from resources/; build_dir only has generated plc.h/plc.c
-    let res_include = resource_dir.join("resources/include");
-    let sim_lib     = resource_dir.join("resources/Simulation/Linux");
-
-    let mut cmd = Command::new(&tcc_bin);
-    cmd.arg("-B").arg(&tcc_dir)
-        .arg("-I").arg(tcc_dir.join("include"))
+    let mut cmd = Command::new(&gcc_path);
+    // -B tells gcc where to find its helper tools (as.exe, ld.exe, etc.)
+    cmd.arg(format!("-B{}", gcc_bin_dir.display()))
+        .arg("-shared")
+        .arg("-Wl,--export-all-symbols")
         .arg("-I").arg(&build_dir)
         .arg("-I").arg(&res_include)
-        .arg("-L").arg(&sim_lib)
-        .arg("-rdynamic")
-        .arg("-o").arg(&out_file)
+        .arg("-o").arg(&plc_dll)
         .arg(&plc_c);
 
-    // Add static libraries from Simulation/Linux/
-    if let Ok(entries) = std::fs::read_dir(&sim_lib) {
-        for entry in entries.flatten() {
-            if entry.path().extension().map_or(false, |e| e == "a") {
-                cmd.arg(entry.path());
+    let mut a_files: Vec<PathBuf> = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&sim_win) {
+        for e in entries.flatten() {
+            if e.path().extension().map_or(false, |x| x == "a") {
+                a_files.push(e.path());
             }
         }
     }
+    a_files.sort();
+    for a in &a_files { cmd.arg(a); }
+    cmd.arg("-lm");
 
     let output = cmd.output()
-        .map_err(|e| format!("Failed to execute TCC ({}): {}", tcc_bin.display(), e))?;
+        .map_err(|e| format!("Failed to run gcc ({}): {}", gcc_path.display(), e))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stdout = String::from_utf8_lossy(&output.stdout);
         let code   = output.status.code().map(|c| c.to_string()).unwrap_or_else(|| "?".into());
         return Err(format!(
-            "TCC compilation failed (exit {})\nstderr: {}\nstdout: {}",
+            "MinGW compilation failed (exit {})\nstderr: {}\nstdout: {}",
+            code, stderr.trim(), stdout.trim()
+        ));
+    }
+
+    Ok(plc_dll.to_string_lossy().to_string())
+}
+
+/// Linux/macOS: compile plc.c → simulation binary using system gcc.
+#[cfg(not(target_os = "windows"))]
+#[tauri::command]
+fn compile_simulation(app: tauri::AppHandle) -> Result<String, String> {
+    let resource_dir = get_resource_dir(&app)?;
+    let build_dir    = plain_path(&get_build_dir(&app)?);
+    let plc_c        = build_dir.join("plc.c");
+    let out_file     = build_dir.join(SIM_BIN);
+    let res_include  = resource_dir.join("resources/include");
+    let sim_lib      = resource_dir.join("resources/Simulation/Linux");
+
+    let mut cmd = Command::new("gcc");
+    cmd.arg("-I").arg(&build_dir)
+        .arg("-I").arg(&res_include)
+        .arg("-rdynamic")
+        .arg("-o").arg(&out_file)
+        .arg(&plc_c);
+
+    let mut a_files: Vec<PathBuf> = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&sim_lib) {
+        for e in entries.flatten() {
+            if e.path().extension().map_or(false, |x| x == "a") {
+                a_files.push(e.path());
+            }
+        }
+    }
+    a_files.sort();
+    for a in &a_files { cmd.arg(a); }
+    cmd.arg("-lm");
+
+    let output = cmd.output()
+        .map_err(|e| format!("Failed to run gcc: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let code   = output.status.code().map(|c| c.to_string()).unwrap_or_else(|| "?".into());
+        return Err(format!(
+            "GCC compilation failed (exit {})\nstderr: {}\nstdout: {}",
             code, stderr.trim(), stdout.trim()
         ));
     }
@@ -1391,40 +1027,25 @@ mod mem {
 // run_simulation
 // ---------------------------------------------------------------------------
 
-/// Windows: get symbol pointers from compiled TCC state, start threads.
+/// Windows: load plc.dll (MinGW-compiled), get symbol pointers, start threads.
 #[cfg(target_os = "windows")]
 #[tauri::command]
 fn run_simulation(
     app:   tauri::AppHandle,
     state: State<'_, SimState>,
 ) -> Result<String, String> {
-    let build_dir      = plain_path(&get_build_dir(&app)?);
-    let var_table_path = build_dir.join("variable_table.json");
-
-    let var_table_str = fs::read_to_string(&var_table_path)
+    let build_dir     = plain_path(&get_build_dir(&app)?);
+    let var_table_str = fs::read_to_string(build_dir.join("variable_table.json"))
         .map_err(|e| format!("Failed to read variable_table.json: {}", e))?;
     let var_table: Value = serde_json::from_str(&var_table_str)
         .map_err(|e| format!("Failed to parse variable_table.json: {}", e))?;
 
-    let mut win_guard = state.win.lock().unwrap();
+    if state.win.lock().unwrap().is_some() {
+        return Err("Simulation is already running".into());
+    }
 
-    // Extract the Compiled context
-    let compiled = match win_guard.take() {
-        Some(win_sim::WinCtx::Compiled(c)) => c,
-        Some(running @ win_sim::WinCtx::Running(_)) => {
-            *win_guard = Some(running);
-            return Err("Simulation is already running".into());
-        }
-        None => return Err("No compiled simulation. Call compile_simulation first.".into()),
-    };
-
-    let (running, var_specs) = unsafe {
-        win_sim::start(compiled, &var_table, app.clone())
-    }?;
-
-    *win_guard = Some(win_sim::WinCtx::Running(running));
-    drop(win_guard);
-
+    let (ctx, var_specs) = win_sim::load_and_run(app.clone(), &build_dir, &var_table)?;
+    *state.win.lock().unwrap()      = Some(ctx);
     *state.var_specs.lock().unwrap() = var_specs;
     let _ = app.emit("simulation-output", json!({"status": "started"}).to_string());
     Ok("Simulation started".into())
@@ -1513,14 +1134,12 @@ fn run_simulation(
 #[tauri::command]
 fn stop_simulation(state: State<'_, SimState>) -> Result<String, String> {
     state.var_specs.lock().unwrap().clear();
-    let ctx = state.win.lock().unwrap().take();
-    match ctx {
-        Some(win_sim::WinCtx::Running(_)) => {
-            // Running::drop() calls do_stop() — signals plc_stop=1 and joins threads
-            Ok("Simulation stopped".into())
-        }
-        Some(win_sim::WinCtx::Compiled(_)) => Ok("Compiled state cleared".into()),
-        None => Err("No simulation running".into()),
+    let was_running = state.win.lock().unwrap().take().is_some();
+    // WinCtx::drop() signals plc_stop=1, joins threads, then FreeLibrary
+    if was_running {
+        Ok("Simulation stopped".into())
+    } else {
+        Err("No simulation running".into())
     }
 }
 

@@ -177,6 +177,17 @@ function App() {
     setLogs(prev => [...prev, { type, msg: `[${time}] ${msg} ` }]);
   }, []);
 
+  // --- Simulation Compile Log Listener (debug) ---
+  useEffect(() => {
+    let unlisten = null;
+    import('@tauri-apps/api/event').then(({ listen }) => {
+      listen('simulation-compile-log', (event) => {
+        addLog('info', event.payload);
+      }).then(f => unlisten = f);
+    });
+    return () => { if (unlisten) unlisten(); };
+  }, []);
+
   // --- Live Variable Listener ---
   const [liveVariables, setLiveVariables] = useState({});
 

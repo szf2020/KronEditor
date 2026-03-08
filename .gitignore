@@ -31,13 +31,18 @@ src-tauri/*
 !src-tauri/tauri.conf.json
 !src-tauri/capabilities/
 !src-tauri/grammar.lalrpop
-Releases/*
+Releases/
 
-# Pre-built kron libraries and headers (closed-source, distributed with releases)
-resources/
+
 
 # TCC toolchain binaries (downloaded separately, not in repo)
 src-tauri/tcc/
+
+# MinGW toolchain (downloaded by scripts/download-mingw.js)
+src-tauri/mingw/
+
+# Symlink to project-root resources/ (created automatically by build.rs)
+src-tauri/resources
 
 # Backend Artifacts
 bin/
