@@ -1296,7 +1296,8 @@ const RungContainer = ({
 
     if (readOnly) {
       // Simulation mode: allow selection for spacebar BOOL toggle, skip edit callbacks
-      setNodes((nds) => nds.map((n) => (n.id === node.id ? { ...n, selected: !wasSelected } : n)));
+      // Only one node selected at a time
+      setNodes((nds) => nds.map((n) => (n.id === node.id ? { ...n, selected: !wasSelected } : { ...n, selected: false })));
       return;
     }
 
@@ -2151,7 +2152,7 @@ const RungContainer = ({
           nodesConnectable={!readOnly}
           nodesSelectable={true}
           deleteKeyCode={readOnly ? null : ['Backspace', 'Delete']}
-          multiSelectionKeyCode={['Meta', 'Ctrl']}
+          multiSelectionKeyCode={readOnly ? null : ['Meta', 'Ctrl']}
           defaultViewport={{ x: 0, y: 0, zoom: 1 }}
         />
       </div>
