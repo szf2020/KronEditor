@@ -48,7 +48,7 @@ The editor is in active development. If you're interested in industrial automati
 ### Install & Run
 
 ```bash
-git clone https://github.com/AKronfeld/KronEditor.git
+git clone https://github.com/Krontek/KronEditor.git
 cd KronEditor
 npm install
 npm run dev
@@ -252,5 +252,6 @@ npm run build        # Build for all platforms
 ---
 
 ## License
+
 
 [MIT](LICENSE) — Krontek, 2026
