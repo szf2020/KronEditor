@@ -3,6 +3,7 @@ import { DataTypeSelector, ModernSelect } from './common/Selectors';
 import ForceWriteModal from './common/ForceWriteModal';
 import { useTranslation } from 'react-i18next';
 import { formatTimeUs } from '../utils/plcStandards';
+import { blockConfig } from './RungContainer';
 
 const ALL_CLASSES = ['Local', 'Global', 'Input', 'Output', 'InOut', 'Temp'];
 
@@ -178,21 +179,7 @@ const VariableManager = ({
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleAddClick = (insertAfterIndex) => {
-    let existingNames = [...variables, ...globalVars].map(v => v.name);
-
-    if (projectStructure) {
-      const allLocalVars = [];
-      ['programs'].forEach(category => {
-        if (projectStructure[category]) {
-          projectStructure[category].forEach(item => {
-            if (item.content && item.content.variables) {
-              allLocalVars.push(...item.content.variables.map(v => v.name));
-            }
-          });
-        }
-      });
-      existingNames = [...existingNames, ...allLocalVars];
-    }
+    const existingNames = [...variables, ...globalVars].map(v => v.name);
 
     let counter = 0;
     while (existingNames.includes(`Var${counter}`)) counter++;
@@ -220,26 +207,6 @@ const VariableManager = ({
       return;
     }
 
-    if (projectStructure) {
-      let nameExistsInOtherScopes = false;
-      ['programs'].forEach(category => {
-        if (projectStructure[category]) {
-          projectStructure[category].forEach(item => {
-            if (item.content && item.content.variables) {
-              if (item.content.variables.some(v => v.name === trimmed)) {
-                nameExistsInOtherScopes = true;
-              }
-            }
-          });
-        }
-      });
-
-      if (nameExistsInOtherScopes) {
-        alert(t('errors.varExistsOtherScope', { name: trimmed }));
-        return;
-      }
-    }
-
     if (onUpdate) onUpdate(id, 'name', trimmed);
   };
 
@@ -261,6 +228,36 @@ const VariableManager = ({
     if (!liveVariables) return null;
     const key = getLiveKey(varName);
     return (key && liveVariables[key] !== undefined) ? liveVariables[key] : null;
+  };
+
+  /** For FB instance variables, collect output pin live values from shadow keys. */
+  const getFBOutputValues = (varName, varType) => {
+    if (!liveVariables) return null;
+    const safeName = (varName || '').trim().replace(/\s+/g, '_');
+    const safeProgName = (parentName || '').trim().replace(/\s+/g, '_');
+    const prefix = `prog_${safeProgName}_out_${safeName}_`;
+    const cfg = blockConfig[varType];
+    const entries = [];
+    for (const key in liveVariables) {
+      if (key.startsWith(prefix)) {
+        const pin = key.slice(prefix.length);
+        const pinType = cfg?.outputs?.find(o => o.name === pin)?.type || null;
+        entries.push({ pin, value: liveVariables[key], type: pinType });
+      }
+    }
+    return entries.length > 0 ? entries : null;
+  };
+
+  const formatFBOutputs = (entries) => {
+    return entries.map(e => {
+      const v = e.value;
+      let display;
+      if (typeof v === 'boolean') display = v ? 'T' : 'F';
+      else if (e.type === 'BOOL' && (v === 0 || v === 1)) display = v ? 'T' : 'F';
+      else if (e.type === 'TIME') display = formatTimeUs(v);
+      else display = String(v ?? '---');
+      return `${e.pin}=${display}`;
+    }).join(' ');
   };
 
   const formatLiveDisplay = (val, type) => {
@@ -407,7 +404,7 @@ const VariableManager = ({
                       title={isComplex ? 'Click to inspect elements' : canForce ? 'Click to force-write value' : ''}
                     >
                       <span style={{
-                        color: isComplex ? '#90caf9' : (hasValue ? '#00e676' : '#555'),
+                        color: isComplex ? '#90caf9' : (hasValue || getFBOutputValues(v.name, v.type) ? '#00e676' : '#555'),
                         fontWeight: 'bold',
                         fontFamily: 'Consolas, monospace',
                         padding: '1px 6px',
@@ -419,7 +416,11 @@ const VariableManager = ({
                         {isComplex ? (() => {
                           const dtDef = dataTypes.find(dt => dt.name === v.type);
                           return dtDef?.type === 'Array' ? '⊞ inspect' : '⊡ inspect';
-                        })() : formatLiveDisplay(liveVal, v.type)}
+                        })() : (() => {
+                          const fbOuts = getFBOutputValues(v.name, v.type);
+                          if (fbOuts) return formatFBOutputs(fbOuts);
+                          return formatLiveDisplay(liveVal, v.type);
+                        })()}
                       </span>
                     </td>
                   )}

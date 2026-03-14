@@ -76,100 +76,100 @@ const TerminalConnectionPoint = ({ data, isConnectable }) => {
 // Blok Yapılandırması ve Tip Tanımları
 export const blockConfig = {
   TON: {
-    label: 'TON',
+    label: 'TON', descriptionKey: 'blockInfo.TON',
     inputs: [{ name: 'IN', type: 'BOOL' }, { name: 'PT', type: 'TIME' }],
     outputs: [{ name: 'Q', type: 'BOOL' }, { name: 'ET', type: 'TIME' }]
   },
   TOF: {
-    label: 'TOF',
+    label: 'TOF', descriptionKey: 'blockInfo.TOF',
     inputs: [{ name: 'IN', type: 'BOOL' }, { name: 'PT', type: 'TIME' }],
     outputs: [{ name: 'Q', type: 'BOOL' }, { name: 'ET', type: 'TIME' }]
   },
   TP: {
-    label: 'TP',
+    label: 'TP', descriptionKey: 'blockInfo.TP',
     inputs: [{ name: 'IN', type: 'BOOL' }, { name: 'PT', type: 'TIME' }],
     outputs: [{ name: 'Q', type: 'BOOL' }, { name: 'ET', type: 'TIME' }]
   },
   TONR: {
-    label: 'TONR',
+    label: 'TONR', descriptionKey: 'blockInfo.TONR',
     inputs: [{ name: 'IN', type: 'BOOL' }, { name: 'PT', type: 'TIME' }, { name: 'RESET', type: 'BOOL' }],
     outputs: [{ name: 'Q', type: 'BOOL' }, { name: 'ET', type: 'TIME' }]
   },
   CTU: {
-    label: 'CTU',
+    label: 'CTU', descriptionKey: 'blockInfo.CTU',
     inputs: [{ name: 'CU', type: 'BOOL' }, { name: 'R', type: 'BOOL' }, { name: 'PV', type: 'INT' }],
     outputs: [{ name: 'Q', type: 'BOOL' }, { name: 'CV', type: 'INT' }]
   },
   CTD: {
-    label: 'CTD',
+    label: 'CTD', descriptionKey: 'blockInfo.CTD',
     inputs: [{ name: 'CD', type: 'BOOL' }, { name: 'LD', type: 'BOOL' }, { name: 'PV', type: 'INT' }],
     outputs: [{ name: 'Q', type: 'BOOL' }, { name: 'CV', type: 'INT' }]
   },
   CTUD: {
-    label: 'CTUD',
+    label: 'CTUD', descriptionKey: 'blockInfo.CTUD',
     inputs: [{ name: 'CU', type: 'BOOL' }, { name: 'CD', type: 'BOOL' }, { name: 'R', type: 'BOOL' }, { name: 'LD', type: 'BOOL' }, { name: 'PV', type: 'INT' }],
     outputs: [{ name: 'QU', type: 'BOOL' }, { name: 'QD', type: 'BOOL' }, { name: 'CV', type: 'INT' }]
   },
   R_TRIG: {
-    label: 'R_TRIG',
+    label: 'R_TRIG', descriptionKey: 'blockInfo.R_TRIG',
     inputs: [{ name: 'CLK', type: 'BOOL' }],
     outputs: [{ name: 'Q', type: 'BOOL' }]
   },
   F_TRIG: {
-    label: 'F_TRIG',
+    label: 'F_TRIG', descriptionKey: 'blockInfo.F_TRIG',
     inputs: [{ name: 'CLK', type: 'BOOL' }],
     outputs: [{ name: 'Q', type: 'BOOL' }]
   },
   RS: {
-    label: 'RS',
+    label: 'RS', descriptionKey: 'blockInfo.RS',
     inputs: [{ name: 'S', type: 'BOOL' }, { name: 'R1', type: 'BOOL' }],
     outputs: [{ name: 'Q1', type: 'BOOL' }]
   },
   SR: {
-    label: 'SR',
+    label: 'SR', descriptionKey: 'blockInfo.SR',
     inputs: [{ name: 'S1', type: 'BOOL' }, { name: 'R', type: 'BOOL' }],
     outputs: [{ name: 'Q1', type: 'BOOL' }]
   },
   // --- COMPARISON ---
-  GT: { label: 'GT', inputs: [{ name: 'IN1', type: 'ANY_NUM' }, { name: 'IN2', type: 'ANY_NUM' }], outputs: [] },
-  GE: { label: 'GE', inputs: [{ name: 'IN1', type: 'ANY_NUM' }, { name: 'IN2', type: 'ANY_NUM' }], outputs: [] },
-  EQ: { label: 'EQ', inputs: [{ name: 'IN1', type: 'ANY_NUM' }, { name: 'IN2', type: 'ANY_NUM' }], outputs: [] },
-  NE: { label: 'NE', inputs: [{ name: 'IN1', type: 'ANY_NUM' }, { name: 'IN2', type: 'ANY_NUM' }], outputs: [] },
-  LE: { label: 'LE', inputs: [{ name: 'IN1', type: 'ANY_NUM' }, { name: 'IN2', type: 'ANY_NUM' }], outputs: [] },
-  LT: { label: 'LT', inputs: [{ name: 'IN1', type: 'ANY_NUM' }, { name: 'IN2', type: 'ANY_NUM' }], outputs: [] },
+  GT: { label: 'GT', descriptionKey: 'blockInfo.GT', inputs: [{ name: 'IN1', type: 'ANY_NUM' }, { name: 'IN2', type: 'ANY_NUM' }], outputs: [{ name: 'Q', type: 'BOOL' }] },
+  GE: { label: 'GE', descriptionKey: 'blockInfo.GE', inputs: [{ name: 'IN1', type: 'ANY_NUM' }, { name: 'IN2', type: 'ANY_NUM' }], outputs: [{ name: 'Q', type: 'BOOL' }] },
+  EQ: { label: 'EQ', descriptionKey: 'blockInfo.EQ', inputs: [{ name: 'IN1', type: 'ANY_NUM' }, { name: 'IN2', type: 'ANY_NUM' }], outputs: [{ name: 'Q', type: 'BOOL' }] },
+  NE: { label: 'NE', descriptionKey: 'blockInfo.NE', inputs: [{ name: 'IN1', type: 'ANY_NUM' }, { name: 'IN2', type: 'ANY_NUM' }], outputs: [{ name: 'Q', type: 'BOOL' }] },
+  LE: { label: 'LE', descriptionKey: 'blockInfo.LE', inputs: [{ name: 'IN1', type: 'ANY_NUM' }, { name: 'IN2', type: 'ANY_NUM' }], outputs: [{ name: 'Q', type: 'BOOL' }] },
+  LT: { label: 'LT', descriptionKey: 'blockInfo.LT', inputs: [{ name: 'IN1', type: 'ANY_NUM' }, { name: 'IN2', type: 'ANY_NUM' }], outputs: [{ name: 'Q', type: 'BOOL' }] },
   // --- ARITHMETIC ---
-  ADD: { label: 'ADD', inputs: [{ name: 'IN1', type: 'ANY_NUM' }, { name: 'IN2', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
-  SUB: { label: 'SUB', inputs: [{ name: 'IN1', type: 'ANY_NUM' }, { name: 'IN2', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
-  MUL: { label: 'MUL', inputs: [{ name: 'IN1', type: 'ANY_NUM' }, { name: 'IN2', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
-  DIV: { label: 'DIV', inputs: [{ name: 'IN1', type: 'ANY_NUM' }, { name: 'IN2', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
-  MOD: { label: 'MOD', inputs: [{ name: 'IN1', type: 'ANY_NUM' }, { name: 'IN2', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
-  MOVE: { label: 'MOVE', inputs: [{ name: 'IN', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
+  ADD: { label: 'ADD', descriptionKey: 'blockInfo.ADD', inputs: [{ name: 'IN1', type: 'ANY_NUM' }, { name: 'IN2', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
+  SUB: { label: 'SUB', descriptionKey: 'blockInfo.SUB', inputs: [{ name: 'IN1', type: 'ANY_NUM' }, { name: 'IN2', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
+  MUL: { label: 'MUL', descriptionKey: 'blockInfo.MUL', inputs: [{ name: 'IN1', type: 'ANY_NUM' }, { name: 'IN2', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
+  DIV: { label: 'DIV', descriptionKey: 'blockInfo.DIV', inputs: [{ name: 'IN1', type: 'ANY_NUM' }, { name: 'IN2', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
+  MOD: { label: 'MOD', descriptionKey: 'blockInfo.MOD', inputs: [{ name: 'IN1', type: 'ANY_NUM' }, { name: 'IN2', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
+  MOVE: { label: 'MOVE', descriptionKey: 'blockInfo.MOVE', inputs: [{ name: 'IN', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
   // --- MATH ---
-  ABS: { label: 'ABS', inputs: [{ name: 'IN', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
-  SQRT: { label: 'SQRT', inputs: [{ name: 'IN', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
-  EXPT: { label: 'EXPT', inputs: [{ name: 'IN', type: 'ANY_NUM' }, { name: 'EXP', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
-  MAX: { label: 'MAX', inputs: [{ name: 'IN1', type: 'ANY_NUM' }, { name: 'IN2', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
-  MIN: { label: 'MIN', inputs: [{ name: 'IN1', type: 'ANY_NUM' }, { name: 'IN2', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
-  LIMIT: { label: 'LIMIT', inputs: [{ name: 'IN', type: 'ANY_NUM' }, { name: 'MN', type: 'ANY_NUM' }, { name: 'MX', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
+  ABS: { label: 'ABS', descriptionKey: 'blockInfo.ABS', inputs: [{ name: 'IN', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
+  SQRT: { label: 'SQRT', descriptionKey: 'blockInfo.SQRT', inputs: [{ name: 'IN', type: 'REAL' }], outputs: [{ name: 'OUT', type: 'REAL' }] },
+  EXPT: { label: 'EXPT', descriptionKey: 'blockInfo.EXPT', inputs: [{ name: 'IN', type: 'REAL' }, { name: 'EXP', type: 'REAL' }], outputs: [{ name: 'OUT', type: 'REAL' }] },
+  MAX: { label: 'MAX', descriptionKey: 'blockInfo.MAX', inputs: [{ name: 'IN1', type: 'ANY_NUM' }, { name: 'IN2', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
+  MIN: { label: 'MIN', descriptionKey: 'blockInfo.MIN', inputs: [{ name: 'IN1', type: 'ANY_NUM' }, { name: 'IN2', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
+  LIMIT: { label: 'LIMIT', descriptionKey: 'blockInfo.LIMIT', inputs: [{ name: 'IN', type: 'ANY_NUM' }, { name: 'MN', type: 'ANY_NUM' }, { name: 'MX', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
   // --- BITWISE ---
-  BAND: { label: 'BAND', inputs: [{ name: 'IN1', type: 'DWORD' }, { name: 'IN2', type: 'DWORD' }], outputs: [{ name: 'OUT', type: 'DWORD' }] },
-  BOR: { label: 'BOR', inputs: [{ name: 'IN1', type: 'DWORD' }, { name: 'IN2', type: 'DWORD' }], outputs: [{ name: 'OUT', type: 'DWORD' }] },
-  BXOR: { label: 'BXOR', inputs: [{ name: 'IN1', type: 'DWORD' }, { name: 'IN2', type: 'DWORD' }], outputs: [{ name: 'OUT', type: 'DWORD' }] },
-  BNOT: { label: 'BNOT', inputs: [{ name: 'IN', type: 'DWORD' }], outputs: [{ name: 'OUT', type: 'DWORD' }] },
-  SHL: { label: 'SHL', inputs: [{ name: 'IN', type: 'DWORD' }, { name: 'N', type: 'USINT' }], outputs: [{ name: 'OUT', type: 'DWORD' }] },
-  SHR: { label: 'SHR', inputs: [{ name: 'IN', type: 'DWORD' }, { name: 'N', type: 'USINT' }], outputs: [{ name: 'OUT', type: 'DWORD' }] },
-  ROL: { label: 'ROL', inputs: [{ name: 'IN', type: 'DWORD' }, { name: 'N', type: 'USINT' }], outputs: [{ name: 'OUT', type: 'DWORD' }] },
-  ROR: { label: 'ROR', inputs: [{ name: 'IN', type: 'DWORD' }, { name: 'N', type: 'USINT' }], outputs: [{ name: 'OUT', type: 'DWORD' }] },
+  BAND: { label: 'BAND', descriptionKey: 'blockInfo.BAND', inputs: [{ name: 'IN1', type: 'DWORD' }, { name: 'IN2', type: 'DWORD' }], outputs: [{ name: 'OUT', type: 'DWORD' }] },
+  BOR: { label: 'BOR', descriptionKey: 'blockInfo.BOR', inputs: [{ name: 'IN1', type: 'DWORD' }, { name: 'IN2', type: 'DWORD' }], outputs: [{ name: 'OUT', type: 'DWORD' }] },
+  BXOR: { label: 'BXOR', descriptionKey: 'blockInfo.BXOR', inputs: [{ name: 'IN1', type: 'DWORD' }, { name: 'IN2', type: 'DWORD' }], outputs: [{ name: 'OUT', type: 'DWORD' }] },
+  BNOT: { label: 'BNOT', descriptionKey: 'blockInfo.BNOT', inputs: [{ name: 'IN', type: 'DWORD' }], outputs: [{ name: 'OUT', type: 'DWORD' }] },
+  SHL: { label: 'SHL', descriptionKey: 'blockInfo.SHL', inputs: [{ name: 'IN', type: 'DWORD' }, { name: 'N', type: 'USINT' }], outputs: [{ name: 'OUT', type: 'DWORD' }] },
+  SHR: { label: 'SHR', descriptionKey: 'blockInfo.SHR', inputs: [{ name: 'IN', type: 'DWORD' }, { name: 'N', type: 'USINT' }], outputs: [{ name: 'OUT', type: 'DWORD' }] },
+  ROL: { label: 'ROL', descriptionKey: 'blockInfo.ROL', inputs: [{ name: 'IN', type: 'DWORD' }, { name: 'N', type: 'USINT' }], outputs: [{ name: 'OUT', type: 'DWORD' }] },
+  ROR: { label: 'ROR', descriptionKey: 'blockInfo.ROR', inputs: [{ name: 'IN', type: 'DWORD' }, { name: 'N', type: 'USINT' }], outputs: [{ name: 'OUT', type: 'DWORD' }] },
   // --- TRIG ---
-  SIN: { label: 'SIN', inputs: [{ name: 'IN', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
-  COS: { label: 'COS', inputs: [{ name: 'IN', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
-  TAN: { label: 'TAN', inputs: [{ name: 'IN', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
-  ASIN: { label: 'ASIN', inputs: [{ name: 'IN', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
-  ACOS: { label: 'ACOS', inputs: [{ name: 'IN', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
-  ATAN: { label: 'ATAN', inputs: [{ name: 'IN', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
+  SIN: { label: 'SIN', descriptionKey: 'blockInfo.SIN', inputs: [{ name: 'IN', type: 'REAL' }], outputs: [{ name: 'OUT', type: 'REAL' }] },
+  COS: { label: 'COS', descriptionKey: 'blockInfo.COS', inputs: [{ name: 'IN', type: 'REAL' }], outputs: [{ name: 'OUT', type: 'REAL' }] },
+  TAN: { label: 'TAN', descriptionKey: 'blockInfo.TAN', inputs: [{ name: 'IN', type: 'REAL' }], outputs: [{ name: 'OUT', type: 'REAL' }] },
+  ASIN: { label: 'ASIN', descriptionKey: 'blockInfo.ASIN', inputs: [{ name: 'IN', type: 'REAL' }], outputs: [{ name: 'OUT', type: 'REAL' }] },
+  ACOS: { label: 'ACOS', descriptionKey: 'blockInfo.ACOS', inputs: [{ name: 'IN', type: 'REAL' }], outputs: [{ name: 'OUT', type: 'REAL' }] },
+  ATAN: { label: 'ATAN', descriptionKey: 'blockInfo.ATAN', inputs: [{ name: 'IN', type: 'REAL' }], outputs: [{ name: 'OUT', type: 'REAL' }] },
   // --- SELECTION ---
-  SEL: { label: 'SEL', inputs: [{ name: 'G', type: 'BOOL' }, { name: 'IN0', type: 'ANY_NUM' }, { name: 'IN1', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
-  MUX: { label: 'MUX', inputs: [{ name: 'K', type: 'USINT' }, { name: 'IN0', type: 'ANY_NUM' }, { name: 'IN1', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
+  SEL: { label: 'SEL', descriptionKey: 'blockInfo.SEL', inputs: [{ name: 'G', type: 'BOOL' }, { name: 'IN0', type: 'ANY_NUM' }, { name: 'IN1', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
+  MUX: { label: 'MUX', descriptionKey: 'blockInfo.MUX', inputs: [{ name: 'K', type: 'USINT' }, { name: 'IN0', type: 'ANY_NUM' }, { name: 'IN1', type: 'ANY_NUM' }], outputs: [{ name: 'OUT', type: 'ANY_NUM' }] },
   // --- CONVERSION (TO_BOOL) ---
   BYTE_TO_BOOL: { label: 'BYTE_TO_BOOL', inputs: [{ name: 'IN', type: 'BYTE' }], outputs: [{ name: 'OUT', type: 'BOOL' }] },
   WORD_TO_BOOL: { label: 'WORD_TO_BOOL', inputs: [{ name: 'IN', type: 'WORD' }], outputs: [{ name: 'OUT', type: 'BOOL' }] },
@@ -214,7 +214,7 @@ export const blockConfig = {
   UINT_TO_INT: { label: 'UINT_TO_INT', inputs: [{ name: 'IN', type: 'UINT' }], outputs: [{ name: 'OUT', type: 'INT' }] },
   DINT_TO_INT: { label: 'DINT_TO_INT', inputs: [{ name: 'IN', type: 'DINT' }], outputs: [{ name: 'OUT', type: 'INT' }] },
   UDINT_TO_INT: { label: 'UDINT_TO_INT', inputs: [{ name: 'IN', type: 'UDINT' }], outputs: [{ name: 'OUT', type: 'INT' }] },
-  REAL_TO_INT: { label: 'REAL_TO_INT', inputs: [{ name: 'IN', type: 'REAL' }], outputs: [{ name: 'OUT', type: 'INT' }] },
+  REAL_TO_INT: { label: 'REAL_TO_INT', descriptionKey: 'blockInfo.REAL_TO_INT', inputs: [{ name: 'IN', type: 'REAL' }], outputs: [{ name: 'OUT', type: 'INT' }] },
   // --- CONVERSION (TO_UINT) ---
   BOOL_TO_UINT: { label: 'BOOL_TO_UINT', inputs: [{ name: 'IN', type: 'BOOL' }], outputs: [{ name: 'OUT', type: 'UINT' }] },
   BYTE_TO_UINT: { label: 'BYTE_TO_UINT', inputs: [{ name: 'IN', type: 'BYTE' }], outputs: [{ name: 'OUT', type: 'UINT' }] },
@@ -223,7 +223,7 @@ export const blockConfig = {
   INT_TO_UINT: { label: 'INT_TO_UINT', inputs: [{ name: 'IN', type: 'INT' }], outputs: [{ name: 'OUT', type: 'UINT' }] },
   DINT_TO_UINT: { label: 'DINT_TO_UINT', inputs: [{ name: 'IN', type: 'DINT' }], outputs: [{ name: 'OUT', type: 'UINT' }] },
   UDINT_TO_UINT: { label: 'UDINT_TO_UINT', inputs: [{ name: 'IN', type: 'UDINT' }], outputs: [{ name: 'OUT', type: 'UINT' }] },
-  REAL_TO_UINT: { label: 'REAL_TO_UINT', inputs: [{ name: 'IN', type: 'REAL' }], outputs: [{ name: 'OUT', type: 'UINT' }] },
+  REAL_TO_UINT: { label: 'REAL_TO_UINT', descriptionKey: 'blockInfo.REAL_TO_INT', inputs: [{ name: 'IN', type: 'REAL' }], outputs: [{ name: 'OUT', type: 'UINT' }] },
   // --- CONVERSION (TO_DINT) ---
   BOOL_TO_DINT: { label: 'BOOL_TO_DINT', inputs: [{ name: 'IN', type: 'BOOL' }], outputs: [{ name: 'OUT', type: 'DINT' }] },
   BYTE_TO_DINT: { label: 'BYTE_TO_DINT', inputs: [{ name: 'IN', type: 'BYTE' }], outputs: [{ name: 'OUT', type: 'DINT' }] },
@@ -232,7 +232,7 @@ export const blockConfig = {
   INT_TO_DINT: { label: 'INT_TO_DINT', inputs: [{ name: 'IN', type: 'INT' }], outputs: [{ name: 'OUT', type: 'DINT' }] },
   UINT_TO_DINT: { label: 'UINT_TO_DINT', inputs: [{ name: 'IN', type: 'UINT' }], outputs: [{ name: 'OUT', type: 'DINT' }] },
   UDINT_TO_DINT: { label: 'UDINT_TO_DINT', inputs: [{ name: 'IN', type: 'UDINT' }], outputs: [{ name: 'OUT', type: 'DINT' }] },
-  REAL_TO_DINT: { label: 'REAL_TO_DINT', inputs: [{ name: 'IN', type: 'REAL' }], outputs: [{ name: 'OUT', type: 'DINT' }] },
+  REAL_TO_DINT: { label: 'REAL_TO_DINT', descriptionKey: 'blockInfo.REAL_TO_INT', inputs: [{ name: 'IN', type: 'REAL' }], outputs: [{ name: 'OUT', type: 'DINT' }] },
   // --- CONVERSION (TO_UDINT) ---
   BOOL_TO_UDINT: { label: 'BOOL_TO_UDINT', inputs: [{ name: 'IN', type: 'BOOL' }], outputs: [{ name: 'OUT', type: 'UDINT' }] },
   BYTE_TO_UDINT: { label: 'BYTE_TO_UDINT', inputs: [{ name: 'IN', type: 'BYTE' }], outputs: [{ name: 'OUT', type: 'UDINT' }] },
@@ -241,7 +241,7 @@ export const blockConfig = {
   INT_TO_UDINT: { label: 'INT_TO_UDINT', inputs: [{ name: 'IN', type: 'INT' }], outputs: [{ name: 'OUT', type: 'UDINT' }] },
   UINT_TO_UDINT: { label: 'UINT_TO_UDINT', inputs: [{ name: 'IN', type: 'UINT' }], outputs: [{ name: 'OUT', type: 'UDINT' }] },
   DINT_TO_UDINT: { label: 'DINT_TO_UDINT', inputs: [{ name: 'IN', type: 'DINT' }], outputs: [{ name: 'OUT', type: 'UDINT' }] },
-  REAL_TO_UDINT: { label: 'REAL_TO_UDINT', inputs: [{ name: 'IN', type: 'REAL' }], outputs: [{ name: 'OUT', type: 'UDINT' }] },
+  REAL_TO_UDINT: { label: 'REAL_TO_UDINT', descriptionKey: 'blockInfo.REAL_TO_INT', inputs: [{ name: 'IN', type: 'REAL' }], outputs: [{ name: 'OUT', type: 'UDINT' }] },
   // --- CONVERSION (TO_REAL) ---
   BOOL_TO_REAL: { label: 'BOOL_TO_REAL', inputs: [{ name: 'IN', type: 'BOOL' }], outputs: [{ name: 'OUT', type: 'REAL' }] },
   BYTE_TO_REAL: { label: 'BYTE_TO_REAL', inputs: [{ name: 'IN', type: 'BYTE' }], outputs: [{ name: 'OUT', type: 'REAL' }] },
@@ -251,8 +251,8 @@ export const blockConfig = {
   UINT_TO_REAL: { label: 'UINT_TO_REAL', inputs: [{ name: 'IN', type: 'UINT' }], outputs: [{ name: 'OUT', type: 'REAL' }] },
   DINT_TO_REAL: { label: 'DINT_TO_REAL', inputs: [{ name: 'IN', type: 'DINT' }], outputs: [{ name: 'OUT', type: 'REAL' }] },
   UDINT_TO_REAL: { label: 'UDINT_TO_REAL', inputs: [{ name: 'IN', type: 'UDINT' }], outputs: [{ name: 'OUT', type: 'REAL' }] },
-  NORM_X: { label: 'NORM_X', inputs: [{ name: 'MIN', type: 'REAL' }, { name: 'MAX', type: 'REAL' }, { name: 'VALUE', type: 'REAL' }], outputs: [{ name: 'OUT', type: 'REAL' }] },
-  SCALE_X: { label: 'SCALE_X', inputs: [{ name: 'MIN', type: 'REAL' }, { name: 'MAX', type: 'REAL' }, { name: 'VALUE', type: 'REAL' }], outputs: [{ name: 'OUT', type: 'REAL' }] },
+  NORM_X: { label: 'NORM_X', descriptionKey: 'blockInfo.NORM_X', inputs: [{ name: 'MIN', type: 'REAL' }, { name: 'MAX', type: 'REAL' }, { name: 'VALUE', type: 'REAL' }], outputs: [{ name: 'OUT', type: 'REAL' }] },
+  SCALE_X: { label: 'SCALE_X', descriptionKey: 'blockInfo.SCALE_X', inputs: [{ name: 'MIN', type: 'REAL' }, { name: 'MAX', type: 'REAL' }, { name: 'VALUE', type: 'REAL' }], outputs: [{ name: 'OUT', type: 'REAL' }] },
   // --- BASIC ELEMENTS ---
   Contact: { label: 'Contact', inputs: [], outputs: [] },
   Coil: { label: 'Coil', inputs: [], outputs: [] }
@@ -825,7 +825,26 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
                         ? (typeof varLiveVal === 'boolean' ? (varLiveVal ? '1' : '0') : (pin.type === 'TIME' ? formatTimeUs(varLiveVal) : String(varLiveVal)))
                         : '---';
                       return (
-                        <span style={{
+                        <span
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!data.readOnly || !data.onForceWrite) return;
+                            const cleanedVal = (val || '').replace(/[🌍🏠⊞⊡⊟]/g, '').trim();
+                            const isVarRefBadge = cleanedVal && /^[A-Za-z_]/.test(cleanedVal);
+                            let forceKey = shadowKey;
+                            let forceCurrent = liveVariables?.[shadowKey];
+                            let forceName = `${data.instanceName || data.type}.${pin.name}`;
+                            if (isVarRefBadge) {
+                              const safeVar = cleanedVal.replace(/\s+/g, '_');
+                              const pk = `prog_${safeProgName}_${safeVar}`;
+                              forceKey = liveVariables?.[pk] !== undefined ? pk : `prog__${safeVar}`;
+                              forceCurrent = liveVariables?.[forceKey];
+                              forceName = cleanedVal;
+                            }
+                            const modalVarType = pin.type === 'TIME' ? 'INT' : (pin.type === 'ANY' ? 'INT' : pin.type);
+                            setForceModal({ liveKey: forceKey, varName: forceName, varType: modalVarType, currentValue: forceCurrent });
+                          }}
+                          style={{
                           position: 'absolute',
                           top: val ? -15 : 0,
                           right: 0,
@@ -838,7 +857,7 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
                           borderRadius: 2,
                           fontFamily: 'Consolas, monospace',
                           textAlign: 'center',
-                          pointerEvents: 'none',
+                          cursor: data.readOnly && data.onForceWrite ? 'pointer' : 'default',
                           zIndex: 10,
                           whiteSpace: 'nowrap'
                         }}>
@@ -856,9 +875,21 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
                       onDoubleClick={(e) => e.stopPropagation()}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (!data.readOnly || !hasShadow || !data.onForceWrite) return;
+                        if (!data.readOnly || !data.onForceWrite) return;
+                        const cleanedVal = (val || '').replace(/[🌍🏠⊞⊡⊟]/g, '').trim();
+                        const isVarRef = cleanedVal && /^[A-Za-z_]/.test(cleanedVal);
+                        let forceKey = shadowKey;
+                        let forceCurrent = liveVariables?.[shadowKey];
+                        let forceName = `${data.instanceName || data.type}.${pin.name}`;
+                        if (isVarRef) {
+                          const safeVar = cleanedVal.replace(/\s+/g, '_');
+                          const pk = `prog_${safeProgName}_${safeVar}`;
+                          forceKey = liveVariables?.[pk] !== undefined ? pk : `prog__${safeVar}`;
+                          forceCurrent = liveVariables?.[forceKey];
+                          forceName = cleanedVal;
+                        }
                         const modalVarType = pin.type === 'TIME' ? 'INT' : (pin.type === 'ANY' ? 'INT' : pin.type);
-                        setForceModal({ liveKey: shadowKey, varName: `${data.instanceName || data.type}.${pin.name}`, varType: modalVarType, currentValue: liveVariables[shadowKey] });
+                        setForceModal({ liveKey: forceKey, varName: forceName, varType: modalVarType, currentValue: forceCurrent });
                       }}
                       onChange={(e) => {
                         if (data.readOnly) return;
@@ -1133,20 +1164,26 @@ const RungContainer = ({
 
   // Constants moved/stabilized
   const LEFT_LINE_X = 12;
-  const MIDDLE_Y = 75;
-  const RUNG_HEIGHT = 150;
+  const MIN_RUNG_HEIGHT = 150;
 
-  // Helper to calculate block height
+  // Helper to calculate block height (no cap — rung expands to fit)
   const getBlockHeight = useCallback((type) => {
     if (type === 'Contact' || type === 'Coil') return 18;
     const config = blockConfig[type];
     if (!config) return 100;
     const rows = Math.max(config.inputs.length, config.outputs.length);
-    // Header(~18) + Label(~22) + BodyPadding(16) + Rows*20 + Gaps(10)
-    // 56 + rows*20 + (rows-1)*10 -> Simplify: 46 + rows*30
-    const calculated = 46 + (rows * 30);
-    return Math.min(calculated, RUNG_HEIGHT - 10);
-  }, [RUNG_HEIGHT]);
+    return 46 + (rows * 30);
+  }, []);
+
+  // Dynamic rung height: expand to fit the tallest block (+ 20px padding)
+  const RUNG_HEIGHT = React.useMemo(() => {
+    const maxBlock = rung.blocks.reduce((max, b) => {
+      return Math.max(max, getBlockHeight(b.data?.type || b.type));
+    }, 0);
+    return Math.max(MIN_RUNG_HEIGHT, maxBlock + 20);
+  }, [rung.blocks, getBlockHeight]);
+
+  const MIDDLE_Y = RUNG_HEIGHT / 2;
 
   const createTerminalNodes = useCallback((width) => {
     const safeWidth = Math.max(width, 200);
@@ -1213,7 +1250,7 @@ const RungContainer = ({
         extent: [[bounds.minX, 0], [bounds.maxX, RUNG_HEIGHT]] // Fully relaxed Y constraint
       };
     });
-  }, [getBlockHeight, variables, globalVars, dataTypes, liveVariables, parentName, readOnly]);
+  }, [getBlockHeight, variables, globalVars, dataTypes, liveVariables, parentName, readOnly, RUNG_HEIGHT]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState([
     ...createTerminalNodes(containerWidth),
@@ -1311,6 +1348,17 @@ const RungContainer = ({
       if (onSelectBlock) onSelectBlock(rung.id, node);
     }
   }, [readOnly, onSelectBlock, rung.id, setNodes, nodes]);
+
+  // Simülasyon başlayınca çoklu seçimi temizle
+  React.useEffect(() => {
+    if (readOnly) {
+      setNodes((nds) => {
+        const selectedCount = nds.filter(n => n.selected).length;
+        if (selectedCount > 1) return nds.map(n => ({ ...n, selected: false }));
+        return nds;
+      });
+    }
+  }, [readOnly, setNodes]);
 
   // Sync global selection state
   React.useEffect(() => {

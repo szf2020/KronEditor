@@ -4,9 +4,13 @@
  * Uses CDATA sections to store complex React Flow / Editor content to ensure exact restoration.
  */
 
-export const exportProjectToXml = (projectStructure) => {
+export const exportProjectToXml = (projectStructure, boardId) => {
     const doc = document.implementation.createDocument(null, "PLCProject", null);
     const root = doc.documentElement;
+
+    if (boardId) {
+        root.setAttribute("board", boardId);
+    }
 
     const createSection = (name, items) => {
         const section = doc.createElement(name);
@@ -60,6 +64,8 @@ export const importProjectFromXml = (xmlString) => {
             resources: []
         };
 
+        const boardId = doc.documentElement.getAttribute("board") || null;
+
         const parseSection = (sectionName, key) => {
             const section = doc.getElementsByTagName(sectionName)[0];
             if (!section) return;
@@ -99,7 +105,7 @@ export const importProjectFromXml = (xmlString) => {
         parseSection("Programs", "programs");
         parseSection("Resources", "resources");
 
-        return projectStructure;
+        return { projectStructure, boardId };
     } catch (e) {
         console.error("Critical Import Error:", e);
         return null;

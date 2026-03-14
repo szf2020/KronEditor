@@ -152,12 +152,12 @@ export const PLC_BLOCKS = {
   },
 
   // --- COMPARISON ---
-  GT:   { label: 'GT',   description: 'Greater Than',     inputs: [{ id: 'EN', type: 'BOOL', label: 'EN' }, { id: 'IN1', type: 'DINT', label: 'IN1' }, { id: 'IN2', type: 'DINT', label: 'IN2' }], outputs: [{ id: 'ENO', type: 'BOOL', label: 'ENO' }] },
-  GE:   { label: 'GE',   description: 'Greater or Equal', inputs: [{ id: 'EN', type: 'BOOL', label: 'EN' }, { id: 'IN1', type: 'DINT', label: 'IN1' }, { id: 'IN2', type: 'DINT', label: 'IN2' }], outputs: [{ id: 'ENO', type: 'BOOL', label: 'ENO' }] },
-  EQ:   { label: 'EQ',   description: 'Equal',            inputs: [{ id: 'EN', type: 'BOOL', label: 'EN' }, { id: 'IN1', type: 'DINT', label: 'IN1' }, { id: 'IN2', type: 'DINT', label: 'IN2' }], outputs: [{ id: 'ENO', type: 'BOOL', label: 'ENO' }] },
-  NE:   { label: 'NE',   description: 'Not Equal',        inputs: [{ id: 'EN', type: 'BOOL', label: 'EN' }, { id: 'IN1', type: 'DINT', label: 'IN1' }, { id: 'IN2', type: 'DINT', label: 'IN2' }], outputs: [{ id: 'ENO', type: 'BOOL', label: 'ENO' }] },
-  LE:   { label: 'LE',   description: 'Less or Equal',    inputs: [{ id: 'EN', type: 'BOOL', label: 'EN' }, { id: 'IN1', type: 'DINT', label: 'IN1' }, { id: 'IN2', type: 'DINT', label: 'IN2' }], outputs: [{ id: 'ENO', type: 'BOOL', label: 'ENO' }] },
-  LT:   { label: 'LT',   description: 'Less Than',        inputs: [{ id: 'EN', type: 'BOOL', label: 'EN' }, { id: 'IN1', type: 'DINT', label: 'IN1' }, { id: 'IN2', type: 'DINT', label: 'IN2' }], outputs: [{ id: 'ENO', type: 'BOOL', label: 'ENO' }] },
+  GT:   { label: 'GT',   description: 'Greater Than',     inputs: [{ id: 'EN', type: 'BOOL', label: 'EN' }, { id: 'IN1', type: 'DINT', label: 'IN1' }, { id: 'IN2', type: 'DINT', label: 'IN2' }], outputs: [{ id: 'ENO', type: 'BOOL', label: 'ENO' }, { id: 'Q', type: 'BOOL', label: 'Q' }] },
+  GE:   { label: 'GE',   description: 'Greater or Equal', inputs: [{ id: 'EN', type: 'BOOL', label: 'EN' }, { id: 'IN1', type: 'DINT', label: 'IN1' }, { id: 'IN2', type: 'DINT', label: 'IN2' }], outputs: [{ id: 'ENO', type: 'BOOL', label: 'ENO' }, { id: 'Q', type: 'BOOL', label: 'Q' }] },
+  EQ:   { label: 'EQ',   description: 'Equal',            inputs: [{ id: 'EN', type: 'BOOL', label: 'EN' }, { id: 'IN1', type: 'DINT', label: 'IN1' }, { id: 'IN2', type: 'DINT', label: 'IN2' }], outputs: [{ id: 'ENO', type: 'BOOL', label: 'ENO' }, { id: 'Q', type: 'BOOL', label: 'Q' }] },
+  NE:   { label: 'NE',   description: 'Not Equal',        inputs: [{ id: 'EN', type: 'BOOL', label: 'EN' }, { id: 'IN1', type: 'DINT', label: 'IN1' }, { id: 'IN2', type: 'DINT', label: 'IN2' }], outputs: [{ id: 'ENO', type: 'BOOL', label: 'ENO' }, { id: 'Q', type: 'BOOL', label: 'Q' }] },
+  LE:   { label: 'LE',   description: 'Less or Equal',    inputs: [{ id: 'EN', type: 'BOOL', label: 'EN' }, { id: 'IN1', type: 'DINT', label: 'IN1' }, { id: 'IN2', type: 'DINT', label: 'IN2' }], outputs: [{ id: 'ENO', type: 'BOOL', label: 'ENO' }, { id: 'Q', type: 'BOOL', label: 'Q' }] },
+  LT:   { label: 'LT',   description: 'Less Than',        inputs: [{ id: 'EN', type: 'BOOL', label: 'EN' }, { id: 'IN1', type: 'DINT', label: 'IN1' }, { id: 'IN2', type: 'DINT', label: 'IN2' }], outputs: [{ id: 'ENO', type: 'BOOL', label: 'ENO' }, { id: 'Q', type: 'BOOL', label: 'Q' }] },
 
   // --- ARİTMETİK ---
   ADD:  { label: 'ADD',  description: 'Addition',       inputs: [{ id: 'EN', type: 'BOOL', label: 'EN' }, { id: 'IN1', type: 'DINT', label: 'IN1' }, { id: 'IN2', type: 'DINT', label: 'IN2' }], outputs: [{ id: 'ENO', type: 'BOOL', label: 'ENO' }, { id: 'OUT', type: 'DINT', label: 'OUT' }] },

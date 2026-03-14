@@ -10,6 +10,7 @@
       </Inputs>
       <Outputs>
         <Variable name="ENO" type="BOOL" />
+        <Variable name="Q"   type="BOOL" />
       </Outputs>
     </Block>
     <Block type="NE" description="Not Equal" class="FunctionBlock">
@@ -20,6 +21,7 @@
       </Inputs>
       <Outputs>
         <Variable name="ENO" type="BOOL" />
+        <Variable name="Q"   type="BOOL" />
       </Outputs>
     </Block>
     <Block type="GT" description="Greater Than" class="FunctionBlock">
@@ -30,6 +32,7 @@
       </Inputs>
       <Outputs>
         <Variable name="ENO" type="BOOL" />
+        <Variable name="Q"   type="BOOL" />
       </Outputs>
     </Block>
     <Block type="GE" description="Greater or Equal" class="FunctionBlock">
@@ -40,6 +43,7 @@
       </Inputs>
       <Outputs>
         <Variable name="ENO" type="BOOL" />
+        <Variable name="Q"   type="BOOL" />
       </Outputs>
     </Block>
     <Block type="LT" description="Less Than" class="FunctionBlock">
@@ -50,6 +54,7 @@
       </Inputs>
       <Outputs>
         <Variable name="ENO" type="BOOL" />
+        <Variable name="Q"   type="BOOL" />
       </Outputs>
     </Block>
     <Block type="LE" description="Less or Equal" class="FunctionBlock">
@@ -60,6 +65,7 @@
       </Inputs>
       <Outputs>
         <Variable name="ENO" type="BOOL" />
+        <Variable name="Q"   type="BOOL" />
       </Outputs>
     </Block>
     <!-- Selection -->

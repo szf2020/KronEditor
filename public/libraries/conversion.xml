@@ -166,7 +166,7 @@
       <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="UDINT" default="0"/></Inputs>
       <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="INT"/></Outputs>
     </Block>
-    <Block type="REAL_TO_INT"   description="REAL → INT (truncate)" class="FunctionBlock">
+    <Block type="REAL_TO_INT"   description="REAL → INT (truncates toward zero)" class="FunctionBlock">
       <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="REAL"  default="0.0"/></Inputs>
       <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="INT"/></Outputs>
     </Block>
@@ -234,7 +234,7 @@
       <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="UDINT" default="0"/></Inputs>
       <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="DINT"/></Outputs>
     </Block>
-    <Block type="REAL_TO_DINT"  description="REAL → DINT (truncate)" class="FunctionBlock">
+    <Block type="REAL_TO_DINT"  description="REAL → DINT (truncates toward zero)" class="FunctionBlock">
       <Inputs><Variable name="EN" type="BOOL" default="FALSE"/><Variable name="IN" type="REAL"  default="0.0"/></Inputs>
       <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="DINT"/></Outputs>
     </Block>
@@ -308,7 +308,7 @@
     </Block>
 
     <!-- ── SCALING ──────────────────────────────────────────────────────── -->
-    <Block type="NORM_X"  description="Normalize VALUE from [MIN,MAX] to [0.0,1.0]" class="FunctionBlock">
+    <Block type="NORM_X"  description="Normalize — IN: VALUE(REAL), MIN(REAL), MAX(REAL) → OUT: REAL [0.0..1.0]" class="FunctionBlock">
       <Inputs>
         <Variable name="EN"    type="BOOL" default="FALSE"/>
         <Variable name="MIN"   type="REAL" default="0.0"/>
@@ -317,7 +317,7 @@
       </Inputs>
       <Outputs><Variable name="ENO" type="BOOL"/><Variable name="OUT" type="REAL"/></Outputs>
     </Block>
-    <Block type="SCALE_X" description="Scale VALUE from [0.0,1.0] to [MIN,MAX]" class="FunctionBlock">
+    <Block type="SCALE_X" description="Scale — IN: VALUE(REAL)[0.0..1.0], MIN(REAL), MAX(REAL) → OUT: REAL" class="FunctionBlock">
       <Inputs>
         <Variable name="EN"    type="BOOL" default="FALSE"/>
         <Variable name="MIN"   type="REAL" default="0.0"/>

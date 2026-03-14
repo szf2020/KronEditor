@@ -2,73 +2,83 @@
 <Library>
   <Category name="MATH">
     <!-- Basic Arithmetic -->
-    <Block type="ADD" description="Addition" class="FunctionBlock">
+    <Block type="ADD" description="Addition — any numeric type (INT, DINT, REAL…)" class="FunctionBlock">
       <Inputs>
         <Variable name="EN"  type="BOOL" default="FALSE" />
-        <Variable name="IN1" type="DINT" default="0" />
-        <Variable name="IN2" type="DINT" default="0" />
+        <Variable name="IN1" type="ANY_NUM" default="0" />
+        <Variable name="IN2" type="ANY_NUM" default="0" />
       </Inputs>
       <Outputs>
         <Variable name="ENO" type="BOOL" />
-        <Variable name="OUT" type="DINT" />
+        <Variable name="OUT" type="ANY_NUM" />
       </Outputs>
     </Block>
-    <Block type="SUB" description="Subtraction" class="FunctionBlock">
+    <Block type="SUB" description="Subtraction — any numeric type (INT, DINT, REAL…)" class="FunctionBlock">
       <Inputs>
         <Variable name="EN"  type="BOOL" default="FALSE" />
-        <Variable name="IN1" type="DINT" default="0" />
-        <Variable name="IN2" type="DINT" default="0" />
+        <Variable name="IN1" type="ANY_NUM" default="0" />
+        <Variable name="IN2" type="ANY_NUM" default="0" />
       </Inputs>
       <Outputs>
         <Variable name="ENO" type="BOOL" />
-        <Variable name="OUT" type="DINT" />
+        <Variable name="OUT" type="ANY_NUM" />
       </Outputs>
     </Block>
-    <Block type="MUL" description="Multiplication" class="FunctionBlock">
+    <Block type="MUL" description="Multiplication — any numeric type (INT, DINT, REAL…)" class="FunctionBlock">
       <Inputs>
         <Variable name="EN"  type="BOOL" default="FALSE" />
-        <Variable name="IN1" type="DINT" default="0" />
-        <Variable name="IN2" type="DINT" default="0" />
+        <Variable name="IN1" type="ANY_NUM" default="0" />
+        <Variable name="IN2" type="ANY_NUM" default="0" />
       </Inputs>
       <Outputs>
         <Variable name="ENO" type="BOOL" />
-        <Variable name="OUT" type="DINT" />
+        <Variable name="OUT" type="ANY_NUM" />
       </Outputs>
     </Block>
-    <Block type="DIV" description="Division" class="FunctionBlock">
+    <Block type="DIV" description="Division — any numeric type (INT, DINT, REAL…)" class="FunctionBlock">
       <Inputs>
         <Variable name="EN"  type="BOOL" default="FALSE" />
-        <Variable name="IN1" type="DINT" default="0" />
-        <Variable name="IN2" type="DINT" default="1" />
+        <Variable name="IN1" type="ANY_NUM" default="0" />
+        <Variable name="IN2" type="ANY_NUM" default="1" />
       </Inputs>
       <Outputs>
         <Variable name="ENO" type="BOOL" />
-        <Variable name="OUT" type="DINT" />
+        <Variable name="OUT" type="ANY_NUM" />
       </Outputs>
     </Block>
-    <Block type="MOD" description="Modulo" class="FunctionBlock">
+    <Block type="MOD" description="Modulo — integer types (INT, DINT…)" class="FunctionBlock">
       <Inputs>
         <Variable name="EN"  type="BOOL" default="FALSE" />
-        <Variable name="IN1" type="DINT" default="0" />
-        <Variable name="IN2" type="DINT" default="1" />
+        <Variable name="IN1" type="ANY_NUM" default="0" />
+        <Variable name="IN2" type="ANY_NUM" default="1" />
       </Inputs>
       <Outputs>
         <Variable name="ENO" type="BOOL" />
-        <Variable name="OUT" type="DINT" />
+        <Variable name="OUT" type="ANY_NUM" />
       </Outputs>
     </Block>
-    <Block type="MOVE" description="Move / Assign" class="FunctionBlock">
+    <Block type="MOVE" description="Move / Assign — any numeric type (INT, DINT, REAL…)" class="FunctionBlock">
       <Inputs>
         <Variable name="EN" type="BOOL" default="FALSE" />
-        <Variable name="IN" type="DINT" default="0" />
+        <Variable name="IN" type="ANY_NUM" default="0" />
       </Inputs>
       <Outputs>
         <Variable name="ENO" type="BOOL" />
-        <Variable name="OUT" type="DINT" />
+        <Variable name="OUT" type="ANY_NUM" />
       </Outputs>
     </Block>
     <!-- Float Math -->
-    <Block type="ABS" description="Absolute Value" class="FunctionBlock">
+    <Block type="ABS" description="Absolute Value — any numeric type (INT, DINT, REAL…)" class="FunctionBlock">
+      <Inputs>
+        <Variable name="EN" type="BOOL" default="FALSE" />
+        <Variable name="IN" type="ANY_NUM" default="0.0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="ENO" type="BOOL" />
+        <Variable name="OUT" type="ANY_NUM" />
+      </Outputs>
+    </Block>
+    <Block type="SQRT" description="Square Root — REAL input/output" class="FunctionBlock">
       <Inputs>
         <Variable name="EN" type="BOOL" default="FALSE" />
         <Variable name="IN" type="REAL" default="0.0" />
@@ -78,17 +88,7 @@
         <Variable name="OUT" type="REAL" />
       </Outputs>
     </Block>
-    <Block type="SQRT" description="Square Root" class="FunctionBlock">
-      <Inputs>
-        <Variable name="EN" type="BOOL" default="FALSE" />
-        <Variable name="IN" type="REAL" default="0.0" />
-      </Inputs>
-      <Outputs>
-        <Variable name="ENO" type="BOOL" />
-        <Variable name="OUT" type="REAL" />
-      </Outputs>
-    </Block>
-    <Block type="EXPT" description="Exponentiation (IN ^ EXP)" class="FunctionBlock">
+    <Block type="EXPT" description="Exponentiation (IN ^ EXP) — REAL inputs/output" class="FunctionBlock">
       <Inputs>
         <Variable name="EN"  type="BOOL" default="FALSE" />
         <Variable name="IN"  type="REAL" default="0.0" />
@@ -100,7 +100,7 @@
       </Outputs>
     </Block>
     <!-- Trigonometric -->
-    <Block type="SIN" description="Sine (radians)" class="FunctionBlock">
+    <Block type="SIN" description="Sine — REAL input (radians), REAL output" class="FunctionBlock">
       <Inputs>
         <Variable name="EN" type="BOOL" default="FALSE" />
         <Variable name="IN" type="REAL" default="0.0" />
@@ -110,7 +110,7 @@
         <Variable name="OUT" type="REAL" />
       </Outputs>
     </Block>
-    <Block type="COS" description="Cosine (radians)" class="FunctionBlock">
+    <Block type="COS" description="Cosine — REAL input (radians), REAL output" class="FunctionBlock">
       <Inputs>
         <Variable name="EN" type="BOOL" default="FALSE" />
         <Variable name="IN" type="REAL" default="0.0" />
@@ -120,7 +120,7 @@
         <Variable name="OUT" type="REAL" />
       </Outputs>
     </Block>
-    <Block type="TAN" description="Tangent (radians)" class="FunctionBlock">
+    <Block type="TAN" description="Tangent — REAL input (radians), REAL output" class="FunctionBlock">
       <Inputs>
         <Variable name="EN" type="BOOL" default="FALSE" />
         <Variable name="IN" type="REAL" default="0.0" />
@@ -130,7 +130,7 @@
         <Variable name="OUT" type="REAL" />
       </Outputs>
     </Block>
-    <Block type="ASIN" description="Arc Sine → radians" class="FunctionBlock">
+    <Block type="ASIN" description="Arc Sine — REAL input [-1..1], REAL output (radians)" class="FunctionBlock">
       <Inputs>
         <Variable name="EN" type="BOOL" default="FALSE" />
         <Variable name="IN" type="REAL" default="0.0" />
@@ -140,7 +140,7 @@
         <Variable name="OUT" type="REAL" />
       </Outputs>
     </Block>
-    <Block type="ACOS" description="Arc Cosine → radians" class="FunctionBlock">
+    <Block type="ACOS" description="Arc Cosine — REAL input [-1..1], REAL output (radians)" class="FunctionBlock">
       <Inputs>
         <Variable name="EN" type="BOOL" default="FALSE" />
         <Variable name="IN" type="REAL" default="0.0" />
@@ -150,7 +150,7 @@
         <Variable name="OUT" type="REAL" />
       </Outputs>
     </Block>
-    <Block type="ATAN" description="Arc Tangent → radians" class="FunctionBlock">
+    <Block type="ATAN" description="Arc Tangent — REAL input, REAL output (radians)" class="FunctionBlock">
       <Inputs>
         <Variable name="EN" type="BOOL" default="FALSE" />
         <Variable name="IN" type="REAL" default="0.0" />

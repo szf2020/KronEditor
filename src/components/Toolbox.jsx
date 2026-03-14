@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { PLC_BLOCKS } from '../utils/plcStandards';
 import { LIBRARY_TREE } from '../utils/libraryTree';
+import { getBoardLibraryTree } from '../utils/boardLibraryBlocks';
+import { getBoardFamily } from '../utils/boardDefinitions';
 import DragDropManager from '../utils/DragDropManager';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -168,6 +170,7 @@ const ToolboxItem = ({ blockType, subType, label, desc, color, customData }) => 
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
+      title={desc || ''}
       style={{
         padding: '6px 10px',
         margin: '3px 0 3px 0',
@@ -182,7 +185,6 @@ const ToolboxItem = ({ blockType, subType, label, desc, color, customData }) => 
       }}
     >
       <span style={{ fontWeight: 'bold', fontSize: '12px' }}>{label}</span>
-      {desc && <span style={{ fontSize: '10px', opacity: 0.75, marginTop: 1 }}>{desc}</span>}
     </div>
   );
 };
@@ -193,13 +195,15 @@ const CAT_COLOR = '#673ab7';   // standard FB / library blocks
 const UD_COLOR = '#007acc';   // user-defined
 const CONTACT_COLOR = '#1a6b3a'; // contacts (green)
 const COIL_COLOR = '#8b3a0f'; // coils (brown-red)
+const BOARD_COLOR = '#00695c'; // board-specific blocks (teal)
 
-const Toolbox = ({ userDefinedBlocks = [], libraryData = [], activeFileType }) => {
+const Toolbox = ({ userDefinedBlocks = [], libraryData = [], activeFileType, selectedBoard }) => {
   // expand state: category-level and subcategory-level
   const [expandedCats, setExpandedCats] = useState({});
   const [expandedSubs, setExpandedSubs] = useState({});
 
   const blockMap = useMemo(() => buildBlockMap(libraryData), [libraryData]);
+  const boardTree = useMemo(() => getBoardLibraryTree(selectedBoard), [selectedBoard]);
 
   const toggleCat = (id) => setExpandedCats(prev => ({ ...prev, [id]: !prev[id] }));
   const toggleSub = (id) => setExpandedSubs(prev => ({ ...prev, [id]: !prev[id] }));
@@ -251,6 +255,84 @@ const Toolbox = ({ userDefinedBlocks = [], libraryData = [], activeFileType }) =
 
   return (
     <div style={{ padding: '0 10px', height: '100%', overflowY: 'auto' }}>
+
+      {/* ── Board-specific blocks ── */}
+      {boardTree.length > 0 && (
+        <div style={{ marginBottom: 6 }}>
+          <div
+            onClick={() => toggleCat('board')}
+            style={{
+              padding: '8px 4px',
+              color: '#ccc',
+              fontSize: '11px',
+              fontWeight: 'bold',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              borderBottom: '1px solid #3e3e42',
+              marginBottom: 4,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              userSelect: 'none'
+            }}
+          >
+            <span style={{ marginRight: 6, fontSize: 9, opacity: 0.7 }}>
+              {expandedCats['board'] ? '▼' : '▶'}
+            </span>
+            {getBoardFamily(selectedBoard) || 'Board'}
+          </div>
+
+          {expandedCats['board'] && (
+            <div style={{ paddingLeft: 6 }}>
+              {boardTree.map(sub => (
+                <div key={sub.id} style={{ marginBottom: 4 }}>
+                  <div
+                    onClick={() => toggleSub(sub.id)}
+                    style={{
+                      padding: '5px 4px',
+                      color: '#aaa',
+                      fontSize: '10px',
+                      fontWeight: '600',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.3px',
+                      borderLeft: '2px solid #00897b',
+                      paddingLeft: 8,
+                      marginBottom: 3,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      userSelect: 'none'
+                    }}
+                  >
+                    <span style={{ marginRight: 5, fontSize: 8, opacity: 0.7 }}>
+                      {expandedSubs[sub.id] ? '▼' : '▶'}
+                    </span>
+                    {sub.title}
+                    <span style={{ marginLeft: 'auto', opacity: 0.45, fontSize: 9 }}>
+                      {sub.items.length}
+                    </span>
+                  </div>
+
+                  {expandedSubs[sub.id] && (
+                    <div style={{ paddingLeft: 10 }}>
+                      {sub.items.map((item, idx) => (
+                        <ToolboxItem
+                          key={idx}
+                          blockType={item.blockType}
+                          label={item.label}
+                          desc={item.desc}
+                          customData={item.customData}
+                          color={BOARD_COLOR}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Standard tree from LIBRARY_TREE ── */}
       {LIBRARY_TREE.map(cat => (

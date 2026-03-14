@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ask } from '@tauri-apps/plugin-dialog';
+import { getBoardById } from '../utils/boardDefinitions';
 import PlcIcon from '../assets/icons/plc-icon.png';
 
 const EMPTY_IMG = new Image();
@@ -47,7 +48,7 @@ const InsertZone = ({ onInsert, onPaste, canPaste, disabled }) => {
     );
 };
 
-const ProjectSidebar = ({ projectStructure, onSelectItem, activeId, onAddItem, onDeleteItem, onEditItem, onReorderItem, onPasteItem, onSettingsClick, onShortcutsClick, isRunning = false }) => {
+const ProjectSidebar = ({ projectStructure, onSelectItem, activeId, onAddItem, onDeleteItem, onEditItem, onReorderItem, onPasteItem, onBoardClick, selectedBoard, isRunning = false }) => {
     const { t } = useTranslation();
     const [dragItem, setDragItem] = useState(null);
     const [dragEnabled, setDragEnabled] = useState(false);
@@ -381,7 +382,9 @@ const ProjectSidebar = ({ projectStructure, onSelectItem, activeId, onAddItem, o
 
     return (
         <div style={{ height: '100%', overflowY: 'auto', background: '#252526', borderRight: '1px solid #333' }}>
+            {/* Board Name Header */}
             <div
+                onClick={onBoardClick}
                 style={{
                     padding: '10px',
                     borderBottom: '1px solid #333',
@@ -389,26 +392,19 @@ const ProjectSidebar = ({ projectStructure, onSelectItem, activeId, onAddItem, o
                     fontWeight: 'bold',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between'
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'background 0.15s',
                 }}
+                onMouseEnter={e => e.currentTarget.style.background = '#2a2d2e'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                title={t('board.openBoardConfig')}
             >
-                <span>PLC Project</span>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                    <span
-                        onClick={onShortcutsClick}
-                        style={{ fontSize: '16px', color: '#ccc', cursor: 'pointer' }}
-                        title={t('common.shortcuts') || 'Shortcuts'}
-                    >
-                        ℹ️
-                    </span>
-                    <span
-                        onClick={onSettingsClick}
-                        style={{ fontSize: '16px', color: '#ccc', cursor: 'pointer' }}
-                        title={t('common.settings')}
-                    >
-                        ⚙️
-                    </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: '14px' }}>🔧</span>
+                    <span style={{ fontSize: '12px' }}>{selectedBoard ? (getBoardById(selectedBoard)?.name || selectedBoard) : 'PLC Project'}</span>
                 </div>
+
             </div>
 
             {/* Resources (Single Item, Flattened) */}

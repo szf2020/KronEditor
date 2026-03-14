@@ -8,7 +8,9 @@ import ErrorBoundary from './components/ErrorBoundary';
 import SettingsPage from './components/SettingsPage';
 import ShortcutsModal from './components/ShortcutsModal';
 import StartScreen from './components/StartScreen';
-import SelectTargetModal from './components/SelectTargetModal';
+import BoardSelectionModal from './components/BoardSelectionModal';
+import BoardConfigPage from './components/BoardConfigPage';
+import { getBoardById } from './utils/boardDefinitions';
 import ArrayTypeEditor from './components/ArrayTypeEditor';
 import StructureTypeEditor from './components/StructureTypeEditor';
 import EnumTypeEditor from './components/EnumTypeEditor';
@@ -107,9 +109,10 @@ function App() {
   const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
   const [isPlcDropdownOpen, setIsPlcDropdownOpen] = useState(false);
 
-  // PLC Targets State
-  const [isTargetModalOpen, setIsTargetModalOpen] = useState(false);
-  const [plcTarget, setPlcTarget] = useState('imx8m');
+  // Board State
+  const [isBoardModalOpen, setIsBoardModalOpen] = useState(false);
+  const [selectedBoard, setSelectedBoard] = useState(null);
+  const [pendingNewProject, setPendingNewProject] = useState(false);
 
   // App Settings State - Persisted to LocalStorage
   const [theme, setTheme] = useState(() => localStorage.getItem('appTheme') || 'auto');
@@ -226,13 +229,13 @@ function App() {
     }
 
     try {
-      const xmlContent = exportProjectToXml(projectStructure);
+      const xmlContent = exportProjectToXml(projectStructure, selectedBoard);
       await writeTextFile(currentFilePath, xmlContent);
       addLog('success', t('logs.projectSaved', { path: currentFilePath }) || `Project saved to ${currentFilePath} `);
     } catch (error) {
       addLog('error', t('logs.saveError', { error: error }) || `Save Error: ${error} `);
     }
-  }, [currentFilePath, projectStructure, addLog]);
+  }, [currentFilePath, projectStructure, selectedBoard, addLog]);
 
   const handleSaveAs = useCallback(async () => {
     try {
@@ -245,7 +248,7 @@ function App() {
         filePath += '.xml';
       }
 
-      const xmlContent = exportProjectToXml(projectStructure);
+      const xmlContent = exportProjectToXml(projectStructure, selectedBoard);
       await writeTextFile(filePath, xmlContent);
 
       setCurrentFilePath(filePath);
@@ -256,15 +259,30 @@ function App() {
   }, [projectStructure, addLog]);
 
   const handleNewProject = useCallback(() => {
-    // Reset to default empty project structure
-    setProjectStructure(defaultProjectStructure);
-    setCurrentFilePath(null);
-    setActiveId(null);
-    setLogs([
-      { type: 'info', msg: t('logs.startedNewProject') || 'Started new project.' }
-    ]);
-    setIsProjectOpen(true);
-  }, [defaultProjectStructure]);
+    // Show board selection first, then create project
+    setPendingNewProject(true);
+    setIsBoardModalOpen(true);
+  }, []);
+
+  const handleBoardSelected = useCallback((boardId) => {
+    setSelectedBoard(boardId);
+    if (pendingNewProject) {
+      // Creating a new project with selected board
+      setProjectStructure(defaultProjectStructure);
+      setCurrentFilePath(null);
+      setActiveId(null);
+      const boardInfo = getBoardById(boardId);
+      setLogs([
+        { type: 'info', msg: t('logs.startedNewProject') || 'Started new project.' },
+        { type: 'info', msg: `Board: ${boardInfo?.name || boardId}` }
+      ]);
+      setIsProjectOpen(true);
+      setPendingNewProject(false);
+    } else {
+      const boardInfo = getBoardById(boardId);
+      addLog('info', `Board changed to: ${boardInfo?.name || boardId}`);
+    }
+  }, [pendingNewProject, defaultProjectStructure, addLog, t]);
 
   const handleCloseProject = useCallback(async () => {
     const confirmation = await ask(t('messages.confirmCloseProject') || 'Are you sure you want to close the current project? Any unsaved changes will be lost.', {
@@ -277,6 +295,7 @@ function App() {
       setProjectStructure(defaultProjectStructure);
       setCurrentFilePath(null);
       setActiveId(null);
+      setSelectedBoard(null);
     }
   }, [defaultProjectStructure]);
 
@@ -321,8 +340,9 @@ function App() {
 
   const processFileContent = (content, filePath) => {
     try {
-      const newStructure = importProjectFromXml(content);
-      if (newStructure) {
+      const result = importProjectFromXml(content);
+      if (result) {
+        const { projectStructure: newStructure, boardId } = result;
         // Ensure Configuration Resource Exists
         if (!newStructure.resources || newStructure.resources.length === 0) {
           newStructure.resources = [
@@ -340,7 +360,17 @@ function App() {
         setCurrentFilePath(filePath);
         setActiveId(null);
         setIsProjectOpen(true);
+
+        // Restore board from XML
+        if (boardId) {
+          setSelectedBoard(boardId);
+        }
+
         addLog('success', t('logs.projectLoaded', { path: filePath }) || `Project loaded from ${filePath} `);
+        // If no board is selected, prompt for board selection
+        if (!boardId && !selectedBoard) {
+          setIsBoardModalOpen(true);
+        }
       } else {
         addLog('error', t('logs.invalidFormat') || 'Failed to parse project file (Invalid Format).');
       }
@@ -367,7 +397,7 @@ function App() {
       addLog('info', t('logs.compilingSimulationTranspile') || 'Compiling Project for Simulation (C Transpilation)...');
       try {
         const standardHeaders = await invoke('get_standard_headers').catch(() => []);
-        const cCode = transpileToC(projectStructure, standardHeaders);
+        const cCode = transpileToC(projectStructure, standardHeaders, selectedBoard);
         const outPath = await invoke('write_plc_files', {
           header: cCode.header,
           source: cCode.source,
@@ -448,7 +478,8 @@ function App() {
   }, [isRunning, addLog]);
 
   const handleBuild = () => {
-    addLog('info', t('logs.buildStartedTarget', { target: plcTarget }) || `Build started for target: ${plcTarget}...`);
+    const boardInfo = getBoardById(selectedBoard);
+    addLog('info', t('logs.buildStartedBoard', { board: boardInfo?.name || selectedBoard }) || `Build started for board: ${boardInfo?.name || selectedBoard}...`);
     try {
       const stCode = compileProjectToST(projectStructure);
       addLog('success', t('logs.projectBuilt') || 'Project built successfully.');
@@ -458,7 +489,8 @@ function App() {
   };
 
   const handleSendToPlc = async () => {
-    addLog('info', t('logs.sendToPlcTriggered', { target: plcTarget }) || `Send to PLC triggered for target: ${plcTarget} `);
+    const boardInfo = getBoardById(selectedBoard);
+    addLog('info', t('logs.sendToPlcTriggered', { board: boardInfo?.name || selectedBoard }) || `Send to PLC triggered for board: ${boardInfo?.name || selectedBoard} `);
     // Future: Invoke specific Rust command for cross-compilation
     setTimeout(() => {
       addLog('success', t('logs.binarySentSimulated') || 'Binary sent to PLC (Simulated Action)');
@@ -938,6 +970,41 @@ function App() {
               )}
             </div>
 
+            {/* Info & Settings buttons */}
+            <button
+              className="toolbar-btn"
+              onClick={() => setShortcutsModalOpen(true)}
+              style={{ fontSize: '24px', lineHeight: 1, padding: '4px 6px', background: 'transparent', border: '1px solid transparent' }}
+              title={t('common.shortcuts') || 'Shortcuts'}
+            >
+              ℹ️
+            </button>
+            <button
+              className="toolbar-btn"
+              onClick={() => setActiveId('SETTINGS')}
+              style={{ fontSize: '24px', lineHeight: 1, padding: '4px 6px', background: 'transparent', border: '1px solid transparent', marginRight: '10px' }}
+              title={t('common.settings')}
+            >
+              ⚙️
+            </button>
+
+            {/* Board Name Button */}
+            {selectedBoard && (
+              <button
+                className="toolbar-btn"
+                onClick={() => setActiveId('BOARD_CONFIG')}
+                style={{
+                  marginRight: '10px',
+                  background: activeId === 'BOARD_CONFIG' ? '#007acc' : 'transparent',
+                  border: activeId === 'BOARD_CONFIG' ? '1px solid #0098ff' : '1px solid transparent',
+                  fontWeight: 'bold',
+                }}
+                title={t('board.openBoardConfig')}
+              >
+                🔧 {getBoardById(selectedBoard)?.name || selectedBoard}
+              </button>
+            )}
+
             {/* PLC Dropdown */}
             <div className="dropdown" style={{ marginRight: '10px' }}>
               <button
@@ -949,9 +1016,6 @@ function App() {
               </button>
               {isPlcDropdownOpen && (
                 <div className="dropdown-content">
-                  <div className="dropdown-item" onClick={() => setIsTargetModalOpen(true)}>
-                    🎯 {t('actions.selectTarget') || 'Select Target'}
-                  </div>
                   <div className="dropdown-item" onClick={handleBuild}>
                     🔨 {t('actions.build') || 'Build'}
                   </div>
@@ -1019,8 +1083,8 @@ function App() {
                 onEditItem={handleEditItemDetails}
                 onReorderItem={handleReorderItem}
                 onPasteItem={handlePasteItem}
-                onSettingsClick={() => setActiveId('SETTINGS')}
-                onShortcutsClick={() => setShortcutsModalOpen(true)}
+                onBoardClick={() => setActiveId('BOARD_CONFIG')}
+                selectedBoard={selectedBoard}
                 isRunning={isRunning || isSimulationMode}
               />
             </div>
@@ -1035,7 +1099,10 @@ function App() {
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, background: '#1e1e1e' }}>
 
               {/* EDITOR */}
-              <div style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              <div
+                style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
+                onMouseDown={() => window.getSelection()?.removeAllRanges()}
+              >
                 {activeId === 'SETTINGS' ? (
                   <ErrorBoundary>
                     <SettingsPage
@@ -1044,6 +1111,10 @@ function App() {
                       editorSettings={editorSettings}
                       setEditorSettings={setEditorSettings}
                     />
+                  </ErrorBoundary>
+                ) : activeId === 'BOARD_CONFIG' ? (
+                  <ErrorBoundary>
+                    <BoardConfigPage boardId={selectedBoard} />
                   </ErrorBoundary>
                 ) : activeItem ? (
                   <ErrorBoundary>
@@ -1131,6 +1202,7 @@ function App() {
                     <Toolbox
                       libraryData={libraryData} // Pass Library Data
                       activeFileType={activeItem?.type}
+                      selectedBoard={selectedBoard}
                       userDefinedBlocks={
                         activeItem.category === 'programs'
                           ? [...projectStructure.functionBlocks, ...projectStructure.functions]
@@ -1167,14 +1239,14 @@ function App() {
         onClose={() => setShortcutsModalOpen(false)}
       />
 
-      <SelectTargetModal
-        isOpen={isTargetModalOpen}
-        onClose={() => setIsTargetModalOpen(false)}
-        currentTarget={plcTarget}
-        onSelect={(target) => {
-          setPlcTarget(target);
-          addLog('info', `PLC target changed to: ${target} `);
+      <BoardSelectionModal
+        isOpen={isBoardModalOpen}
+        onClose={() => {
+          setIsBoardModalOpen(false);
+          if (pendingNewProject) setPendingNewProject(false);
         }}
+        currentBoard={selectedBoard}
+        onSelect={handleBoardSelected}
       />
 
     </div>

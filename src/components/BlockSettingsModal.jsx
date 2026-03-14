@@ -173,6 +173,11 @@ const BlockSettingsModal = ({ isOpen, onClose, blockData, onSave, blockConfig, v
                         <h4 style={{ fontSize: '12px', color: '#888', textTransform: 'uppercase', marginBottom: '10px' }}>
                             {t('common.pinInformation')}
                         </h4>
+                        {config.descriptionKey && (
+                            <div style={{ background: '#1a2a1a', border: '1px solid #2a4a2a', borderRadius: '4px', padding: '8px 10px', marginBottom: '8px', fontSize: '12px', color: '#a0d0a0', lineHeight: '1.4' }}>
+                                {t(config.descriptionKey)}
+                            </div>
+                        )}
                         <div style={{ background: '#1e1e1e', padding: '10px', borderRadius: '4px', fontSize: '12px' }}>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '5px', fontWeight: 'bold' }}>
                                 <span>{t('common.pin')}</span>
