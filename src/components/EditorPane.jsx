@@ -907,4 +907,4 @@ const EditorPane = ({
   );
 };
 
-export default EditorPane;
+export default React.memo(EditorPane);

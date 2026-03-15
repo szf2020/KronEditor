@@ -8,7 +8,7 @@ const KRON_REPOS = [
     'KronMathematic', 'KronCommunication', 'KronLogic', 'KronMotion',
 ];
 
-const SettingsPage = ({ theme, setTheme, editorSettings, setEditorSettings }) => {
+const SettingsPage = ({ theme, setTheme, editorSettings, setEditorSettings, selectedBoard, plcAddress, setPlcAddress, sshUser: sshUserProp, setSshUser: setSshUserProp, sshPort: sshPortProp, setSshPort: setSshPortProp, isPlcConnected, setConnectionEnabled }) => {
     const { t, i18n } = useTranslation();
     const [activeTab, setActiveTab] = useState('general');
     const [isUpdating, setIsUpdating] = useState(false);
@@ -16,6 +16,49 @@ const SettingsPage = ({ theme, setTheme, editorSettings, setEditorSettings }) =>
     const [selectedRepos, setSelectedRepos] = useState([...KRON_REPOS]);
     const logRef = useRef(null);
     const unlistenRef = useRef(null);
+
+    // Connection state
+    const [connIp, setConnIp] = useState(() => {
+        const saved = localStorage.getItem('plcAddress') || '';
+        const parts = saved.split(':');
+        return parts[0] || '';
+    });
+    const [connPort, setConnPort] = useState(() => {
+        const saved = localStorage.getItem('plcAddress') || '';
+        const parts = saved.split(':');
+        return parts[1] || '7070';
+    });
+    const [connStatus, setConnStatus] = useState(null); // null | 'checking' | 'connected' | 'failed' | 'disconnected'
+
+    // Sync connStatus with live connection state when entering the page
+    useEffect(() => {
+        if (isPlcConnected) {
+            setConnStatus('connected');
+        } else if (connStatus === 'connected') {
+            setConnStatus('disconnected');
+        }
+    }, [isPlcConnected]);
+    const [sshUser, setSshUser] = useState(() => sshUserProp || localStorage.getItem('sshUser') || 'pi');
+    const [sshPass, setSshPass] = useState('');
+    const [sshPort, setSshPort] = useState(() => sshPortProp || localStorage.getItem('sshPort') || '22');
+    const [isDeploying, setIsDeploying] = useState(false);
+
+    // Sync connection fields when project is loaded (props change)
+    useEffect(() => {
+        if (plcAddress) {
+            const parts = plcAddress.split(':');
+            setConnIp(parts[0] || '');
+            setConnPort(parts[1] || '7070');
+        }
+    }, [plcAddress]);
+
+    useEffect(() => {
+        if (sshUserProp) setSshUser(sshUserProp);
+    }, [sshUserProp]);
+
+    useEffect(() => {
+        if (sshPortProp) setSshPort(sshPortProp);
+    }, [sshPortProp]);
 
     const handleRepoSelection = (repo) => {
         if (selectedRepos.includes(repo)) {
@@ -69,9 +112,98 @@ const SettingsPage = ({ theme, setTheme, editorSettings, setEditorSettings }) =>
         });
     };
 
+    const handleUpdateServer = async () => {
+        setIsUpdating(true);
+        setProgressLog('Starting KronServer build...\n');
+
+        const unlistenProgress = await listen('server-update-progress', (event) => {
+            setProgressLog(prev => prev + event.payload + '\n');
+        });
+
+        const unlistenDone = await listen('server-update-done', (event) => {
+            const { success, message } = event.payload;
+            setProgressLog(prev => prev + (success ? '✓ ' : '✗ ') + message + '\n');
+            setIsUpdating(false);
+            unlistenProgress();
+            unlistenDone();
+            unlistenRef.current = null;
+        });
+
+        unlistenRef.current = { progress: unlistenProgress, done: unlistenDone };
+
+        invoke('update_server').catch(err => {
+            setProgressLog(prev => prev + 'Error: ' + err + '\n');
+            setIsUpdating(false);
+            unlistenProgress();
+            unlistenDone();
+            unlistenRef.current = null;
+        });
+    };
+
+    const handleConnect = async () => {
+        if (!connIp) return;
+        const addr = `${connIp}:${connPort}`;
+        setConnStatus('checking');
+        try {
+            await invoke('check_server_status', { serverAddr: addr });
+            setConnStatus('connected');
+            localStorage.setItem('plcAddress', addr);
+            if (setPlcAddress) setPlcAddress(addr);
+            if (setConnectionEnabled) setConnectionEnabled(true);
+        } catch {
+            setConnStatus('failed');
+        }
+    };
+
+    const handleDisconnect = () => {
+        if (setConnectionEnabled) setConnectionEnabled(false);
+        setConnStatus('disconnected');
+    };
+
+    const handleSaveConnection = () => {
+        const addr = connIp ? `${connIp}:${connPort}` : '';
+        localStorage.setItem('plcAddress', addr);
+        localStorage.setItem('sshUser', sshUser);
+        localStorage.setItem('sshPort', sshPort);
+        if (setPlcAddress) setPlcAddress(addr);
+        if (setSshUserProp) setSshUserProp(sshUser);
+        if (setSshPortProp) setSshPortProp(sshPort);
+    };
+
+    const handleDeployServer = async () => {
+        if (!connIp || !selectedBoard) return;
+        setIsDeploying(true);
+        setProgressLog('');
+
+        const unlistenProgress = await listen('server-deploy-progress', (event) => {
+            setProgressLog(prev => prev + event.payload + '\n');
+        });
+
+        try {
+            await invoke('deploy_server_to_target', {
+                host: connIp,
+                port: parseInt(sshPort) || 22,
+                username: sshUser,
+                password: sshPass,
+                boardId: selectedBoard,
+            });
+            setProgressLog(prev => prev + '✓ Server deployed successfully!\n');
+            setConnStatus('connected');
+            const addr = `${connIp}:${connPort}`;
+            localStorage.setItem('plcAddress', addr);
+            if (setPlcAddress) setPlcAddress(addr);
+        } catch (err) {
+            setProgressLog(prev => prev + '✗ Deploy failed: ' + err + '\n');
+        } finally {
+            setIsDeploying(false);
+            unlistenProgress();
+        }
+    };
+
     const tabs = [
         { id: 'general', label: t('settingsPage.general'), icon: '⚙️' },
         { id: 'editor', label: t('settingsPage.editor'), icon: '📝' },
+        { id: 'connection', label: t('settingsPage.connection', 'Connection'), icon: '🔌' },
         ...(import.meta.env.DEV ? [{ id: 'libraries', label: 'Libraries', icon: '📦' }] : []),
         { id: 'about', label: t('settingsPage.about'), icon: 'ℹ️' }
     ];
@@ -152,7 +284,7 @@ const SettingsPage = ({ theme, setTheme, editorSettings, setEditorSettings }) =>
                                         color: '#fff', border: '1px solid #444', borderRadius: '4px', cursor: 'pointer'
                                     }}
                                 >
-                                    💻 {t('settingsPage.auto') || 'Auto'}
+                                    💻 {t('settingsPage.auto', 'Auto')}
                                 </button>
                             </div>
                         </div>
@@ -201,6 +333,187 @@ const SettingsPage = ({ theme, setTheme, editorSettings, setEditorSettings }) =>
                         </div>
                     </div>
                 );
+            case 'connection':
+                return (
+                    <div style={{ maxWidth: '600px' }}>
+                        <h3 style={{ borderBottom: '1px solid #444', paddingBottom: '10px', marginTop: 0 }}>
+                            {t('settingsPage.connectionSettings', 'Connection Settings')}
+                        </h3>
+
+                        {/* IP & Port */}
+                        <div style={{ marginBottom: '20px' }}>
+                            <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
+                                <div style={{ flex: 3 }}>
+                                    <label style={{ display: 'block', marginBottom: '6px', color: '#ccc', fontSize: '13px' }}>
+                                        {t('settingsPage.ipAddress', 'IP Address')}
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={connIp}
+                                        onChange={(e) => setConnIp(e.target.value)}
+                                        placeholder="192.168.1.100"
+                                        style={{
+                                            width: '100%', padding: '8px', background: '#252526', color: '#fff',
+                                            border: '1px solid #444', borderRadius: '4px', boxSizing: 'border-box'
+                                        }}
+                                    />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                    <label style={{ display: 'block', marginBottom: '6px', color: '#ccc', fontSize: '13px' }}>
+                                        {t('settingsPage.port', 'Port')}
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={connPort}
+                                        onChange={(e) => setConnPort(e.target.value)}
+                                        placeholder="7070"
+                                        style={{
+                                            width: '100%', padding: '8px', background: '#252526', color: '#fff',
+                                            border: '1px solid #444', borderRadius: '4px', boxSizing: 'border-box'
+                                        }}
+                                    />
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                {isPlcConnected ? (
+                                    <button
+                                        onClick={handleDisconnect}
+                                        style={{
+                                            padding: '8px 18px', backgroundColor: '#3a1a1a', color: '#f44747',
+                                            border: '1px solid #f44747', borderRadius: '4px',
+                                            cursor: 'pointer', fontSize: '13px'
+                                        }}
+                                    >
+                                        Disconnect
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={handleConnect}
+                                        disabled={!connIp || connStatus === 'checking'}
+                                        style={{
+                                            padding: '8px 18px', backgroundColor: '#007acc', color: '#fff',
+                                            border: 'none', borderRadius: '4px',
+                                            cursor: (!connIp || connStatus === 'checking') ? 'not-allowed' : 'pointer',
+                                            opacity: (!connIp || connStatus === 'checking') ? 0.5 : 1,
+                                            fontSize: '13px'
+                                        }}
+                                    >
+                                        {connStatus === 'checking' ? 'Connecting...' : 'Connect'}
+                                    </button>
+                                )}
+                                <button
+                                    onClick={handleSaveConnection}
+                                    style={{
+                                        padding: '8px 18px', backgroundColor: '#2d2d2d', color: '#ccc',
+                                        border: '1px solid #444', borderRadius: '4px', cursor: 'pointer', fontSize: '13px'
+                                    }}
+                                >
+                                    {t('common.save', 'Save')}
+                                </button>
+                                {isPlcConnected && (
+                                    <span style={{ color: '#4ec9b0', fontSize: '13px' }}>● Connected</span>
+                                )}
+                                {!isPlcConnected && connStatus === 'disconnected' && (
+                                    <span style={{ color: '#888', fontSize: '13px' }}>● Disconnected</span>
+                                )}
+                                {!isPlcConnected && connStatus === 'failed' && (
+                                    <span style={{ color: '#f44747', fontSize: '13px' }}>● Connection Failed</span>
+                                )}
+                            </div>
+                        </div>
+
+                        <div style={{ height: '1px', background: '#333', margin: '20px 0' }} />
+
+                        {/* SSH Settings for Server Deploy */}
+                        <h3 style={{ borderBottom: '1px solid #444', paddingBottom: '10px' }}>
+                            {t('settingsPage.serverDeploy', 'Deploy Server to Target')}
+                        </h3>
+                        <p style={{ color: '#888', fontSize: '12px', marginBottom: '16px' }}>
+                            {t('settingsPage.serverDeployDesc', 'Upload and start plc-agent on the target board via SSH.')}
+                        </p>
+
+                        <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
+                            <div style={{ flex: 2 }}>
+                                <label style={{ display: 'block', marginBottom: '6px', color: '#ccc', fontSize: '13px' }}>
+                                    {t('settingsPage.sshUsername', 'SSH Username')}
+                                </label>
+                                <input
+                                    type="text"
+                                    value={sshUser}
+                                    onChange={(e) => setSshUser(e.target.value)}
+                                    placeholder="pi"
+                                    style={{
+                                        width: '100%', padding: '8px', background: '#252526', color: '#fff',
+                                        border: '1px solid #444', borderRadius: '4px', boxSizing: 'border-box'
+                                    }}
+                                />
+                            </div>
+                            <div style={{ flex: 2 }}>
+                                <label style={{ display: 'block', marginBottom: '6px', color: '#ccc', fontSize: '13px' }}>
+                                    {t('settingsPage.sshPassword', 'SSH Password')}
+                                </label>
+                                <input
+                                    type="password"
+                                    value={sshPass}
+                                    onChange={(e) => setSshPass(e.target.value)}
+                                    placeholder="••••••"
+                                    style={{
+                                        width: '100%', padding: '8px', background: '#252526', color: '#fff',
+                                        border: '1px solid #444', borderRadius: '4px', boxSizing: 'border-box'
+                                    }}
+                                />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                                <label style={{ display: 'block', marginBottom: '6px', color: '#ccc', fontSize: '13px' }}>
+                                    {t('settingsPage.sshPort', 'SSH Port')}
+                                </label>
+                                <input
+                                    type="text"
+                                    value={sshPort}
+                                    onChange={(e) => setSshPort(e.target.value)}
+                                    placeholder="22"
+                                    style={{
+                                        width: '100%', padding: '8px', background: '#252526', color: '#fff',
+                                        border: '1px solid #444', borderRadius: '4px', boxSizing: 'border-box'
+                                    }}
+                                />
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={handleDeployServer}
+                            disabled={isDeploying || !connIp || !selectedBoard}
+                            style={{
+                                padding: '10px 20px', backgroundColor: isDeploying ? '#444' : '#0d47a1',
+                                color: '#fff', border: 'none', borderRadius: '4px',
+                                cursor: (isDeploying || !connIp || !selectedBoard) ? 'not-allowed' : 'pointer',
+                                width: '100%', fontSize: '14px', marginBottom: '16px'
+                            }}
+                        >
+                            {isDeploying ? 'Deploying...' : (t('settingsPage.deployServer', 'Deploy Server'))}
+                        </button>
+
+                        {!selectedBoard && (
+                            <p style={{ color: '#f44747', fontSize: '12px' }}>
+                                {t('settingsPage.noBoardSelected', 'Please select a board first (create or open a project).')}
+                            </p>
+                        )}
+
+                        {progressLog && (
+                            <textarea
+                                ref={logRef}
+                                value={progressLog}
+                                readOnly
+                                style={{
+                                    width: '100%', height: '200px', background: '#0d0d0d', color: '#4ec9b0',
+                                    border: '1px solid #333', borderRadius: '4px', padding: '10px',
+                                    fontFamily: 'monospace', fontSize: '12px', resize: 'none', boxSizing: 'border-box'
+                                }}
+                            />
+                        )}
+                    </div>
+                );
             case 'libraries':
                 return (
                     <div style={{ maxWidth: '600px' }}>
@@ -246,6 +559,23 @@ const SettingsPage = ({ theme, setTheme, editorSettings, setEditorSettings }) =>
                             }}
                         >
                             {isUpdating ? 'Building...' : 'Build Libraries'}
+                        </button>
+                        <button
+                            onClick={handleUpdateServer}
+                            disabled={isUpdating}
+                            style={{
+                                padding: '10px 20px',
+                                backgroundColor: isUpdating ? '#444' : '#0d47a1',
+                                color: '#fff',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: isUpdating ? 'not-allowed' : 'pointer',
+                                marginBottom: '16px',
+                                width: '100%',
+                                fontSize: '14px'
+                            }}
+                        >
+                            {isUpdating ? 'Building...' : 'Build Server'}
                         </button>
                         {progressLog && (
                             <textarea

@@ -21,7 +21,6 @@ import { open, save, ask } from '@tauri-apps/plugin-dialog';
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
-import { compileProjectToST } from './services/CompilerService';
 import { transpileToC } from './services/CTranspilerService';
 import { mkdir, exists, BaseDirectory } from '@tauri-apps/plugin-fs';
 import PlcIcon from './assets/icons/plc-icon.png';
@@ -107,7 +106,6 @@ function App() {
 
   // Dropdown States
   const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
-  const [isPlcDropdownOpen, setIsPlcDropdownOpen] = useState(false);
 
   // Board State
   const [isBoardModalOpen, setIsBoardModalOpen] = useState(false);
@@ -122,9 +120,20 @@ function App() {
   });
 
   // PLC & Simulation Execution State
-  const [isPlcConnected, setIsPlcConnected] = useState(false); // Mock for future
+  const [isPlcConnected, setIsPlcConnected] = useState(false);
+  const [connectionEnabled, setConnectionEnabled] = useState(true);
   const [isSimulationMode, setIsSimulationMode] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+
+  // Remote deployment state
+  const [plcAddress, setPlcAddress] = useState(() => localStorage.getItem('plcAddress') || '');
+  const [sshUser, setSshUser] = useState(() => localStorage.getItem('sshUser') || 'pi');
+  const [sshPort, setSshPort] = useState(() => localStorage.getItem('sshPort') || '22');
+  const [isDeployed, setIsDeployed] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const wsRef = React.useRef(null);
+  const wsTimerRef = React.useRef(null);
+  const remoteVarKeysRef = React.useRef([]);
 
   // Persist settings
   useEffect(() => {
@@ -150,6 +159,37 @@ function App() {
   useEffect(() => {
     localStorage.setItem('editorSettings', JSON.stringify(editorSettings));
   }, [editorSettings]);
+
+  // --- PLC server connection check ---
+  useEffect(() => {
+    if (!plcAddress || !connectionEnabled) {
+      setIsPlcConnected(false);
+      return;
+    }
+    const checkStatus = () => {
+      invoke('check_server_status', { serverAddr: plcAddress })
+        .then(() => setIsPlcConnected(true))
+        .catch(() => {
+          // Don't mark disconnected if we have an active WebSocket (server is clearly alive)
+          if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+            setIsPlcConnected(false);
+          }
+        });
+    };
+    checkStatus();
+    const interval = setInterval(checkStatus, 10000);
+    return () => clearInterval(interval);
+  }, [plcAddress, connectionEnabled]);
+
+  // --- isDirty: mark dirty when project changes after deployment ---
+  const projectStructureRef = React.useRef(projectStructure);
+  useEffect(() => {
+    // Skip the initial render and only trigger when projectStructure actually changes
+    if (projectStructureRef.current !== projectStructure && isDeployed) {
+      setIsDirty(true);
+    }
+    projectStructureRef.current = projectStructure;
+  }, [projectStructure, isDeployed]);
 
   // --- Layout & Resizing State ---
   const [layout, setLayout] = useState({
@@ -177,7 +217,10 @@ function App() {
 
   const addLog = useCallback((type, msg) => {
     const time = new Date().toLocaleTimeString();
-    setLogs(prev => [...prev, { type, msg: `[${time}] ${msg} ` }]);
+    setLogs(prev => {
+      const next = [...prev, { type, msg: `[${time}] ${msg} ` }];
+      return next.length > 500 ? next.slice(-500) : next;
+    });
   }, []);
 
   // --- Simulation Compile Log Listener (debug) ---
@@ -193,6 +236,20 @@ function App() {
 
   // --- Live Variable Listener ---
   const [liveVariables, setLiveVariables] = useState({});
+  const liveVarsRef = React.useRef(liveVariables);
+
+  // Throttled sync: copy ref to state at ~2 FPS to avoid re-render storms
+  const liveVarsDirtyRef = React.useRef(false);
+  useEffect(() => {
+    if (!isRunning) return;
+    const syncId = setInterval(() => {
+      if (liveVarsDirtyRef.current) {
+        liveVarsDirtyRef.current = false;
+        setLiveVariables({ ...liveVarsRef.current });
+      }
+    }, 500);
+    return () => clearInterval(syncId);
+  }, [isRunning]);
 
   useEffect(() => {
     let unlisten = null;
@@ -201,17 +258,15 @@ function App() {
         try {
           const parsed = typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload;
           if (parsed.vars) {
-            // Merge — initial/default values from compile time are kept for variables
-            // not tracked by the simulator (e.g. integers missing from symbol table)
-            setLiveVariables(prev => ({ ...prev, ...parsed.vars }));
+            // Write to ref (no re-render); throttled sync will push to state
+            Object.assign(liveVarsRef.current, parsed.vars);
+            liveVarsDirtyRef.current = true;
           } else if (parsed.status === 'exited' || parsed.status === 'crashed') {
-            // Simulation process ended on its own
             setIsRunning(false);
             addLog('warning', t('logs.simulationStatus', { status: parsed.status }) || `Simulation ${parsed.status}.`);
           } else if (parsed.error) {
             addLog('error', t('logs.simulationError', { error: parsed.error }) || `Simulation: ${parsed.error}`);
           }
-          // {"status": "started", "pid": N} is informational, no action needed
         } catch (e) {
           console.error("Failed to parse simulation output:", e, "Raw Payload:", event.payload);
         }
@@ -229,13 +284,13 @@ function App() {
     }
 
     try {
-      const xmlContent = exportProjectToXml(projectStructure, selectedBoard);
+      const xmlContent = exportProjectToXml(projectStructure, selectedBoard, { plcAddress, sshUser, sshPort });
       await writeTextFile(currentFilePath, xmlContent);
       addLog('success', t('logs.projectSaved', { path: currentFilePath }) || `Project saved to ${currentFilePath} `);
     } catch (error) {
       addLog('error', t('logs.saveError', { error: error }) || `Save Error: ${error} `);
     }
-  }, [currentFilePath, projectStructure, selectedBoard, addLog]);
+  }, [currentFilePath, projectStructure, selectedBoard, plcAddress, sshUser, sshPort, addLog]);
 
   const handleSaveAs = useCallback(async () => {
     try {
@@ -248,7 +303,7 @@ function App() {
         filePath += '.xml';
       }
 
-      const xmlContent = exportProjectToXml(projectStructure, selectedBoard);
+      const xmlContent = exportProjectToXml(projectStructure, selectedBoard, { plcAddress, sshUser, sshPort });
       await writeTextFile(filePath, xmlContent);
 
       setCurrentFilePath(filePath);
@@ -256,7 +311,7 @@ function App() {
     } catch (error) {
       addLog('error', t('logs.saveAsError', { error: error }) || `Save As Error: ${error} `);
     }
-  }, [projectStructure, addLog]);
+  }, [projectStructure, selectedBoard, plcAddress, sshUser, sshPort, addLog]);
 
   const handleNewProject = useCallback(() => {
     // Show board selection first, then create project
@@ -296,6 +351,20 @@ function App() {
       setCurrentFilePath(null);
       setActiveId(null);
       setSelectedBoard(null);
+      setIsDeployed(false);
+      setIsDirty(false);
+      setIsSimulationMode(false);
+      setIsRunning(false);
+      setLiveVariables({});
+      liveVarsRef.current = {};
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      if (wsTimerRef.current) {
+        clearInterval(wsTimerRef.current);
+        wsTimerRef.current = null;
+      }
     }
   }, [defaultProjectStructure]);
 
@@ -342,7 +411,7 @@ function App() {
     try {
       const result = importProjectFromXml(content);
       if (result) {
-        const { projectStructure: newStructure, boardId } = result;
+        const { projectStructure: newStructure, boardId, plcAddress: savedAddr, sshUser: savedSshUser, sshPort: savedSshPort } = result;
         // Ensure Configuration Resource Exists
         if (!newStructure.resources || newStructure.resources.length === 0) {
           newStructure.resources = [
@@ -366,11 +435,21 @@ function App() {
           setSelectedBoard(boardId);
         }
 
-        addLog('success', t('logs.projectLoaded', { path: filePath }) || `Project loaded from ${filePath} `);
-        // If no board is selected, prompt for board selection
-        if (!boardId && !selectedBoard) {
-          setIsBoardModalOpen(true);
+        // Restore connection settings from XML
+        if (savedAddr) {
+          setPlcAddress(savedAddr);
+          localStorage.setItem('plcAddress', savedAddr);
         }
+        if (savedSshUser) {
+          setSshUser(savedSshUser);
+          localStorage.setItem('sshUser', savedSshUser);
+        }
+        if (savedSshPort) {
+          setSshPort(savedSshPort);
+          localStorage.setItem('sshPort', savedSshPort);
+        }
+
+        addLog('success', t('logs.projectLoaded', { path: filePath }) || `Project loaded from ${filePath} `);
       } else {
         addLog('error', t('logs.invalidFormat') || 'Failed to parse project file (Invalid Format).');
       }
@@ -419,6 +498,7 @@ function App() {
           });
         }
 
+        liveVarsRef.current = initialLiveVars;
         setLiveVariables(initialLiveVars);
         addLog('info', t('logs.simulationEnabled') || 'Simulation Mode Enabled. Variables populated with default values.');
       } catch (error) {
@@ -427,28 +507,97 @@ function App() {
     } else {
       setIsSimulationMode(false);
       addLog('info', t('logs.simulationDisabled') || 'Simulation Mode Disabled.');
+      liveVarsRef.current = {};
       setLiveVariables({});
     }
   };
 
   const handleStartExecution = async () => {
-    if (!isSimulationMode && !isPlcConnected) {
-      addLog('warning', t('logs.cannotStartEnableSim') || 'Cannot start. Please enable Simulation Mode or connect to a PLC.');
+    if (!isSimulationMode && !(isDeployed && !isDirty && isPlcConnected)) {
+      addLog('warning', 'Cannot start. Enable Simulation Mode or Build & Send to PLC first.');
       return;
     }
 
     if (isSimulationMode) {
       setIsRunning(true);
-      addLog('success', t('messages.plcRunMode') || 'Running Simulation Execution...');
+      addLog('success', 'Running Simulation Execution...');
       try {
         await invoke('run_simulation');
       } catch (err) {
-        addLog('error', t('logs.failedToStartSim', { error: err }) || `Failed to start simulation: ${err}`);
+        addLog('error', `Failed to start simulation: ${err}`);
         setIsRunning(false);
       }
-    } else if (isPlcConnected) {
-      setIsRunning(true);
-      addLog('success', t('logs.plcExecutionStarted') || 'PLC Execution Started.');
+    } else if (isDeployed && !isDirty && isPlcConnected) {
+      // Remote execution via WebSocket
+      try {
+        const wsUrl = `ws://${plcAddress}/ws`;
+        const ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+          // Stop any running PLC process before starting fresh
+          addLog('info', 'Stopping any running PLC...');
+          ws.send(JSON.stringify({ type: 'stop', id: 'cmd_stop_init' }));
+
+          setTimeout(() => {
+            addLog('success', 'Connected to PLC. Starting runtime...');
+            ws.send(JSON.stringify({ type: 'start', id: 'cmd_start' }));
+            setIsRunning(true);
+
+            // Poll all SHM-backed variables with a single read_all every 500ms
+            if (remoteVarKeysRef.current.length > 0) {
+              wsTimerRef.current = setInterval(() => {
+                if (ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify({ type: 'read_all', id: 'poll' }));
+                }
+              }, 500);
+            }
+          }, 300);
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.type !== 'response') return;
+
+            if (!msg.success && msg.error) {
+              // Only log command errors, not variable polling errors
+              if (msg.id && !msg.id.startsWith('poll')) {
+                addLog('error', `PLC: ${msg.error}`);
+              }
+              return;
+            }
+
+            // read_all response: write to ref (throttled sync pushes to state)
+            if (msg.id === 'poll' && msg.value && typeof msg.value === 'object') {
+              Object.assign(liveVarsRef.current, msg.value);
+              liveVarsDirtyRef.current = true;
+            }
+            // Single read_var response (kept for compatibility)
+            else if (msg.name && msg.value !== undefined) {
+              liveVarsRef.current[msg.name] = msg.value;
+              liveVarsDirtyRef.current = true;
+            }
+          } catch (e) {
+            console.error('WS parse error:', e);
+          }
+        };
+
+        ws.onerror = () => {
+          addLog('error', 'WebSocket connection error.');
+          setIsRunning(false);
+        };
+
+        ws.onclose = () => {
+          if (wsTimerRef.current) {
+            clearInterval(wsTimerRef.current);
+            wsTimerRef.current = null;
+          }
+        };
+      } catch (err) {
+        addLog('error', `Failed to connect: ${err}`);
+        setIsRunning(false);
+      }
     }
   };
 
@@ -460,44 +609,117 @@ function App() {
         try {
           await invoke('stop_simulation');
         } catch (err) {
-          addLog('error', t('logs.failedToStopSim', { error: err }) || `Failed to stop simulation: ${err}`);
+          addLog('error', `Failed to stop simulation: ${err}`);
+        }
+      } else if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        // Remote stop
+        wsRef.current.send(JSON.stringify({ type: 'stop', id: String(Date.now()) }));
+        if (wsTimerRef.current) {
+          clearInterval(wsTimerRef.current);
+          wsTimerRef.current = null;
+        }
+        wsRef.current.close();
+        wsRef.current = null;
+        // Re-check server status immediately so connection indicator stays green
+        if (plcAddress && connectionEnabled) {
+          invoke('check_server_status', { serverAddr: plcAddress })
+            .then(() => setIsPlcConnected(true))
+            .catch(() => setIsPlcConnected(false));
         }
       }
 
-      addLog('error', t('messages.plcStopped') || 'Execution Stopped.');
+      addLog('info', 'Execution Stopped.');
     }
   };
 
   const handleForceWrite = useCallback(async (key, value) => {
     if (!isRunning) return;
-    try {
-      await invoke('write_variable', { name: key, value: String(value) });
-    } catch (err) {
-      addLog('error', t('logs.forceWriteFailed', { key: key, error: err }) || `Force write failed for '${key}': ${err}`);
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && !isSimulationMode) {
+      // Remote force write
+      wsRef.current.send(JSON.stringify({
+        type: 'write_var',
+        id: String(Date.now()),
+        name: key,
+        value: typeof value === 'string' ? parseFloat(value) || value : value,
+      }));
+    } else {
+      try {
+        await invoke('write_variable', { name: key, value: String(value) });
+      } catch (err) {
+        addLog('error', `Force write failed for '${key}': ${err}`);
+      }
     }
-  }, [isRunning, addLog]);
+  }, [isRunning, isSimulationMode, addLog]);
 
-  const handleBuild = () => {
+  const handleBuild = async () => {
     const boardInfo = getBoardById(selectedBoard);
-    addLog('info', t('logs.buildStartedBoard', { board: boardInfo?.name || selectedBoard }) || `Build started for board: ${boardInfo?.name || selectedBoard}...`);
+    addLog('info', `Build started for board: ${boardInfo?.name || selectedBoard}...`);
     try {
-      const stCode = compileProjectToST(projectStructure);
-      addLog('success', t('logs.projectBuilt') || 'Project built successfully.');
+      const standardHeaders = await invoke('get_standard_headers').catch(() => []);
+      const cCode = transpileToC(projectStructure, standardHeaders, selectedBoard);
+      await invoke('write_plc_files', {
+        header: cCode.header,
+        source: cCode.source,
+        variableTable: JSON.stringify(cCode.variableTable, null, 2)
+      });
+      await invoke('compile_simulation');
+      addLog('success', 'Build successful.');
     } catch (err) {
-      addLog('error', t('logs.buildFailed', { error: err.message }) || `Build failed: ${err.message}`);
+      addLog('error', `Build failed: ${err.message || err}`);
     }
   };
 
-  const handleSendToPlc = async () => {
+  const handleBuildAndSend = async () => {
+    if (!isPlcConnected || !plcAddress) {
+      addLog('error', 'Cannot Build & Send: not connected to PLC server.');
+      return;
+    }
     const boardInfo = getBoardById(selectedBoard);
-    addLog('info', t('logs.sendToPlcTriggered', { board: boardInfo?.name || selectedBoard }) || `Send to PLC triggered for board: ${boardInfo?.name || selectedBoard} `);
-    // Future: Invoke specific Rust command for cross-compilation
-    setTimeout(() => {
-      addLog('success', t('logs.binarySentSimulated') || 'Binary sent to PLC (Simulated Action)');
-    }, 1000);
+    addLog('info', `Build & Send for ${boardInfo?.name || selectedBoard}...`);
+    try {
+      const standardHeaders = await invoke('get_standard_headers').catch(() => []);
+      const cCode = transpileToC(projectStructure, standardHeaders, selectedBoard, false);
+
+      addLog('info', 'Cross-compiling for target...');
+      await invoke('compile_for_target', {
+        header: cCode.header,
+        source: cCode.source,
+        variableTable: JSON.stringify(cCode.variableTable, null, 2),
+        boardId: selectedBoard,
+      });
+      addLog('success', 'Cross-compilation successful.');
+
+      addLog('info', `Deploying to ${plcAddress}...`);
+      await invoke('deploy_to_server', { serverAddr: plcAddress });
+      addLog('success', `Deployed to ${plcAddress}.`);
+
+      setIsDeployed(true);
+      setIsDirty(false);
+
+      // Store debug defaults for live variable display
+      if (cCode.variableTable && cCode.variableTable.debugDefaults) {
+        let initialLiveVars = {};
+        const remoteKeys = [];
+        Object.entries(cCode.variableTable.debugDefaults).forEach(([liveKey, info]) => {
+          initialLiveVars[liveKey] = info.defaultValue;
+          if (info.offset !== undefined) remoteKeys.push(liveKey);
+        });
+        liveVarsRef.current = initialLiveVars;
+        setLiveVariables(initialLiveVars);
+        remoteVarKeysRef.current = remoteKeys;
+      }
+    } catch (err) {
+      addLog('error', `Build & Send failed: ${err.message || err}`);
+    }
   };
 
   // --- Global Keyboard Shortcuts ---
+  // Use refs so the keydown listener always calls latest handler versions
+  const handleBuildRef = React.useRef(handleBuild);
+  handleBuildRef.current = handleBuild;
+  const handleStartRef = React.useRef(handleStartExecution);
+  handleStartRef.current = handleStartExecution;
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       // CMD/CTRL check
@@ -512,13 +734,13 @@ function App() {
         // Compile: Ctrl + B
         if (e.key.toLowerCase() === 'b') {
           e.preventDefault();
-          handleBuild();
+          handleBuildRef.current();
         }
 
         // Run/Start: Ctrl + X
         if (e.key.toLowerCase() === 'x') {
           e.preventDefault();
-          handleStartExecution();
+          handleStartRef.current();
         }
       }
     };
@@ -857,19 +1079,23 @@ function App() {
 
   // --- Resize Effects ---
   useEffect(() => {
+    let rafId = null;
     const handleMouseMove = (e) => {
       if (!isResizing) return;
-
-      if (isResizing === 'left') {
-        const newWidth = Math.max(150, Math.min(600, e.clientX));
-        setLayout(prev => ({ ...prev, leftWidth: newWidth }));
-      } else if (isResizing === 'right') {
-        const newWidth = Math.max(150, Math.min(600, window.innerWidth - e.clientX));
-        setLayout(prev => ({ ...prev, rightWidth: newWidth }));
-      } else if (isResizing === 'console') {
-        const newHeight = Math.max(50, Math.min(600, window.innerHeight - e.clientY));
-        setLayout(prev => ({ ...prev, consoleHeight: newHeight }));
-      }
+      if (rafId) return; // skip if a frame is already pending
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        if (isResizing === 'left') {
+          const newWidth = Math.max(150, Math.min(600, e.clientX));
+          setLayout(prev => ({ ...prev, leftWidth: newWidth }));
+        } else if (isResizing === 'right') {
+          const newWidth = Math.max(150, Math.min(600, window.innerWidth - e.clientX));
+          setLayout(prev => ({ ...prev, rightWidth: newWidth }));
+        } else if (isResizing === 'console') {
+          const newHeight = Math.max(50, Math.min(600, window.innerHeight - e.clientY));
+          setLayout(prev => ({ ...prev, consoleHeight: newHeight }));
+        }
+      });
     };
 
     const handleMouseUp = () => {
@@ -889,6 +1115,7 @@ function App() {
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
+      if (rafId) cancelAnimationFrame(rafId);
       document.body.style.cursor = 'default';
       document.body.style.userSelect = 'auto';
     };
@@ -988,43 +1215,15 @@ function App() {
               ⚙️
             </button>
 
-            {/* Board Name Button */}
-            {selectedBoard && (
-              <button
-                className="toolbar-btn"
-                onClick={() => setActiveId('BOARD_CONFIG')}
-                style={{
-                  marginRight: '10px',
-                  background: activeId === 'BOARD_CONFIG' ? '#007acc' : 'transparent',
-                  border: activeId === 'BOARD_CONFIG' ? '1px solid #0098ff' : '1px solid transparent',
-                  fontWeight: 'bold',
-                }}
-                title={t('board.openBoardConfig')}
-              >
-                🔧 {getBoardById(selectedBoard)?.name || selectedBoard}
-              </button>
-            )}
-
-            {/* PLC Dropdown */}
-            <div className="dropdown" style={{ marginRight: '10px' }}>
-              <button
-                className="toolbar-btn"
-                onClick={() => setIsPlcDropdownOpen(!isPlcDropdownOpen)}
-                onBlur={() => setTimeout(() => setIsPlcDropdownOpen(false), 200)}
-              >
-                ⚙️ {t('common.plc') || 'PLC'} ▼
-              </button>
-              {isPlcDropdownOpen && (
-                <div className="dropdown-content">
-                  <div className="dropdown-item" onClick={handleBuild}>
-                    🔨 {t('actions.build') || 'Build'}
-                  </div>
-                  <div className="dropdown-item" onClick={handleSendToPlc}>
-                    ⚡ {t('actions.sendToPlc') || 'Send to PLC'}
-                  </div>
-                </div>
-              )}
-            </div>
+            {/* Build OR Build & Send (single button, depends on PLC connection) */}
+            <button
+              className="toolbar-btn"
+              onClick={isPlcConnected ? handleBuildAndSend : handleBuild}
+              disabled={isRunning}
+              style={{ opacity: isRunning ? 0.5 : 1 }}
+            >
+              {isPlcConnected ? '📡 Build & Send' : `🔨 ${t('actions.build') || 'Build'}`}
+            </button>
 
             <div style={{ width: 10 }}></div>
 
@@ -1032,7 +1231,7 @@ function App() {
             <button
               className={`toolbar-btn ${isSimulationMode ? 'simulation-active' : ''}`}
               onClick={handleToggleSimulation}
-              disabled={isPlcConnected || isRunning}
+              disabled={isRunning}
               style={{
                 background: isSimulationMode ? '#007acc' : 'transparent',
                 border: isSimulationMode ? '1px solid #0098ff' : '1px solid transparent',
@@ -1045,8 +1244,8 @@ function App() {
             <button
               className="toolbar-btn run"
               onClick={handleStartExecution}
-              disabled={isRunning || (!isSimulationMode && !isPlcConnected)}
-              style={{ opacity: (isRunning || (!isSimulationMode && !isPlcConnected)) ? 0.5 : 1 }}
+              disabled={isRunning || (!isSimulationMode && !(isDeployed && !isDirty && isPlcConnected))}
+              style={{ opacity: (isRunning || (!isSimulationMode && !(isDeployed && !isDirty && isPlcConnected))) ? 0.5 : 1 }}
             >
               ▶ {t('actions.start')}
             </button>
@@ -1059,6 +1258,37 @@ function App() {
             >
               ⏹ {t('actions.stop')}
             </button>
+
+            {/* Connection indicator */}
+            {plcAddress && (
+              <button
+                onClick={() => {
+                  if (isRunning) return; // Don't toggle connection while running
+                  if (isPlcConnected) {
+                    setConnectionEnabled(false);
+                    setIsPlcConnected(false);
+                  } else {
+                    setConnectionEnabled(true);
+                  }
+                }}
+                disabled={isRunning}
+                title={isRunning ? 'Stop execution before disconnecting' : isPlcConnected ? 'Click to disconnect' : 'Click to connect'}
+                style={{
+                  marginLeft: '10px', display: 'flex', alignItems: 'center', gap: '6px',
+                  fontSize: '12px', color: '#888', background: 'none', border: '1px solid #3e3e42',
+                  borderRadius: '4px', padding: '2px 8px', cursor: 'pointer'
+                }}
+              >
+                <span style={{
+                  width: 8, height: 8, borderRadius: '50%',
+                  background: isPlcConnected ? '#4ec9b0' : '#666',
+                  display: 'inline-block', flexShrink: 0
+                }} />
+                {isPlcConnected ? 'Connected' : 'Disconnected'}
+                {isDeployed && !isDirty && <span style={{ color: '#4ec9b0', marginLeft: 4 }}>Deployed</span>}
+                {isDeployed && isDirty && <span style={{ color: '#f44747', marginLeft: 4 }}>Modified</span>}
+              </button>
+            )}
           </>
         )}
       </div>
@@ -1069,6 +1299,8 @@ function App() {
           <StartScreen
             onNewProject={handleNewProject}
             onOpenProject={handleOpen}
+            theme={theme}
+            setTheme={setTheme}
           />
         ) : (
           <>
@@ -1110,6 +1342,15 @@ function App() {
                       setTheme={setTheme}
                       editorSettings={editorSettings}
                       setEditorSettings={setEditorSettings}
+                      selectedBoard={selectedBoard}
+                      plcAddress={plcAddress}
+                      setPlcAddress={setPlcAddress}
+                      sshUser={sshUser}
+                      setSshUser={setSshUser}
+                      sshPort={sshPort}
+                      setSshPort={setSshPort}
+                      isPlcConnected={isPlcConnected}
+                      setConnectionEnabled={setConnectionEnabled}
                     />
                   </ErrorBoundary>
                 ) : activeId === 'BOARD_CONFIG' ? (
@@ -1148,7 +1389,7 @@ function App() {
                           projectStructure={projectStructure}
                           currentId={activeItem.id}
                           libraryData={libraryData}
-                          liveVariables={isSimulationMode ? (liveVariables || {}) : null}
+                          liveVariables={(isSimulationMode || isRunning) ? (liveVariables || {}) : null}
                           parentName={activeItem.name}
                           isRunning={isRunning}
                           isSimulationMode={isSimulationMode}

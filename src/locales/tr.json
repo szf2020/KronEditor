@@ -141,6 +141,7 @@
     "settingsPage": {
         "general": "Genel",
         "editor": "Editör",
+        "connection": "Bağlantı",
         "about": "Hakkında",
         "theme": "Tema",
         "dark": "Koyu",
@@ -152,7 +153,19 @@
         "wordWrap": "Sözcük Kaydırma",
         "version": "Sürüm",
         "aboutDescription": "Ladder Logic (LD) ve Structured Text (ST) destekleyen modern, web tabanlı bir PLC programlama ortamı.",
-        "copyright": "© 2026 Fehim Kus tarafından geliştirilmiştir"
+        "copyright": "© 2026 Fehim Kus tarafından geliştirilmiştir",
+        "connectionSettings": "Bağlantı Ayarları",
+        "ipAddress": "IP Adresi",
+        "port": "Port",
+        "checkConnection": "Bağlantıyı Test Et",
+        "serverDeploy": "Sunucuyu Hedefe Gönder",
+        "serverDeployDesc": "SSH üzerinden plc-agent'ı hedef karta yükle ve başlat.",
+        "sshUsername": "SSH Kullanıcı Adı",
+        "sshPassword": "SSH Şifresi",
+        "sshPort": "SSH Portu",
+        "deployServer": "Sunucuyu Gönder",
+        "noBoardSelected": "Lütfen önce bir kart seçin (proje oluşturun veya açın).",
+        "buildServer": "Sunucu Derle"
     },
     "blockInfo": {
         "TON": "Açma Gecikmeli Zamanlayıcı. IN=TRUE olunca zamanlama başlar; PT süresi dolunca Q=TRUE olur. ET geçen süreyi gösterir. IN=FALSE olunca sıfırlanır.",

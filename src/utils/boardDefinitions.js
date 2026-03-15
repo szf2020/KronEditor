@@ -207,7 +207,7 @@ export const BOARD_FAMILIES = [
         display: '2x micro HDMI (4Kp60)',
         pinout: RPI_40PIN_HEADER,
         pinLayout: 'rpi40',
-        interfaces: ['I2C', 'SPI', 'UART', 'PWM', 'PCM'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'PCM'],
       },
       {
         id: 'rpi_4b',
@@ -222,7 +222,7 @@ export const BOARD_FAMILIES = [
         display: '2x micro HDMI (4Kp60)',
         pinout: RPI_40PIN_HEADER,
         pinLayout: 'rpi40',
-        interfaces: ['I2C', 'SPI', 'UART', 'PWM', 'PCM'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'PCM'],
       },
       {
         id: 'rpi_3b_plus',
@@ -237,7 +237,7 @@ export const BOARD_FAMILIES = [
         display: 'HDMI (1080p)',
         pinout: RPI_40PIN_HEADER,
         pinLayout: 'rpi40',
-        interfaces: ['I2C', 'SPI', 'UART', 'PWM', 'PCM'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'PCM'],
       },
       {
         id: 'rpi_3b',
@@ -252,7 +252,7 @@ export const BOARD_FAMILIES = [
         display: 'HDMI (1080p)',
         pinout: RPI_40PIN_HEADER,
         pinLayout: 'rpi40',
-        interfaces: ['I2C', 'SPI', 'UART', 'PWM', 'PCM'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'PCM'],
       },
       {
         id: 'rpi_zero_2w',
@@ -267,7 +267,7 @@ export const BOARD_FAMILIES = [
         display: 'mini HDMI',
         pinout: RPI_40PIN_HEADER,
         pinLayout: 'rpi40',
-        interfaces: ['I2C', 'SPI', 'UART', 'PWM', 'PCM'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'PCM'],
       },
       {
         id: 'rpi_pico',
@@ -282,7 +282,7 @@ export const BOARD_FAMILIES = [
         display: 'N/A',
         pinout: RPI_PICO_PINS,
         pinLayout: 'pico',
-        interfaces: ['I2C', 'SPI', 'UART', 'PWM', 'ADC'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'ADC'],
       },
       {
         id: 'rpi_pico_w',
@@ -297,7 +297,7 @@ export const BOARD_FAMILIES = [
         display: 'N/A',
         pinout: RPI_PICO_PINS,
         pinLayout: 'pico',
-        interfaces: ['I2C', 'SPI', 'UART', 'PWM', 'ADC'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'ADC'],
       },
     ]
   },
@@ -318,7 +318,7 @@ export const BOARD_FAMILIES = [
         display: 'micro HDMI',
         pinout: { P8: BB_P8_HEADER, P9: BB_P9_HEADER },
         pinLayout: 'beaglebone',
-        interfaces: ['I2C', 'SPI', 'UART', 'PWM', 'ADC', 'CAN', 'PRU'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'ADC', 'CAN', 'PRU'],
       },
       {
         id: 'bb_black_wireless',
@@ -333,7 +333,7 @@ export const BOARD_FAMILIES = [
         display: 'micro HDMI',
         pinout: { P8: BB_P8_HEADER, P9: BB_P9_HEADER },
         pinLayout: 'beaglebone',
-        interfaces: ['I2C', 'SPI', 'UART', 'PWM', 'ADC', 'CAN', 'PRU'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'ADC', 'CAN', 'PRU'],
       },
       {
         id: 'bb_green',
@@ -348,7 +348,7 @@ export const BOARD_FAMILIES = [
         display: 'N/A (No HDMI)',
         pinout: { P8: BB_P8_HEADER, P9: BB_P9_HEADER },
         pinLayout: 'beaglebone',
-        interfaces: ['I2C', 'SPI', 'UART', 'PWM', 'ADC', 'CAN', 'PRU', 'Grove'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'ADC', 'CAN', 'PRU', 'Grove'],
       },
       {
         id: 'bb_green_wireless',
@@ -363,7 +363,7 @@ export const BOARD_FAMILIES = [
         display: 'N/A (No HDMI)',
         pinout: { P8: BB_P8_HEADER, P9: BB_P9_HEADER },
         pinLayout: 'beaglebone',
-        interfaces: ['I2C', 'SPI', 'UART', 'PWM', 'ADC', 'CAN', 'PRU', 'Grove'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'ADC', 'CAN', 'PRU', 'Grove'],
       },
       {
         id: 'bb_ai',
@@ -378,7 +378,7 @@ export const BOARD_FAMILIES = [
         display: 'micro HDMI',
         pinout: { P8: BB_P8_HEADER, P9: BB_P9_HEADER },
         pinLayout: 'beaglebone',
-        interfaces: ['I2C', 'SPI', 'UART', 'PWM', 'ADC', 'CAN', 'PRU'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'ADC', 'CAN', 'PRU'],
       },
       {
         id: 'bb_ai64',
@@ -393,7 +393,7 @@ export const BOARD_FAMILIES = [
         display: 'mini DP, micro HDMI',
         pinout: { P8: BB_P8_HEADER, P9: BB_P9_HEADER },
         pinLayout: 'beaglebone',
-        interfaces: ['I2C', 'SPI', 'UART', 'PWM', 'ADC', 'CAN', 'PRU', 'CSI'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'ADC', 'CAN', 'PRU', 'CSI'],
       },
     ]
   }

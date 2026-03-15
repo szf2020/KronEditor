@@ -117,6 +117,7 @@
     "settingsPage": {
         "general": "Общие",
         "editor": "Редактор",
+        "connection": "Подключение",
         "about": "О программе",
         "theme": "Тема",
         "dark": "Темная",
@@ -128,7 +129,19 @@
         "wordWrap": "Перенос слов",
         "version": "Версия",
         "aboutDescription": "Современная веб-среда программирования ПЛК с поддержкой Ladder Logic (LD) и Structured Text (ST).",
-        "copyright": "© 2026 Разработано Фехимом Кусом"
+        "copyright": "© 2026 Разработано Фехимом Кусом",
+        "connectionSettings": "Настройки подключения",
+        "ipAddress": "IP-адрес",
+        "port": "Порт",
+        "checkConnection": "Проверить подключение",
+        "serverDeploy": "Развернуть сервер на устройстве",
+        "serverDeployDesc": "Загрузить и запустить plc-agent на целевом устройстве через SSH.",
+        "sshUsername": "Пользователь SSH",
+        "sshPassword": "Пароль SSH",
+        "sshPort": "Порт SSH",
+        "deployServer": "Отправить сервер",
+        "noBoardSelected": "Сначала выберите плату (создайте или откройте проект).",
+        "buildServer": "Собрать сервер"
     },
     "blockInfo": {
         "TON": "Таймер с задержкой включения. При IN=TRUE начинается отсчёт; Q=TRUE когда ET≥PT. ET показывает прошедшее время. Сбрасывается при IN=FALSE.",

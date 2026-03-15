@@ -2209,10 +2209,10 @@ const RungContainer = ({
 };
 
 // Wrapper with ReactFlowProvider
-const RungContainerWrapper = (props) => (
+const RungContainerWrapper = React.memo((props) => (
   <ReactFlowProvider>
     <RungContainer {...props} />
   </ReactFlowProvider>
-);
+));
 
 export default RungContainerWrapper;

@@ -4,12 +4,21 @@
  * Uses CDATA sections to store complex React Flow / Editor content to ensure exact restoration.
  */
 
-export const exportProjectToXml = (projectStructure, boardId) => {
+export const exportProjectToXml = (projectStructure, boardId, connectionSettings = {}) => {
     const doc = document.implementation.createDocument(null, "PLCProject", null);
     const root = doc.documentElement;
 
     if (boardId) {
         root.setAttribute("board", boardId);
+    }
+    if (connectionSettings.plcAddress) {
+        root.setAttribute("plcAddress", connectionSettings.plcAddress);
+    }
+    if (connectionSettings.sshUser) {
+        root.setAttribute("sshUser", connectionSettings.sshUser);
+    }
+    if (connectionSettings.sshPort) {
+        root.setAttribute("sshPort", connectionSettings.sshPort);
     }
 
     const createSection = (name, items) => {
@@ -65,6 +74,9 @@ export const importProjectFromXml = (xmlString) => {
         };
 
         const boardId = doc.documentElement.getAttribute("board") || null;
+        const plcAddress = doc.documentElement.getAttribute("plcAddress") || null;
+        const sshUser = doc.documentElement.getAttribute("sshUser") || null;
+        const sshPort = doc.documentElement.getAttribute("sshPort") || null;
 
         const parseSection = (sectionName, key) => {
             const section = doc.getElementsByTagName(sectionName)[0];
@@ -105,7 +117,7 @@ export const importProjectFromXml = (xmlString) => {
         parseSection("Programs", "programs");
         parseSection("Resources", "resources");
 
-        return { projectStructure, boardId };
+        return { projectStructure, boardId, plcAddress, sshUser, sshPort };
     } catch (e) {
         console.error("Critical Import Error:", e);
         return null;

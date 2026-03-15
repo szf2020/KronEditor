@@ -681,8 +681,481 @@ fn update_libraries(app: tauri::AppHandle, repos: Vec<String>) -> Result<String,
 }
 
 // ---------------------------------------------------------------------------
-// compile_simulation
+// update_server -- clone KronServer and cross-compile Go binaries
 // ---------------------------------------------------------------------------
+
+fn do_update_server(app: &tauri::AppHandle) -> Result<(), String> {
+    let resource_dir = get_resource_dir(app)?;
+    let server_dir = resource_dir.join("resources/dist/server");
+    fs::create_dir_all(&server_dir).map_err(|e| e.to_string())?;
+
+    // Dev-mode mirror
+    let mut dev_server_dir: Option<PathBuf> = None;
+    if let Ok(cwd) = std::env::current_dir() {
+        let project_root = std::iter::successors(Some(cwd.as_ref() as &std::path::Path), |p| p.parent())
+            .find(|p| p.join("src-tauri").exists() && p.join("resources").exists())
+            .map(|p| p.to_path_buf());
+        if let Some(root) = project_root {
+            let dev = root.join("resources/dist/server");
+            let _ = fs::create_dir_all(&dev);
+            dev_server_dir = Some(dev);
+        }
+    }
+
+    // Check Go is available
+    let _ = app.emit("server-update-progress", "Checking Go installation...");
+    let go_check = Command::new("go").arg("version").output()
+        .map_err(|_| "Go is not installed or not in PATH. Install Go from https://go.dev".to_string())?;
+    if !go_check.status.success() {
+        return Err("Go version check failed".into());
+    }
+    let go_ver = String::from_utf8_lossy(&go_check.stdout);
+    let _ = app.emit("server-update-progress", format!("Found: {}", go_ver.trim()));
+
+    // Clone KronServer
+    let temp_dir = std::env::temp_dir().join("kroneditor_server_build");
+    let _ = fs::remove_dir_all(&temp_dir);
+    let _ = app.emit("server-update-progress", "Cloning KronServer repository...");
+
+    let clone_out = Command::new("git")
+        .args(["clone", "--depth=1", "--quiet", "https://github.com/Krontek/KronServer.git"])
+        .arg(&temp_dir)
+        .output()
+        .map_err(|e| format!("git not found: {}", e))?;
+    if !clone_out.status.success() {
+        return Err(format!("Clone failed: {}", String::from_utf8_lossy(&clone_out.stderr).trim()));
+    }
+    let _ = app.emit("server-update-progress", "Repository cloned.");
+
+    // Cross-compile for 3 targets
+    let targets = [
+        ("linux", "arm",   "7",  "plc-agent_linux_armv7"),
+        ("linux", "arm64", "",   "plc-agent_linux_arm64"),
+        ("linux", "amd64", "",   "plc-agent_linux_amd64"),
+    ];
+
+    for (i, (goos, goarch, goarm, out_name)) in targets.iter().enumerate() {
+        let _ = app.emit("server-update-progress",
+            format!("[{}/{}] Building {}/{} -> {}...", i + 1, targets.len(), goos, goarch, out_name));
+
+        let out_path = server_dir.join(out_name);
+        let mut cmd = Command::new("go");
+        cmd.current_dir(&temp_dir)
+            .env("CGO_ENABLED", "0")
+            .env("GOOS", goos)
+            .env("GOARCH", goarch)
+            .args(["build", "-trimpath", "-ldflags=-s -w", "-o"])
+            .arg(&out_path)
+            .arg(".");
+
+        if !goarm.is_empty() {
+            cmd.env("GOARM", goarm);
+        }
+
+        let build_out = cmd.output()
+            .map_err(|e| format!("go build failed: {}", e))?;
+
+        if !build_out.status.success() {
+            let stderr = String::from_utf8_lossy(&build_out.stderr);
+            let _ = app.emit("server-update-progress", format!("ERROR: {}", stderr.trim()));
+            return Err(format!("{} build failed: {}", out_name, stderr.trim()));
+        }
+
+        // Copy to dev dir too
+        if let Some(ref dev_dir) = dev_server_dir {
+            let _ = fs::copy(&out_path, dev_dir.join(out_name));
+        }
+
+        let _ = app.emit("server-update-progress", format!("[{}/{}] {} built.", i + 1, targets.len(), out_name));
+    }
+
+    // Cleanup
+    let _ = fs::remove_dir_all(&temp_dir);
+    Ok(())
+}
+
+#[tauri::command]
+fn update_server(app: tauri::AppHandle) -> Result<String, String> {
+    std::thread::spawn(move || {
+        match do_update_server(&app) {
+            Ok(()) => {
+                let _ = app.emit(
+                    "server-update-done",
+                    json!({"success": true, "message": "KronServer built for all targets"}),
+                );
+            }
+            Err(e) => {
+                let _ = app.emit(
+                    "server-update-done",
+                    json!({"success": false, "message": e}),
+                );
+            }
+        }
+    });
+    Ok("started".to_string())
+}
+
+// ---------------------------------------------------------------------------
+// compile_for_target -- cross-compile PLC project for target board
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+fn compile_for_target(
+    app: tauri::AppHandle,
+    header: String,
+    source: String,
+    variable_table: String,
+    board_id: String,
+) -> Result<String, String> {
+    let resource_dir = get_resource_dir(&app)?;
+    let build_dir = plain_path(&get_build_dir(&app)?);
+
+    // Write source files
+    fs::write(build_dir.join("plc.h"), &header).map_err(|e| e.to_string())?;
+    fs::write(build_dir.join("plc.c"), &source).map_err(|e| e.to_string())?;
+    fs::write(build_dir.join("variable_table.json"), &variable_table).map_err(|e| e.to_string())?;
+
+    let plc_c = build_dir.join("plc.c");
+    let out_file = build_dir.join("runtime.bin");
+    let res_include = resource_dir.join("resources/include");
+    let lib_dir = resource_dir.join("resources/arm/linux");
+
+    // Select cross-compiler based on board
+    let compiler = if board_id.starts_with("rpi_pico") {
+        return Err("Pico (Cortex-M) targets are not supported for remote deployment".into());
+    } else {
+        // All RPi full-size and BeagleBone boards -> aarch64 Linux
+        resource_dir.join("toolchains/active/aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-gcc")
+    };
+
+    if !compiler.exists() {
+        return Err(format!("Cross-compiler not found: {}\nPlease install the aarch64 toolchain.", compiler.display()));
+    }
+
+    let mut cmd = Command::new(&compiler);
+    cmd.arg("-O2")
+        .arg("-static")
+        .arg("-ffunction-sections")
+        .arg("-fdata-sections")
+        .arg("-Wl,--gc-sections")
+        .arg("-I").arg(&build_dir)
+        .arg("-I").arg(&res_include)
+        .arg("-o").arg(&out_file)
+        .arg(&plc_c);
+
+    // Link .a library files
+    let mut a_files: Vec<PathBuf> = Vec::new();
+    if let Ok(entries) = fs::read_dir(&lib_dir) {
+        for e in entries.flatten() {
+            if e.path().extension().map_or(false, |x| x == "a") {
+                a_files.push(e.path());
+            }
+        }
+    }
+    a_files.sort();
+    for a in &a_files { cmd.arg(a); }
+    cmd.arg("-lm");
+
+    let output = cmd.output()
+        .map_err(|e| format!("Failed to run cross-compiler: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        return Err(format!(
+            "Cross-compilation failed:\nstderr: {}\nstdout: {}",
+            stderr.trim(), stdout.trim()
+        ));
+    }
+
+    // Build server-format variable table from transpiler pre-computed SHM offsets
+    build_server_variable_table(&variable_table, &build_dir)?;
+
+    Ok(out_file.to_string_lossy().to_string())
+}
+
+/// Build a KronServer-compatible variable_table_server.json using the
+/// SHM offsets pre-computed by the JS transpiler (stored in debugDefaults).
+/// No ELF parsing required — offsets are already layout-stable.
+fn build_server_variable_table(
+    variable_table_json: &str,
+    build_dir: &Path,
+) -> Result<(), String> {
+    let vt: Value = serde_json::from_str(variable_table_json)
+        .map_err(|e| format!("Variable table JSON parse error: {}", e))?;
+
+    let debug_defaults = vt.get("debugDefaults")
+        .and_then(|v| v.as_object())
+        .ok_or("No debugDefaults in variable table")?;
+
+    let mut variables: Vec<Value> = Vec::new();
+
+    for (key, info) in debug_defaults {
+        // Only entries with a pre-computed SHM offset are included
+        let offset = match info.get("offset").and_then(|v| v.as_u64()) {
+            Some(o) => o as i64,
+            None => continue,
+        };
+        let size = info.get("size").and_then(|v| v.as_u64()).unwrap_or(1) as i64;
+        let iec_type = info.get("type").and_then(|v| v.as_str()).unwrap_or("BOOL");
+
+        let server_type = match iec_type {
+            "BOOL"            => "bool",
+            "SINT" | "USINT" | "BYTE" => "uint8",
+            "INT"             => "int16",
+            "UINT" | "WORD"   => "uint16",
+            "DINT"            => "int32",
+            "UDINT" | "DWORD" => "uint32",
+            "REAL"            => "float32",
+            "LREAL"           => "float64",
+            "TIME"            => "uint32",
+            _                 => "int32",
+        };
+
+        variables.push(json!({
+            "name": key,
+            "offset": offset,
+            "type": server_type,
+            "size": size
+        }));
+    }
+
+    let server_vt = json!({ "variables": variables });
+    let out_path = build_dir.join("variable_table_server.json");
+    fs::write(&out_path, serde_json::to_string_pretty(&server_vt).unwrap())
+        .map_err(|e| format!("Failed to write server variable table: {}", e))?;
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// deploy_to_server -- POST runtime.bin + variable_table to KronServer
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+fn deploy_to_server(app: tauri::AppHandle, server_addr: String) -> Result<String, String> {
+    let build_dir = plain_path(&get_build_dir(&app)?);
+
+    // POST runtime.bin
+    let runtime_path = build_dir.join("runtime.bin");
+    let runtime_bytes = fs::read(&runtime_path)
+        .map_err(|e| format!("Cannot read runtime.bin: {}", e))?;
+
+    let url_runtime = format!("http://{}/deploy/runtime", server_addr);
+    let resp = ureq::post(&url_runtime)
+        .set("Content-Type", "application/octet-stream")
+        .send_bytes(&runtime_bytes)
+        .map_err(|e| format!("Failed to deploy runtime: {}", e))?;
+
+    if resp.status() >= 400 {
+        return Err(format!("Runtime deploy failed: HTTP {}", resp.status()));
+    }
+
+    // POST variable_table_server.json
+    let vt_path = build_dir.join("variable_table_server.json");
+    let vt_bytes = fs::read(&vt_path)
+        .map_err(|e| format!("Cannot read variable_table_server.json: {}", e))?;
+
+    let url_vt = format!("http://{}/deploy/variable-table", server_addr);
+    let resp = ureq::post(&url_vt)
+        .set("Content-Type", "application/json")
+        .send_bytes(&vt_bytes)
+        .map_err(|e| format!("Failed to deploy variable table: {}", e))?;
+
+    if resp.status() >= 400 {
+        return Err(format!("Variable table deploy failed: HTTP {}", resp.status()));
+    }
+
+    Ok("Deployed successfully".into())
+}
+
+// ---------------------------------------------------------------------------
+// check_server_status -- GET /status from KronServer
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+fn check_server_status(server_addr: String) -> Result<String, String> {
+    let url = format!("http://{}/status", server_addr);
+    let resp = ureq::get(&url)
+        .timeout(std::time::Duration::from_secs(3))
+        .call()
+        .map_err(|e| format!("Connection failed: {}", e))?;
+
+    resp.into_string()
+        .map_err(|e| format!("Failed to read response: {}", e))
+}
+
+// ---------------------------------------------------------------------------
+// deploy_server_to_target -- SCP plc-agent binary to target + start via SSH
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+fn deploy_server_to_target(
+    app: tauri::AppHandle,
+    host: String,
+    port: u16,
+    username: String,
+    password: String,
+    board_id: String,
+) -> Result<String, String> {
+    let resource_dir = get_resource_dir(&app)?;
+    let server_dir = resource_dir.join("resources/dist/server");
+
+    // Select the right binary based on board
+    let binary_name = if board_id.starts_with("rpi_pico") {
+        return Err("Pico targets do not support remote server deployment".into());
+    } else if board_id.starts_with("rpi_") {
+        "plc-agent_linux_arm64"
+    } else if board_id.starts_with("bb_") {
+        "plc-agent_linux_arm64"
+    } else {
+        "plc-agent_linux_amd64"
+    };
+
+    let binary_path = server_dir.join(binary_name);
+    if !binary_path.exists() {
+        return Err(format!(
+            "Server binary not found: {}\nPlease build the server first (Settings > Libraries > Build Server)",
+            binary_path.display()
+        ));
+    }
+
+    let _ = app.emit("server-deploy-progress", "Connecting via SSH...");
+
+    let tcp = std::net::TcpStream::connect(format!("{}:{}", host, port))
+        .map_err(|e| format!("TCP connection to {}:{} failed: {}", host, port, e))?;
+
+    let mut sess = ssh2::Session::new()
+        .map_err(|e| format!("SSH session creation failed: {}", e))?;
+    sess.set_tcp_stream(tcp);
+    sess.handshake()
+        .map_err(|e| format!("SSH handshake failed: {}", e))?;
+    sess.userauth_password(&username, &password)
+        .map_err(|e| format!("SSH authentication failed: {}", e))?;
+
+    if !sess.authenticated() {
+        return Err("SSH authentication failed: wrong username or password".into());
+    }
+
+    let _ = app.emit("server-deploy-progress", "Connected. Detecting home directory...");
+
+    // Get the remote user's home directory
+    let mut channel = sess.channel_session()
+        .map_err(|e| format!("SSH channel error: {}", e))?;
+    channel.exec("echo $HOME")
+        .map_err(|e| format!("SSH exec error: {}", e))?;
+    let mut home_dir = String::new();
+    std::io::Read::read_to_string(&mut channel, &mut home_dir).ok();
+    channel.wait_close().ok();
+    let home_dir = home_dir.trim().to_string();
+    let home_dir = if home_dir.is_empty() { format!("/home/{}", username) } else { home_dir };
+    let remote_dir = format!("{}/plc", home_dir);
+    let remote_bin = format!("{}/plc-agent", remote_dir);
+
+    let _ = app.emit("server-deploy-progress", format!("Preparing target directory: {}", remote_dir));
+
+    // Stop any running agent (systemd first, then fallback to pkill)
+    let _ = app.emit("server-deploy-progress", "Stopping existing plc-agent...");
+    let stop_cmd = format!(
+        "echo '{}' | sudo -S systemctl stop plc-agent 2>/dev/null; pkill -f plc-agent 2>/dev/null; rm -f {}; sleep 1; true",
+        password.replace('\'', "'\\''"), remote_bin
+    );
+    let mut channel = sess.channel_session()
+        .map_err(|e| format!("SSH channel error: {}", e))?;
+    channel.exec(&stop_cmd)
+        .map_err(|e| format!("SSH exec error: {}", e))?;
+    let mut out = String::new();
+    std::io::Read::read_to_string(&mut channel, &mut out).ok();
+    channel.wait_close().ok();
+
+    let _ = app.emit("server-deploy-progress", "Uploading server binary via SFTP...");
+
+    // Use SFTP for reliable file transfer (avoids SCP protocol issues)
+    let binary_data = fs::read(&binary_path)
+        .map_err(|e| format!("Cannot read binary: {}", e))?;
+
+    let sftp = sess.sftp()
+        .map_err(|e| format!("SFTP init failed: {}", e))?;
+
+    // Create directory (ignore error if already exists)
+    let _ = sftp.mkdir(std::path::Path::new(&remote_dir), 0o755);
+
+    // Upload binary
+    let remote_path = std::path::Path::new(&remote_bin);
+    let mut remote_file = sftp.open_mode(
+        remote_path,
+        ssh2::OpenFlags::WRITE | ssh2::OpenFlags::CREATE | ssh2::OpenFlags::TRUNCATE,
+        0o755,
+        ssh2::OpenType::File,
+    ).map_err(|e| format!("SFTP create failed: {}", e))?;
+    std::io::Write::write_all(&mut remote_file, &binary_data)
+        .map_err(|e| format!("SFTP write failed: {}", e))?;
+    drop(remote_file);
+
+    // Set executable bit via chmod (SFTP open_mode sets it on create, but chmod is reliable)
+    let chmod_cmd = format!("chmod +x {}", remote_bin);
+    let mut channel = sess.channel_session()
+        .map_err(|e| format!("SSH channel error: {}", e))?;
+    channel.exec(&chmod_cmd)
+        .map_err(|e| format!("SSH exec error: {}", e))?;
+    channel.wait_close().ok();
+
+    let _ = app.emit("server-deploy-progress", "Installing systemd service...");
+
+    // Write systemd unit file and install it
+    let unit_content = format!(
+        "[Unit]\nDescription=PLC Agent (KronServer)\nAfter=network.target\n\n[Service]\nExecStart={} -addr :7070 -deploy-dir {} -shm-name plc_runtime -shm-size 65536\nRestart=always\nRestartSec=3\nWorkingDirectory={}\n\n[Install]\nWantedBy=multi-user.target\n",
+        remote_bin, remote_dir, remote_dir
+    );
+    let install_cmd = format!(
+        "cat > /tmp/plc-agent.service << 'UNIT'\n{}UNIT\necho '{}' | sudo -S cp /tmp/plc-agent.service /etc/systemd/system/plc-agent.service && echo '{}' | sudo -S systemctl daemon-reload && echo '{}' | sudo -S systemctl enable plc-agent",
+        unit_content,
+        password.replace('\'', "'\\''"),
+        password.replace('\'', "'\\''"),
+        password.replace('\'', "'\\''")
+    );
+    let mut channel = sess.channel_session()
+        .map_err(|e| format!("SSH channel error: {}", e))?;
+    channel.exec(&install_cmd)
+        .map_err(|e| format!("SSH exec error: {}", e))?;
+    let mut out = String::new();
+    std::io::Read::read_to_string(&mut channel, &mut out).ok();
+    channel.wait_close().ok();
+
+    let _ = app.emit("server-deploy-progress", "Starting plc-agent service...");
+
+    // Start the agent via systemd
+    let start_cmd = format!(
+        "echo '{}' | sudo -S systemctl start plc-agent",
+        password.replace('\'', "'\\''")
+    );
+    let mut channel = sess.channel_session()
+        .map_err(|e| format!("SSH channel error: {}", e))?;
+    channel.exec(&start_cmd)
+        .map_err(|e| format!("SSH exec error: {}", e))?;
+    let mut out = String::new();
+    std::io::Read::read_to_string(&mut channel, &mut out).ok();
+    channel.wait_close().ok();
+
+    // Wait a moment for the agent to start
+    std::thread::sleep(std::time::Duration::from_secs(2));
+
+    let _ = app.emit("server-deploy-progress", "Verifying agent is running...");
+
+    // Verify
+    let check_addr = format!("{}:7070", host);
+    match check_server_status(check_addr) {
+        Ok(_) => {
+            let _ = app.emit("server-deploy-progress", "plc-agent deployed and running!");
+            Ok("Server deployed successfully".into())
+        }
+        Err(e) => {
+            let _ = app.emit("server-deploy-progress",
+                format!("WARNING: Agent may not have started: {}", e));
+            Err(format!("Server deployed but verification failed: {}", e))
+        }
+    }
+}
 
 /// Windows: compile plc.c → plc.dll using bundled MinGW gcc.
 #[cfg(target_os = "windows")]
@@ -1237,6 +1710,11 @@ fn main() {
             stop_simulation,
             write_variable,
             update_libraries,
+            update_server,
+            compile_for_target,
+            deploy_to_server,
+            check_server_status,
+            deploy_server_to_target,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
