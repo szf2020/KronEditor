@@ -528,31 +528,44 @@ function App() {
         setIsRunning(false);
       }
     } else if (isDeployed && !isDirty && isPlcConnected) {
-      // Remote execution via WebSocket
+      // Remote execution via WebSocket (keep connection persistent across run/stop)
       try {
+        // Reuse existing socket if it is already open.
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          if (wsTimerRef.current) {
+            clearInterval(wsTimerRef.current);
+            wsTimerRef.current = null;
+          }
+          wsRef.current.send(JSON.stringify({ type: 'start', id: 'cmd_start' }));
+          setIsRunning(true);
+
+          if (remoteVarKeysRef.current.length > 0) {
+            wsTimerRef.current = setInterval(() => {
+              if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({ type: 'read_all', id: 'poll' }));
+              }
+            }, 500);
+          }
+          return;
+        }
+
         const wsUrl = `ws://${plcAddress}/ws`;
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
 
         ws.onopen = () => {
-          // Stop any running PLC process before starting fresh
-          addLog('info', 'Stopping any running PLC...');
-          ws.send(JSON.stringify({ type: 'stop', id: 'cmd_stop_init' }));
+          addLog('success', 'Connected to PLC. Starting runtime...');
+          ws.send(JSON.stringify({ type: 'start', id: 'cmd_start' }));
+          setIsRunning(true);
 
-          setTimeout(() => {
-            addLog('success', 'Connected to PLC. Starting runtime...');
-            ws.send(JSON.stringify({ type: 'start', id: 'cmd_start' }));
-            setIsRunning(true);
-
-            // Poll all SHM-backed variables with a single read_all every 500ms
-            if (remoteVarKeysRef.current.length > 0) {
-              wsTimerRef.current = setInterval(() => {
-                if (ws.readyState === WebSocket.OPEN) {
-                  ws.send(JSON.stringify({ type: 'read_all', id: 'poll' }));
-                }
-              }, 500);
-            }
-          }, 300);
+          // Poll all SHM-backed variables with a single read_all every 500ms
+          if (remoteVarKeysRef.current.length > 0) {
+            wsTimerRef.current = setInterval(() => {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'read_all', id: 'poll' }));
+              }
+            }, 500);
+          }
         };
 
         ws.onmessage = (event) => {
@@ -612,14 +625,14 @@ function App() {
           addLog('error', `Failed to stop simulation: ${err}`);
         }
       } else if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        // Remote stop
+        // Remote stop only (do not close the socket, so run->stop->run keeps session alive)
         wsRef.current.send(JSON.stringify({ type: 'stop', id: String(Date.now()) }));
+        // Clear all force flags so the PLC resumes normal variable sync on next run.
+        wsRef.current.send(JSON.stringify({ type: 'clear_all_forces', id: 'clear_forces' }));
         if (wsTimerRef.current) {
           clearInterval(wsTimerRef.current);
           wsTimerRef.current = null;
         }
-        wsRef.current.close();
-        wsRef.current = null;
         // Re-check server status immediately so connection indicator stays green
         if (plcAddress && connectionEnabled) {
           invoke('check_server_status', { serverAddr: plcAddress })
@@ -635,12 +648,21 @@ function App() {
   const handleForceWrite = useCallback(async (key, value) => {
     if (!isRunning) return;
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && !isSimulationMode) {
+      const normalizedValue = (() => {
+        if (typeof value !== 'string') return value;
+        const trimmed = value.trim();
+        if (trimmed === '') return value;
+        if (/^(true|false)$/i.test(trimmed)) return trimmed.toLowerCase() === 'true';
+        const asNumber = Number(trimmed);
+        return Number.isFinite(asNumber) ? asNumber : value;
+      })();
+
       // Remote force write
       wsRef.current.send(JSON.stringify({
         type: 'write_var',
         id: String(Date.now()),
         name: key,
-        value: typeof value === 'string' ? parseFloat(value) || value : value,
+        value: normalizedValue,
       }));
     } else {
       try {

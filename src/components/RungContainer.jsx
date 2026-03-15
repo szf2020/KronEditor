@@ -625,6 +625,7 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
 
   // DYNAMIC CONFIGURATION FOR USER DEFINED BLOCKS
   let cfg;
+  let isBoardBlock = false;
   if (data.customData && data.customData.content) {
     const variables = data.customData.content?.variables || [];
     const inputs = variables
@@ -644,6 +645,22 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
       label: data.customData.name,
       inputs: inputs,
       outputs: outputs
+    };
+  } else if (data.customData && data.customData.inputs) {
+    // Board/HAL blocks: customData carries inputs/outputs arrays directly.
+    // EN is the power-flow trigger (left handle) and ENO is the power-flow output (right handle),
+    // so both are excluded from the data pin list shown inside the block body.
+    isBoardBlock = true;
+    cfg = {
+      label: data.type,
+      inputs: data.customData.inputs
+        .filter(i => i.name !== 'EN')
+        .map(i => ({ name: i.name, type: i.type })),
+      outputs: data.customData.outputs
+        ? data.customData.outputs
+            .filter(o => o.name !== 'ENO')
+            .map(o => ({ name: o.name, type: o.type }))
+        : []
     };
   } else {
     // Default config for standard blocks
@@ -767,7 +784,8 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
       }}>
         {instanceName}
       </div>
-      <div style={{ background: '#0d47a1', padding: '4px 8px', textAlign: 'center', fontWeight: 'bold' }}>
+      <div style={{ background: isBoardBlock ? '#00695c' : '#0d47a1', padding: '4px 8px', textAlign: 'center', fontWeight: 'bold' }}
+        title={isBoardBlock && data.customData?.desc ? data.customData.desc : undefined}>
         {cfg.label}
       </div>
 

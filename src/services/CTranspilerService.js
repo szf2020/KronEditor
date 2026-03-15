@@ -60,15 +60,19 @@ export const transpileToC = (projectStructure, standardHeaders = [], boardId = n
     };
 
     // Shared memory offset tracker — each scalar PLC variable gets a consecutive slot
+    // Force flags region starts at FORCE_FLAGS_BASE: one byte per variable, set by KronServer
+    // to prevent plc_shm_sync from overwriting a forced value with the PLC-computed value.
+    const FORCE_FLAGS_BASE = 32768;
     let shmOffset = 0;
-    const shmEntries = []; // {c_symbol, offset, size} used to generate plc_shm_sync()
+    const shmEntries = []; // {c_symbol, offset, size, flagOffset} used to generate plc_shm_sync()
     const tryAssignShm = (type, c_symbol) => {
         const size = IEC_TYPE_SIZES[type?.toUpperCase()];
         if (!size) return {}; // FB, user-defined type or unknown — no SHM slot
         const offset = shmOffset;
+        const flagOffset = FORCE_FLAGS_BASE + shmEntries.length;
         shmOffset += size;
-        shmEntries.push({ c_symbol, offset, size });
-        return { offset, size };
+        shmEntries.push({ c_symbol, offset, size, flagOffset });
+        return { offset, size, force_flag_offset: flagOffset };
     };
 
     const resolveInitialValue = (val, type) => {
@@ -126,7 +130,7 @@ extern volatile uint64_t us_tick;
     if (boardId) {
         const halMeta = getBoardBlockMeta(boardId);
         Object.keys(halMeta.triggerPin).forEach(k => {
-            if (!(k in FB_TRIGGER_PIN)) { FB_TRIGGER_PIN[k] = halMeta.triggerPin[k]; _halSavedKeys.triggerPin.push(k); }
+            if (!(k in FB_TRIGGER_PIN)) { FB_TRIGGER_PIN[k] = halMeta.triggerPin[k]; _halSavedKeys.triggerPin.push(k); HAL_BLOCK_TYPES.add(k); }
         });
         Object.keys(halMeta.qOutput).forEach(k => {
             if (!(k in FB_Q_OUTPUT)) { FB_Q_OUTPUT[k] = halMeta.qOutput[k]; _halSavedKeys.qOutput.push(k); }
@@ -277,14 +281,14 @@ extern volatile uint64_t us_tick;
                 let vName = (v.name || '').trim().replace(/\s+/g, '_');
                 let vType = (v.type || '').trim();
                 if (isInlineMathType(vType)) return; // Inline math — handled inline in LD, no instance
-                if (isFBType(vType, projectStructure) || stdFunctions[vType]) {
+                const isFB = isFBType(vType, projectStructure) || !!stdFunctions[vType] || HAL_BLOCK_TYPES.has(vType);
+                if (isFB) {
                     header += `${vType} prog_${progName}_inst_${vName};\n`;
                 } else {
                     // Global internal variables for simple programs
                     header += `${mapType(vType)} prog_${progName}_${vName};\n`;
                 }
 
-                const isFB = isFBType(vType, projectStructure) || stdFunctions[vType];
                 const cSym = isFB ? `prog_${progName}_inst_${vName}` : `prog_${progName}_${vName}`;
                 const initVal = resolveInitialValue(v.initialValue, vType);
                 variableTable.programs[progName].variables[vName] = {
@@ -408,10 +412,18 @@ extern volatile uint64_t us_tick;
         source += `    if (__plc_shm == MAP_FAILED) __plc_shm = NULL;\n`;
         source += `    close(fd);\n`;
         source += `}\n`;
-        source += `static void plc_shm_sync(void) {\n`;
+        source += `#define PLC_FORCE_FLAGS_BASE ${FORCE_FLAGS_BASE}\n`;
+        source += `static void plc_shm_pull(void) {\n`;
         source += `    if (!__plc_shm) return;\n`;
         shmEntries.forEach(({ c_symbol, offset, size }) => {
-            source += `    memcpy(__plc_shm + ${offset}, &(${c_symbol}), ${size});\n`;
+            source += `    memcpy(&(${c_symbol}), __plc_shm + ${offset}, ${size});\n`;
+        });
+        source += `}\n`;
+        source += `static void plc_shm_sync(void) {\n`;
+        source += `    if (!__plc_shm) return;\n`;
+        shmEntries.forEach(({ c_symbol, offset, size, flagOffset }) => {
+            // Skip writing to SHM if a force flag is set (KronServer holds the value).
+            source += `    if (__plc_shm[${flagOffset}] == 0) { memcpy(__plc_shm + ${offset}, &(${c_symbol}), ${size}); }\n`;
         });
         source += `}\n`;
         source += `#endif /* __linux__ */\n\n`;
@@ -421,7 +433,7 @@ extern volatile uint64_t us_tick;
     source += generateMainLoop(projectStructure, config, boardId, shmEntries.length > 0);
 
     // Cleanup: remove board-specific entries from module-level lookup tables
-    _halSavedKeys.triggerPin.forEach(k => delete FB_TRIGGER_PIN[k]);
+    _halSavedKeys.triggerPin.forEach(k => { delete FB_TRIGGER_PIN[k]; HAL_BLOCK_TYPES.delete(k); });
     _halSavedKeys.qOutput.forEach(k => delete FB_Q_OUTPUT[k]);
     _halSavedKeys.inputs.forEach(k => delete FB_INPUTS[k]);
     _halSavedKeys.outputs.forEach(k => delete FB_OUTPUTS[k]);
@@ -518,6 +530,13 @@ const generateMainLoop = (projectStructure, config, boardId = null, shmEnabled =
 
     mainSrc += `    while(!plc_stop) {\n`;
 
+    if (shmEnabled) {
+        mainSrc += `#if defined(__linux__)\n`;
+        mainSrc += `        // Apply remote writes before executing this scan cycle.\n`;
+        mainSrc += `        plc_shm_pull();\n`;
+        mainSrc += `#endif\n`;
+    }
+
     // 3. Scan logic
     programTasks.forEach(pt => {
         mainSrc += `        if (us_tick % ${pt.intervalUs} == 0) {\n`;
@@ -584,7 +603,7 @@ const transpilePOUSource = (pou, category, stdFunctions = {}, parentName = '', g
             if (globalVarNames.includes(vName)) {
                 varMap[vName] = vName; // global vars: no prefix
             } else if (category === 'program') {
-                const isFB = stdFunctions[v.type] !== undefined;
+                const isFB = stdFunctions[v.type] !== undefined || HAL_BLOCK_TYPES.has(v.type);
                 varMap[vName] = isFB
                     ? `prog_${parentName}_inst_${vName}`
                     : `prog_${parentName}_${vName}`;
@@ -891,8 +910,14 @@ const BITWISE_OP = {
     'BAND': '&', 'BOR': '|', 'BXOR': '^', 'BNOT': '~',
     'SHL': '<<', 'SHR': '>>', 'ROL': '<<', 'ROR': '>>',
 };
-// Returns true for EN-trigger stateless blocks that should be inlined
-const isInlineMathType = (type) => FB_TRIGGER_PIN[type] === 'EN';
+// Tracks HAL block types registered transiently during transpileToC.
+// These have EN trigger pins but require persistent instance variables and
+// _Call functions — they must NOT be treated as stateless inline blocks.
+const HAL_BLOCK_TYPES = new Set();
+
+// Returns true for EN-trigger stateless blocks that should be inlined.
+// HAL blocks (GPIO_Read, PWM0, etc.) are excluded even though their trigger is EN.
+const isInlineMathType = (type) => FB_TRIGGER_PIN[type] === 'EN' && !HAL_BLOCK_TYPES.has(type);
 
 // Ordered input pin names for each standard FB type (index matches in_0, in_1, ...)
 const FB_INPUTS = {

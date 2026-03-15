@@ -912,12 +912,16 @@ fn build_server_variable_table(
             _                 => "int32",
         };
 
-        variables.push(json!({
+        let mut var_entry = json!({
             "name": key,
             "offset": offset,
             "type": server_type,
             "size": size
-        }));
+        });
+        if let Some(flag_offset) = info.get("force_flag_offset").and_then(|v| v.as_u64()) {
+            var_entry["force_flag_offset"] = json!(flag_offset);
+        }
+        variables.push(var_entry);
     }
 
     let server_vt = json!({ "variables": variables });

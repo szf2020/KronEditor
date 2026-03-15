@@ -456,6 +456,7 @@ export const getBoardLibraryTree = (boardId) => {
           inputs: b.inputs || [],
           outputs: b.outputs || [],
           class: b.class || 'FunctionBlock',
+          desc: b.desc,
         },
       })),
     });

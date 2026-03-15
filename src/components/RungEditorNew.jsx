@@ -654,6 +654,32 @@ const RungEditorNew = ({ variables, setVariables, rungs, setRungs, availableBloc
         newVariables = [...variables, newVar];
         setVariables(newVariables);
       }
+    } else if (customData && customData.inputs) {
+      // Board/HAL blocks: customData has inputs/outputs directly (no name field)
+      const baseName = (namePatternBase || blockType).trim().replace(/\s+/g, '_');
+      let index = 0;
+
+      while (true) {
+        const candidate = `${baseName}${index}`;
+        if (!variables.some(v => v.name === candidate) && !(globalVars || []).some(v => v.name === candidate)) {
+          instanceName = candidate;
+          break;
+        }
+        index++;
+        if (index > 1000) { console.error("Loop safety break"); break; }
+      }
+
+      const newVar = {
+        id: `hal_inst_${Date.now()}`,
+        name: instanceName,
+        class: 'Local',
+        type: blockType,
+        location: '',
+        initialValue: '',
+        description: 'HAL Block'
+      };
+      newVariables = [...variables, newVar];
+      setVariables(newVariables);
     } else {
       // Standard Blocks (TON, CTU, etc.)
       const baseName = (namePatternBase || blockType).trim().replace(/\s+/g, '_');

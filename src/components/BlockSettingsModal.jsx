@@ -22,9 +22,20 @@ const BlockSettingsModal = ({ isOpen, onClose, blockData, onSave, blockConfig, v
     const isFunctionBlock = !isContact && !isCoil;
 
     let config = blockConfig[blockData.type];
+    let blockDesc = null;
 
+    // Dynamic config for Board/HAL blocks (customData has inputs/outputs directly)
+    if (blockData.customData && blockData.customData.inputs) {
+        config = {
+            label: blockData.type,
+            inputs: blockData.customData.inputs.map(i => ({ name: i.name, type: i.type })),
+            outputs: blockData.customData.outputs
+                ? blockData.customData.outputs.map(o => ({ name: o.name, type: o.type }))
+                : []
+        };
+        blockDesc = blockData.customData.desc || null;
     // Dynamic config for User Defined Blocks
-    if (blockData.customData) {
+    } else if (blockData.customData && blockData.customData.content) {
         const variables = blockData.customData.content?.variables || [];
         const inputs = variables
             .filter(v => v.class === 'Input' || v.class === 'InOut')
@@ -173,9 +184,9 @@ const BlockSettingsModal = ({ isOpen, onClose, blockData, onSave, blockConfig, v
                         <h4 style={{ fontSize: '12px', color: '#888', textTransform: 'uppercase', marginBottom: '10px' }}>
                             {t('common.pinInformation')}
                         </h4>
-                        {config.descriptionKey && (
+                        {(blockDesc || config.descriptionKey) && (
                             <div style={{ background: '#1a2a1a', border: '1px solid #2a4a2a', borderRadius: '4px', padding: '8px 10px', marginBottom: '8px', fontSize: '12px', color: '#a0d0a0', lineHeight: '1.4' }}>
-                                {t(config.descriptionKey)}
+                                {blockDesc || t(config.descriptionKey)}
                             </div>
                         )}
                         <div style={{ background: '#1e1e1e', padding: '10px', borderRadius: '4px', fontSize: '12px' }}>
@@ -183,13 +194,13 @@ const BlockSettingsModal = ({ isOpen, onClose, blockData, onSave, blockConfig, v
                                 <span>{t('common.pin')}</span>
                                 <span>{t('common.type')}</span>
                             </div>
-                            {config.inputs.map((pin, i) => (
+                            {(executionControl ? config.inputs : config.inputs.filter(p => p.name !== 'EN')).map((pin, i) => (
                                 <div key={`in_${i}`} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', borderTop: '1px solid #333', padding: '4px 0' }}>
                                     <span style={{ color: '#4CAF50' }}>{pin.name} (In)</span>
                                     <span>{pin.type}</span>
                                 </div>
                             ))}
-                            {config.outputs.map((pin, i) => (
+                            {(executionControl ? config.outputs : config.outputs.filter(p => p.name !== 'ENO')).map((pin, i) => (
                                 <div key={`out_${i}`} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', borderTop: '1px solid #333', padding: '4px 0' }}>
                                     <span style={{ color: '#FF5722' }}>{pin.name} (Out)</span>
                                     <span>{pin.type}</span>
