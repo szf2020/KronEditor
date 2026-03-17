@@ -2,11 +2,21 @@
   <img src="images/demo.gif" alt="KronEditor Demo" width="800">
 </p>
 
-<h1 align="center">KronEditor</h1>
+<h1 align="center">Turn Your Raspberry Pi Into a PLC</h1>
 
 <p align="center">
-  An open-source IEC 61131-3 PLC programming environment with visual Ladder Diagram editing, native C compilation, and real-time simulation.<br>
-  <strong>Under active development — contributions welcome!</strong>
+  Build industrial-style control logic on affordable hardware with an open-source IEC 61131-3 toolchain.<br>
+  Design Ladder Diagrams visually, compile to native C, and run live simulations with real-time variable monitoring.
+</p>
+
+<p align="center">
+  <strong>What the demo shows:</strong> the <code>demo.gif</code> showcases a Raspberry Pi GPIO short-circuit pin test setup,
+  where pin-level input/output behavior is verified directly from KronEditor during runtime.
+</p>
+
+<p align="center">
+  KronEditor is fully open source and under active development.<br>
+  <strong>We are looking for contributors</strong> across automation logic, embedded targets, UI/UX, testing, and documentation.
 </p>
 
 <p align="center">
