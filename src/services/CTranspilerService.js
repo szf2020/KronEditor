@@ -1207,7 +1207,11 @@ const transpileLDLogics = (rungs, stdFunctions = {}, parentName = '', category =
         if (s.toUpperCase().startsWith('T#') || s.toUpperCase().startsWith('TIME#')) {
             return mapIECtoTimeUs(s).toString();
         }
-        // Numeric literal (int, float, hex)
+        // Binary literal 0b... → decimal (C99 doesn't support 0b)
+        if (/^0[bB][01]+$/.test(s)) return parseInt(s, 2).toString();
+        // Octal literal 0o... → C octal 0... (C uses leading-zero octal)
+        if (/^0[oO][0-7]+$/.test(s)) return '0' + parseInt(s, 8).toString(8);
+        // Numeric literal (int, float, hex 0x...)
         if (/^-?[0-9][0-9a-fA-FxX.]*$/.test(s)) return s;
         // Boolean literals
         if (/^(true|false|TRUE|FALSE)$/.test(s)) return s.toLowerCase();

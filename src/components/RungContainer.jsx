@@ -827,6 +827,8 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
             const valVarDef = [...variables, ...globalVars].find(v => v.name === baseValName);
             const isArrayWithoutIndex = valVarDef && arrayTypeMap[valVarDef.type] && !cleanVal.includes('[');
             const isValid = !isArrayWithoutIndex && (!isTime || !val || TIME_FORMAT_REGEX.test(val));
+            // Literal value: starts with digit, sign, T#, 0x/0b/0o, or true/false — not a variable ref
+            const isLiteralVal = cleanVal && !/^[A-Za-z_]/.test(cleanVal);
 
             return (
               <div key={handleId} style={{ position: 'relative', display: 'flex', alignItems: 'center', height: 20 }}>
@@ -943,7 +945,7 @@ const BlockNode = ({ id, data, isConnectable, selected }) => {
                         borderRadius: 2,
                         outline: 'none',
                         textAlign: 'right',
-                        opacity: (liveVariables && (!val || hasShadow)) ? 0 : 1
+                        opacity: (liveVariables && (!val || (hasShadow && !isLiteralVal))) ? 0 : 1
                       }}
                       placeholder={isTime ? 'T#...' : '...'}
                     />

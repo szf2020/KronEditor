@@ -542,6 +542,19 @@ function App() {
         addLog('success', 'PLC runtime started.');
         setIsRunning(true);
 
+        // Auto force-write literal-valued FB input shadow variables so the PLC
+        // runtime sees the user-specified defaults from the block pin inputs.
+        const shadowWrites = Object.entries(liveVarsRef.current)
+          .filter(([k, v]) =>
+            remoteVarKeysRef.current.includes(k) &&
+            k.includes('_in_') &&
+            v !== 0 && v !== false && v !== null && v !== undefined
+          )
+          .map(([k, v]) => client.writeVar(k, v).catch((e) => {
+            addLog('error', `Auto force-write failed for '${k}': ${e.message}`);
+          }));
+        if (shadowWrites.length > 0) await Promise.all(shadowWrites);
+
         // Start server-streaming subscription (server pushes every 50 ms).
         if (remoteVarKeysRef.current.length > 0) {
           stopStreamRef.current = client.streamVars(
