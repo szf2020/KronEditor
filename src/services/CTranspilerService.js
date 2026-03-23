@@ -7,6 +7,7 @@ const getBoardFamilyDefine = (boardId) => {
     if (boardId.startsWith('rpi_')) return 'HAL_BOARD_FAMILY_RPI';
     if (boardId.startsWith('bb_')) return 'HAL_BOARD_FAMILY_BB';
     if (boardId.startsWith('edatec_')) return 'HAL_BOARD_FAMILY_EDATEC';
+    if (boardId.startsWith('jetson_')) return 'HAL_BOARD_FAMILY_JETSON';
     return null;
 };
 

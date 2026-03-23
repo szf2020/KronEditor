@@ -345,6 +345,8 @@ typedef HAL_DO_Write DO7_Write;
 #include "kronhal_bb.h"
 #elif defined(HAL_BOARD_FAMILY_EDATEC)
 #include "kronhal_edatec.h"
+#elif defined(HAL_BOARD_FAMILY_JETSON)
+#include "kronhal_jetson.h"
 #else
 #include "kronhal_sim.h"
 #endif

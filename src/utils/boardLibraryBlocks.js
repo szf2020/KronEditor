@@ -27,6 +27,14 @@ const BOARD_CHANNELS = {
   bb_green_wireless: { PWM: 3, SPI: 2, I2C: 3, UART: 5, ADC: 7, CAN: 2, PRU: 2 },
   bb_ai:             { PWM: 4, SPI: 4, I2C: 4, UART: 6, ADC: 7, CAN: 2, PRU: 4 },
   bb_ai64:           { PWM: 4, SPI: 4, I2C: 4, UART: 6, ADC: 7, CAN: 2, PRU: 4 },
+  // NVIDIA Jetson — all models have 40-pin header with GPIO/I2C/SPI/UART/CAN
+  jetson_nano:       { PWM: 2, SPI: 1, I2C: 2, UART: 4, CAN: 1 },
+  jetson_tx2:        { PWM: 2, SPI: 1, I2C: 2, UART: 4, CAN: 1 },
+  jetson_xavier_nx:  { PWM: 2, SPI: 1, I2C: 2, UART: 4, CAN: 1 },
+  jetson_agx_xavier: { PWM: 2, SPI: 1, I2C: 2, UART: 4, CAN: 2 },
+  jetson_orin_nano:  { PWM: 2, SPI: 1, I2C: 2, UART: 4, CAN: 1 },
+  jetson_orin_nx:    { PWM: 2, SPI: 1, I2C: 2, UART: 4, CAN: 1 },
+  jetson_agx_orin:   { PWM: 2, SPI: 1, I2C: 2, UART: 4, CAN: 2 },
   // Edatec IPC — CM4/CM5/Pi5 based industrial computers
   // ED-IPC2000: CM4 Basic
   edatec_ipc2010:    { SPI: 2, I2C: 2, UART: 2 },

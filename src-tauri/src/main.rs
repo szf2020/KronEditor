@@ -933,7 +933,7 @@ fn compile_for_target(
             resource_dir.join("resources/arm/armv7"),
         )
     } else {
-        // RPi 3/4/5/Zero2W + BeagleBone AI-64 → aarch64
+        // RPi 3/4/5/Zero2W + BeagleBone AI-64 + Jetson (all aarch64 Linux) → aarch64
         (
             tc_bin(&resource_dir, "aarch64-none-linux-gnu", "aarch64-none-linux-gnu-gcc"),
             resource_dir.join("resources/arm/aarch64"),
@@ -971,6 +971,9 @@ fn compile_for_target(
         cmd.arg(format!("-DKRON_DI_COUNT={}", di));
         cmd.arg(format!("-DKRON_DO_COUNT={}", do_));
     }
+    // Jetson: all models use /dev/gpiochip0 by default (same as RPi).
+    // Static linking (-static above) is sufficient — kronhal_jetson.h uses
+    // only linux/gpio.h ioctls, termios, and AF_CAN sockets; no shared libs needed.
 
     // Use real EtherCAT implementation only when libkronethercatmaster.a is present.
     // Without it, add -DKRON_EC_SIM so the header's inline stubs are used and the
@@ -1102,8 +1105,9 @@ fn deploy_server_to_target(
     // Select the right binary based on board
     let binary_name = if board_id.starts_with("rpi_pico") {
         return Err("Pico targets do not support remote server deployment".into());
-    } else if board_id.starts_with("rpi_") || board_id.starts_with("edatec_") || board_id == "bb_ai64" {
-        // aarch64: all RPi Linux boards + Edatec IPC + BeagleBone AI-64
+    } else if board_id.starts_with("rpi_") || board_id.starts_with("edatec_")
+            || board_id == "bb_ai64" || board_id.starts_with("jetson_") {
+        // aarch64: all RPi Linux boards + Edatec IPC + BeagleBone AI-64 + NVIDIA Jetson
         "plc-agent_linux_arm64"
     } else if board_id.starts_with("bb_") {
         // armv7: BeagleBone Black / Green / AI
