@@ -2,10 +2,24 @@ import { useState, useRef, useEffect } from 'react';
 import ForceWriteModal from './common/ForceWriteModal';
 
 const LOG_COLORS = {
-    info:    '#d4d4d4',
+    info:    '#c8c8c8',
     success: '#4ec9b0',
-    warning: '#ce9178',
-    error:   '#f44336',
+    warning: '#e5a64a',
+    error:   '#f14c4c',
+};
+
+const LOG_ICONS = {
+    info:    '●',
+    success: '●',
+    warning: '▲',
+    error:   '✖',
+};
+
+const LOG_BG_HOVER = {
+    info:    'rgba(200,200,200,0.05)',
+    success: 'rgba(78,201,176,0.07)',
+    warning: 'rgba(229,166,74,0.09)',
+    error:   'rgba(241,76,76,0.09)',
 };
 
 // Resolve an expression like "ProgName.varName" or "varName" to a liveKey
@@ -18,7 +32,6 @@ const resolveExpression = (expr, projectStructure) => {
     if (dotIdx > 0) {
         const progName = trimmed.slice(0, dotIdx).trim();
         const varName  = trimmed.slice(dotIdx + 1).trim();
-        // Find matching program/FB
         const allPOUs = [
             ...(projectStructure.programs || []),
             ...(projectStructure.functionBlocks || []),
@@ -36,7 +49,6 @@ const resolveExpression = (expr, projectStructure) => {
         };
     }
 
-    // Simple variable — no program prefix, search all programs
     const allPOUs = [
         ...(projectStructure.programs || []),
         ...(projectStructure.functionBlocks || []),
@@ -61,21 +73,20 @@ const OutputPanel = ({
     isRunning = false,
     projectStructure = null,
 }) => {
-    const [activeTab, setActiveTab] = useState('all');
+    const [activeTab, setActiveTab] = useState('messages');
     const [forceModal, setForceModal] = useState(null);
     const [editingId, setEditingId] = useState(null);
     const [editValue, setEditValue] = useState('');
+    const [hoveredLog, setHoveredLog] = useState(null);
     const logEndRef = useRef(null);
     const editInputRef = useRef(null);
 
-    // Auto-scroll log tabs on new messages
     useEffect(() => {
-        if (['all', 'messages', 'warnings', 'errors'].includes(activeTab) && logEndRef.current) {
+        if (['messages', 'warnings', 'errors'].includes(activeTab) && logEndRef.current) {
             logEndRef.current.scrollIntoView({ behavior: 'smooth' });
         }
     }, [logs, activeTab]);
 
-    // Focus input when editing starts
     useEffect(() => {
         if (editingId && editInputRef.current) {
             editInputRef.current.focus();
@@ -84,17 +95,15 @@ const OutputPanel = ({
     }, [editingId]);
 
     const filtered = {
-        all:      logs,
         messages: logs.filter(l => l.type === 'info' || l.type === 'success'),
         warnings: logs.filter(l => l.type === 'warning'),
         errors:   logs.filter(l => l.type === 'error'),
     };
 
     const TABS = [
-        { key: 'all',      label: 'All' },
         { key: 'messages', label: 'Messages', badge: filtered.messages.length, badgeColor: '#4ec9b0' },
-        { key: 'warnings', label: 'Warnings', badge: filtered.warnings.length, badgeColor: '#ce9178' },
-        { key: 'errors',   label: 'Errors',   badge: filtered.errors.length,   badgeColor: '#f44336' },
+        { key: 'warnings', label: 'Warnings', badge: filtered.warnings.length, badgeColor: '#e5a64a' },
+        { key: 'errors',   label: 'Errors',   badge: filtered.errors.length,   badgeColor: '#f14c4c' },
         { key: 'watch',    label: 'Watchtable', badge: watchTable.length,       badgeColor: '#007acc' },
     ];
 
@@ -128,25 +137,36 @@ const OutputPanel = ({
     };
 
     const tabStyle = (key) => ({
-        padding: '5px 12px',
+        padding: '5px 14px',
         background: 'transparent',
         border: 'none',
         borderBottom: activeTab === key ? '2px solid #007acc' : '2px solid transparent',
-        color: activeTab === key ? '#fff' : '#888',
+        color: activeTab === key ? '#e8e8e8' : '#666',
         fontSize: 11,
+        fontWeight: activeTab === key ? '600' : '400',
+        letterSpacing: '0.04em',
+        textTransform: 'uppercase',
         cursor: 'pointer',
         display: 'flex',
         alignItems: 'center',
-        gap: 5,
+        gap: 6,
         whiteSpace: 'nowrap',
         outline: 'none',
+        transition: 'color 0.15s',
+        userSelect: 'none',
     });
 
     return (
-        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#1e1e1e' }}>
+        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#141414' }}>
 
             {/* ── Tab bar ── */}
-            <div style={{ display: 'flex', background: '#2d2d2d', borderBottom: '1px solid #333', overflowX: 'auto', flexShrink: 0 }}>
+            <div style={{
+                display: 'flex',
+                background: '#1a1a1a',
+                borderBottom: '1px solid #2a2a2a',
+                overflowX: 'auto',
+                flexShrink: 0,
+            }}>
                 {TABS.map(tab => (
                     <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={tabStyle(tab.key)}>
                         {tab.label}
@@ -154,14 +174,15 @@ const OutputPanel = ({
                             <span style={{
                                 background: tab.badgeColor,
                                 color: '#fff',
-                                borderRadius: 8,
-                                padding: '0 5px',
+                                borderRadius: 2,
+                                padding: '1px 5px',
                                 fontSize: 10,
-                                fontWeight: 'bold',
-                                lineHeight: '16px',
+                                fontWeight: '700',
+                                lineHeight: '14px',
                                 minWidth: 16,
                                 textAlign: 'center',
                                 display: 'inline-block',
+                                letterSpacing: '0',
                             }}>
                                 {tab.badge > 999 ? '999+' : tab.badge}
                             </span>
@@ -172,15 +193,67 @@ const OutputPanel = ({
 
             {/* ── Log content ── */}
             {activeTab !== 'watch' && (
-                <div style={{ flex: 1, overflowY: 'auto', padding: '4px 6px', fontFamily: 'Consolas, monospace', fontSize: 12 }}>
+                <div style={{
+                    flex: 1,
+                    overflowY: 'auto',
+                    fontFamily: '"Consolas", "Cascadia Code", monospace',
+                    fontSize: 12,
+                }}>
                     {filtered[activeTab].length === 0 ? (
-                        <div style={{ color: '#555', padding: '8px 4px', fontStyle: 'italic' }}>No {activeTab} messages.</div>
+                        <div style={{
+                            color: '#3a3a3a',
+                            padding: '12px 12px',
+                            fontSize: 11,
+                            fontStyle: 'italic',
+                            letterSpacing: '0.03em',
+                        }}>
+                            No {activeTab}.
+                        </div>
                     ) : (
-                        filtered[activeTab].map((log, i) => (
-                            <div key={i} style={{ color: LOG_COLORS[log.type] || '#d4d4d4', padding: '1px 0', lineHeight: 1.5 }}>
-                                {log.msg}
-                            </div>
-                        ))
+                        filtered[activeTab].map((log, i) => {
+                            const color = LOG_COLORS[log.type] || '#c8c8c8';
+                            const icon  = LOG_ICONS[log.type]  || '●';
+                            const bgHov = LOG_BG_HOVER[log.type] || 'rgba(200,200,200,0.05)';
+                            const isHovered = hoveredLog === i;
+                            return (
+                                <div
+                                    key={i}
+                                    title={log.msg}
+                                    onMouseEnter={() => setHoveredLog(i)}
+                                    onMouseLeave={() => setHoveredLog(null)}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 7,
+                                        padding: '3px 10px',
+                                        borderBottom: '1px solid #1e1e1e',
+                                        background: isHovered ? bgHov : 'transparent',
+                                        cursor: 'default',
+                                        transition: 'background 0.1s',
+                                        minWidth: 0,
+                                    }}
+                                >
+                                    <span style={{
+                                        color,
+                                        fontSize: log.type === 'warning' ? 9 : 8,
+                                        flexShrink: 0,
+                                        lineHeight: 1,
+                                    }}>
+                                        {icon}
+                                    </span>
+                                    <span style={{
+                                        color,
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap',
+                                        flex: 1,
+                                        lineHeight: '18px',
+                                    }}>
+                                        {log.msg}
+                                    </span>
+                                </div>
+                            );
+                        })
                     )}
                     <div ref={logEndRef} />
                 </div>
@@ -190,19 +263,32 @@ const OutputPanel = ({
             {activeTab === 'watch' && (
                 <div style={{ flex: 1, overflowY: 'auto' }}>
                     {watchTable.length === 0 ? (
-                        <div style={{ color: '#555', padding: '12px', fontStyle: 'italic', fontSize: 12, textAlign: 'center' }}>
+                        <div style={{
+                            color: '#3a3a3a',
+                            padding: '14px 12px',
+                            fontSize: 11,
+                            textAlign: 'center',
+                            fontStyle: 'italic',
+                            letterSpacing: '0.03em',
+                        }}>
                             Watch table is empty.<br />
-                            <span style={{ fontSize: 11 }}>Right-click a variable in the variable table to add it.</span>
+                            <span style={{ fontSize: 11, color: '#333' }}>Right-click a variable in the variable table to add it.</span>
                         </div>
                     ) : (
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, color: '#ccc', fontFamily: 'Consolas, monospace' }}>
+                        <table style={{
+                            width: '100%',
+                            borderCollapse: 'collapse',
+                            fontSize: 12,
+                            color: '#ccc',
+                            fontFamily: '"Consolas", "Cascadia Code", monospace',
+                        }}>
                             <thead>
-                                <tr style={{ background: '#252526', position: 'sticky', top: 0, zIndex: 1 }}>
-                                    <th style={{ padding: '5px 8px', borderBottom: '1px solid #333', textAlign: 'left', fontWeight: 'normal', color: '#888', fontSize: 11 }}>Expression</th>
-                                    <th style={{ padding: '5px 8px', borderBottom: '1px solid #333', textAlign: 'left', fontWeight: 'normal', color: '#888', fontSize: 11 }}>Type</th>
-                                    <th style={{ padding: '5px 8px', borderBottom: '1px solid #333', textAlign: 'left', fontWeight: 'normal', color: '#888', fontSize: 11 }}>Live Value</th>
-                                    <th style={{ padding: '5px 4px', borderBottom: '1px solid #333', width: 28 }}></th>
-                                    <th style={{ padding: '5px 4px', borderBottom: '1px solid #333', width: 28 }}></th>
+                                <tr style={{ background: '#1a1a1a', position: 'sticky', top: 0, zIndex: 1 }}>
+                                    <th style={{ padding: '5px 10px', borderBottom: '1px solid #2a2a2a', textAlign: 'left', fontWeight: '600', color: '#555', fontSize: 10, letterSpacing: '0.07em', textTransform: 'uppercase' }}>Expression</th>
+                                    <th style={{ padding: '5px 10px', borderBottom: '1px solid #2a2a2a', textAlign: 'left', fontWeight: '600', color: '#555', fontSize: 10, letterSpacing: '0.07em', textTransform: 'uppercase' }}>Type</th>
+                                    <th style={{ padding: '5px 10px', borderBottom: '1px solid #2a2a2a', textAlign: 'left', fontWeight: '600', color: '#555', fontSize: 10, letterSpacing: '0.07em', textTransform: 'uppercase' }}>Live Value</th>
+                                    <th style={{ padding: '5px 4px', borderBottom: '1px solid #2a2a2a', width: 28 }}></th>
+                                    <th style={{ padding: '5px 4px', borderBottom: '1px solid #2a2a2a', width: 28 }}></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -215,10 +301,10 @@ const OutputPanel = ({
 
                                     return (
                                         <tr key={entry.id} style={{
-                                            borderBottom: '1px solid #2a2a2a',
-                                            background: isInvalid ? 'rgba(244,67,54,0.07)' : 'transparent',
+                                            borderBottom: '1px solid #1e1e1e',
+                                            background: isInvalid ? 'rgba(241,76,76,0.06)' : 'transparent',
                                         }}>
-                                            <td style={{ padding: '2px 8px' }}>
+                                            <td style={{ padding: '3px 10px' }}>
                                                 {isEditing ? (
                                                     <input
                                                         ref={editInputRef}
@@ -230,25 +316,28 @@ const OutputPanel = ({
                                                             if (e.key === 'Escape') setEditingId(null);
                                                         }}
                                                         style={{
-                                                            background: '#2d2d2d',
+                                                            background: '#1e1e1e',
                                                             border: '1px solid #007acc',
                                                             color: '#90caf9',
                                                             fontSize: 12,
-                                                            fontFamily: 'Consolas, monospace',
-                                                            padding: '1px 4px',
+                                                            fontFamily: 'inherit',
+                                                            padding: '1px 5px',
                                                             width: '100%',
                                                             outline: 'none',
-                                                            borderRadius: 2,
+                                                            borderRadius: 0,
                                                         }}
                                                     />
                                                 ) : (
                                                     <span
                                                         onClick={() => { setEditingId(entry.id); setEditValue(entry.displayName); }}
-                                                        title="Click to edit expression"
+                                                        title={entry.displayName}
                                                         style={{
-                                                            color: isInvalid ? '#f44336' : '#90caf9',
+                                                            color: isInvalid ? '#f14c4c' : '#7eb8f7',
                                                             cursor: 'text',
                                                             display: 'block',
+                                                            overflow: 'hidden',
+                                                            textOverflow: 'ellipsis',
+                                                            whiteSpace: 'nowrap',
                                                             padding: '1px 0',
                                                         }}
                                                     >
@@ -256,13 +345,13 @@ const OutputPanel = ({
                                                     </span>
                                                 )}
                                             </td>
-                                            <td style={{ padding: '4px 8px', color: isInvalid ? '#f44336' : '#ce9178' }}>
+                                            <td style={{ padding: '3px 10px', color: isInvalid ? '#f14c4c' : '#b07040', whiteSpace: 'nowrap' }}>
                                                 {entry.varType || '—'}
                                             </td>
-                                            <td style={{ padding: '4px 8px' }}>
+                                            <td style={{ padding: '3px 10px' }}>
                                                 <span style={{
-                                                    color: isInvalid ? '#f44336' : hasVal ? '#00e676' : '#555',
-                                                    fontWeight: hasVal && !isInvalid ? 'bold' : 'normal',
+                                                    color: isInvalid ? '#f14c4c' : hasVal ? '#4ec9b0' : '#3a3a3a',
+                                                    fontWeight: hasVal && !isInvalid ? '700' : '400',
                                                 }}>
                                                     {isInvalid ? '? invalid' : displayVal}
                                                 </span>
@@ -280,7 +369,7 @@ const OutputPanel = ({
                                                     style={{
                                                         background: 'transparent',
                                                         border: 'none',
-                                                        color: isRunning && onForceWrite && !isInvalid ? '#4fc3f7' : '#444',
+                                                        color: isRunning && onForceWrite && !isInvalid ? '#4fc3f7' : '#333',
                                                         cursor: isRunning && onForceWrite && !isInvalid ? 'pointer' : 'default',
                                                         fontSize: 13,
                                                         padding: '1px 3px',
@@ -295,9 +384,9 @@ const OutputPanel = ({
                                                     style={{
                                                         background: 'transparent',
                                                         border: 'none',
-                                                        color: '#c62828',
+                                                        color: '#8b2020',
                                                         cursor: 'pointer',
-                                                        fontSize: 13,
+                                                        fontSize: 12,
                                                         padding: '1px 3px',
                                                         lineHeight: 1,
                                                     }}

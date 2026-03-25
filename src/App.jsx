@@ -16,6 +16,7 @@ import TaskManager from './components/TaskManager';
 import OutputPanel from './components/OutputPanel';
 import EditorTabs from './components/EditorTabs';
 import SaveConfirmDialog from './components/SaveConfirmDialog';
+import VisualizationEditor from './components/visualization/VisualizationEditor';
 import { getBoardById } from './utils/boardDefinitions';
 import ArrayTypeEditor from './components/ArrayTypeEditor';
 import StructureTypeEditor from './components/StructureTypeEditor';
@@ -140,6 +141,10 @@ function App() {
   const [connectionEnabled, setConnectionEnabled] = useState(true);
   const [isSimulationMode, setIsSimulationMode] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+
+  // HMI Layout state — persisted in project XML file
+  const [hmiLayout, setHmiLayout] = useState({ pages: [] });
+  const [hmiPort] = useState(() => Number(localStorage.getItem('hmiPort') || '7800'));
 
   // Remote deployment state
   const [plcAddress, setPlcAddress] = useState(() => localStorage.getItem('plcAddress') || '');
@@ -540,7 +545,7 @@ function App() {
         filePath += '.xml';
       }
 
-      const xmlContent = exportProjectToXml(projectStructure, selectedBoard, { plcAddress, sshUser, sshPort }, buses, busConfigs, watchTable);
+      const xmlContent = exportProjectToXml(projectStructure, selectedBoard, { plcAddress, sshUser, sshPort }, buses, busConfigs, watchTable, hmiLayout);
       await writeTextFile(filePath, xmlContent);
 
       hasUnsavedRef.current = false;
@@ -549,7 +554,7 @@ function App() {
     } catch (error) {
       addLog('error', t('logs.saveAsError', { error: error }) || `Save As Error: ${error} `);
     }
-  }, [projectStructure, selectedBoard, plcAddress, sshUser, sshPort, buses, busConfigs, addLog]);
+  }, [projectStructure, selectedBoard, plcAddress, sshUser, sshPort, buses, busConfigs, hmiLayout, addLog]);
 
   const handleSave = useCallback(async () => {
     if (!currentFilePath) {
@@ -558,14 +563,14 @@ function App() {
     }
 
     try {
-      const xmlContent = exportProjectToXml(projectStructure, selectedBoard, { plcAddress, sshUser, sshPort }, buses, busConfigs, watchTable);
+      const xmlContent = exportProjectToXml(projectStructure, selectedBoard, { plcAddress, sshUser, sshPort }, buses, busConfigs, watchTable, hmiLayout);
       await writeTextFile(currentFilePath, xmlContent);
       hasUnsavedRef.current = false;
       addLog('success', t('logs.projectSaved', { path: currentFilePath }) || `Project saved to ${currentFilePath} `);
     } catch (error) {
       addLog('error', t('logs.saveError', { error: error }) || `Save Error: ${error} `);
     }
-  }, [currentFilePath, handleSaveAs, projectStructure, selectedBoard, plcAddress, sshUser, sshPort, buses, busConfigs, addLog]);
+  }, [currentFilePath, handleSaveAs, projectStructure, selectedBoard, plcAddress, sshUser, sshPort, buses, busConfigs, hmiLayout, addLog]);
 
   // Keep ref up-to-date so onCloseRequested handler can call it without stale closure
   useEffect(() => { handleSaveRef.current = handleSave; }, [handleSave]);
@@ -614,6 +619,7 @@ function App() {
       setActiveId(null);
       setOpenTabs([]);
       setWatchTable([]);
+      setHmiLayout({ pages: [] });
       setSelectedBoard(null);
       setIsDeployed(false);
       setIsDirty(false);
@@ -702,6 +708,7 @@ function App() {
         setBuses(result.buses || []);
         setBusConfigs(result.busConfigs || {});
         setWatchTable(result.watchTable || []);
+        setHmiLayout(result.hmiLayout || { pages: [] });
         setIsProjectOpen(true);
         // Reset after state batch; setTimeout ensures effects ran first
         setTimeout(() => { isLoadingProjectRef.current = false; hasUnsavedRef.current = false; }, 0);
@@ -918,7 +925,24 @@ function App() {
     return true;
   };
 
+  const checkTaskAssignments = () => {
+    const tasks = projectStructure?.taskConfig?.tasks || [];
+    const programs = projectStructure?.programs || [];
+    if (programs.length === 0) return true; // no programs, nothing to check
+    if (tasks.length === 0) {
+      addLog('error', 'No tasks defined. Create at least one task and assign programs before building.');
+      return false;
+    }
+    const assignedPrograms = new Set(tasks.flatMap(t => (t.programs || []).map(p => p.program)));
+    const unassigned = programs.map(p => p.name).filter(n => !assignedPrograms.has(n));
+    if (unassigned.length > 0) {
+      addLog('warning', `Programs not assigned to any task (will not run): ${unassigned.join(', ')}`);
+    }
+    return true;
+  };
+
   const handleBuild = async () => {
+    if (!checkTaskAssignments()) return;
     const boardInfo = getBoardById(selectedBoard);
     checkBaremetalConcurrency();
     addLog('info', `Build started for board: ${boardInfo?.name || selectedBoard}...`);
@@ -938,6 +962,7 @@ function App() {
   };
 
   const handleBuildAndSend = async () => {
+    if (!checkTaskAssignments()) return;
     if (!isPlcConnected || !plcAddress) {
       addLog('error', 'Cannot Build & Send: not connected to PLC server.');
       return;
@@ -963,6 +988,27 @@ function App() {
       addLog('info', `Deploying to ${plcAddress}...`);
       await invoke('deploy_to_server', { serverAddr: plcAddress });
       addLog('success', `Deployed to ${plcAddress}.`);
+
+      // Deploy HMI layout (JSON). Empty pages → server clears HMI, serves nothing.
+      const hasHmiPages = (hmiLayout?.pages?.length ?? 0) > 0;
+      const hmiPayload = hasHmiPages ? JSON.stringify(hmiLayout) : '{}';
+      try {
+        const hmiResp = await fetch(`http://${plcAddress}/deploy/hmi-layout`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: hmiPayload,
+        });
+        if (!hmiResp.ok) {
+          addLog('warning', `HMI layout deploy failed: ${hmiResp.status} ${hmiResp.statusText}`);
+        } else {
+          const result = await hmiResp.json();
+          if (hasHmiPages) {
+            addLog('info', `HMI deployed: ${result.pages ?? '?'} page(s).`);
+          }
+        }
+      } catch (hmiErr) {
+        addLog('warning', `HMI layout deploy skipped: ${hmiErr.message}`);
+      }
 
       setIsDeployed(true);
       setIsDirty(false);
@@ -1389,7 +1435,7 @@ function App() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', background: '#1e1e1e', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', background: '#1e1e1e', overflow: 'hidden', boxShadow: 'inset 0 0 0 1px #3e3e42' }}>
       <SaveConfirmDialog
         isOpen={saveConfirmOpen}
         onSave={handleSaveConfirmSave}
@@ -1640,10 +1686,15 @@ function App() {
                     />
                   </ErrorBoundary>
                 ) : activeId === 'VISUALIZATION' ? (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: 12, color: '#3a3a3a' }}>
-                    <span style={{ fontSize: 40 }}>📊</span>
-                    <span style={{ fontSize: 14, color: '#555' }}>Visualization Manager — Coming Soon</span>
-                  </div>
+                  <VisualizationEditor
+                    hmiLayout={hmiLayout}
+                    onLayoutChange={setHmiLayout}
+                    liveVariables={isRunning ? liveVariables : null}
+                    onForceWrite={isRunning ? handleForceWrite : null}
+                    isRunning={isRunning}
+                    projectStructure={projectStructure}
+                    hmiPort={hmiPort}
+                  />
                 ) : activeItem ? (
                   <ErrorBoundary>
                     <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>

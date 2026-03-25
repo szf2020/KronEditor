@@ -332,11 +332,64 @@ typedef HAL_DO_Write DO6_Write;
 typedef HAL_DO_Write DO7_Write;
 
 /* ===================================================================
+ * IBUS Receiver  (channel-based, max 6)
+ *   Reads FlySky iBUS protocol frames from a HAL UART channel.
+ *   Each scan-cycle call drains all available bytes non-blocking
+ *   and outputs CH1..CH14 (1000–2000 µs) + a 1-scan VALID pulse.
+ *
+ *   Packet format (32 bytes):
+ *     [0x20][0x40][CH1_L][CH1_H]...[CH14_L][CH14_H][CS_L][CS_H]
+ *     checksum = 0xFFFF - sum(byte[0..29])
+ * =================================================================*/
+
+#define IBUS_STATE_SYNC1 0   /* waiting for 0x20               */
+#define IBUS_STATE_SYNC2 1   /* waiting for 0x40               */
+#define IBUS_STATE_DATA  2   /* accumulating 30 payload bytes  */
+
+typedef struct {
+    /* Inputs */
+    bool    EN;
+    int32_t BAUD;      /* typically 115200 */
+    /* Outputs */
+    bool     VALID;    /* 1-scan pulse: new valid packet received */
+    bool     FAULT;
+    bool     ENO;
+    int8_t   ERR_ID;   /* 0=OK, 2=open_err, 3=read_err */
+    uint16_t CH1;
+    uint16_t CH2;
+    uint16_t CH3;
+    uint16_t CH4;
+    uint16_t CH5;
+    uint16_t CH6;
+    uint16_t CH7;
+    uint16_t CH8;
+    uint16_t CH9;
+    uint16_t CH10;
+    uint16_t CH11;
+    uint16_t CH12;
+    uint16_t CH13;
+    uint16_t CH14;
+    /* Internal persistent state (zero-init on first use) */
+    int8_t  _state;
+    uint8_t _buf[32];
+    uint8_t _pos;
+} IBUS_Receiver;
+
+typedef IBUS_Receiver IBUS0_Receiver;
+typedef IBUS_Receiver IBUS1_Receiver;
+typedef IBUS_Receiver IBUS2_Receiver;
+typedef IBUS_Receiver IBUS3_Receiver;
+typedef IBUS_Receiver IBUS4_Receiver;
+typedef IBUS_Receiver IBUS5_Receiver;
+
+/* ===================================================================
  * Conditional implementation include
  * (all struct typedefs must be defined before this point)
  * =================================================================*/
 #if defined(HAL_SIM_MODE)
 #include "kronhal_sim.h"
+#elif defined(HAL_BOARD_FAMILY_JETSON)
+#include "kronhal_jetson.h"
 #elif defined(HAL_BOARD_FAMILY_RPI)
 #include "kronhal_rpi.h"
 #elif defined(HAL_BOARD_FAMILY_PICO)
@@ -345,8 +398,6 @@ typedef HAL_DO_Write DO7_Write;
 #include "kronhal_bb.h"
 #elif defined(HAL_BOARD_FAMILY_EDATEC)
 #include "kronhal_edatec.h"
-#elif defined(HAL_BOARD_FAMILY_JETSON)
-#include "kronhal_jetson.h"
 #else
 #include "kronhal_sim.h"
 #endif
@@ -440,5 +491,99 @@ static inline void DO4_Write_Call(HAL_DO_Write *i) { HAL_DO_Write_Call(i, 4); }
 static inline void DO5_Write_Call(HAL_DO_Write *i) { HAL_DO_Write_Call(i, 5); }
 static inline void DO6_Write_Call(HAL_DO_Write *i) { HAL_DO_Write_Call(i, 6); }
 static inline void DO7_Write_Call(HAL_DO_Write *i) { HAL_DO_Write_Call(i, 7); }
+
+/* ===================================================================
+ * IBUS Receiver – core implementation
+ * Uses HAL_UART_Receive_Call (defined by the board include above).
+ * Drains all buffered bytes each scan cycle via non-blocking loop,
+ * runs the iBUS state machine, and sets VALID + CH1..CH14 on a
+ * complete, checksum-correct 32-byte packet.
+ * =================================================================*/
+static inline void IBUS_Receiver_Call(IBUS_Receiver *inst, uint8_t ch) {
+    inst->ENO   = inst->EN;
+    inst->VALID = false;
+    if (!inst->EN) {
+        inst->_state = IBUS_STATE_SYNC1;
+        return;
+    }
+
+    HAL_UART_Receive rx = {0};  /* zero-init so ERR_ID is always defined */
+    rx.EN      = true;
+    rx.BAUD    = inst->BAUD;
+    rx.TIMEOUT = 0;
+
+    for (;;) {
+        HAL_UART_Receive_Call(&rx, ch);
+        if (!rx.READY) break;
+        if (rx.ERR_ID != 0) {
+            inst->FAULT  = true;
+            inst->ERR_ID = rx.ERR_ID;
+            inst->_state = IBUS_STATE_SYNC1;
+            break;
+        }
+
+        uint8_t b = rx.DATA;
+
+        switch (inst->_state) {
+            case IBUS_STATE_SYNC1:
+                if (b == 0x20) inst->_state = IBUS_STATE_SYNC2;
+                break;
+            case IBUS_STATE_SYNC2:
+                if (b == 0x40) {
+                    inst->_buf[0] = 0x20;
+                    inst->_buf[1] = 0x40;
+                    inst->_pos    = 2;
+                    inst->_state  = IBUS_STATE_DATA;
+                } else if (b != 0x20) {
+                    inst->_state = IBUS_STATE_SYNC1;
+                }
+                /* b == 0x20: stay in SYNC2 (could be new header start) */
+                break;
+            case IBUS_STATE_DATA:
+                inst->_buf[inst->_pos++] = b;
+                if (inst->_pos == 32) {
+                    /* validate checksum: 0xFFFF - sum(byte[0..29]) */
+                    uint16_t cs = 0xFFFF;
+                    uint8_t  ci;
+                    for (ci = 0; ci < 30; ci++) cs -= (uint16_t)inst->_buf[ci];
+                    uint16_t got = (uint16_t)inst->_buf[30] |
+                                  ((uint16_t)inst->_buf[31] << 8);
+                    if (cs == got) {
+                        /* extract 14 channels (little-endian 16-bit, offset 2) */
+                        inst->CH1  = (uint16_t)inst->_buf[2]  | ((uint16_t)inst->_buf[3]  << 8);
+                        inst->CH2  = (uint16_t)inst->_buf[4]  | ((uint16_t)inst->_buf[5]  << 8);
+                        inst->CH3  = (uint16_t)inst->_buf[6]  | ((uint16_t)inst->_buf[7]  << 8);
+                        inst->CH4  = (uint16_t)inst->_buf[8]  | ((uint16_t)inst->_buf[9]  << 8);
+                        inst->CH5  = (uint16_t)inst->_buf[10] | ((uint16_t)inst->_buf[11] << 8);
+                        inst->CH6  = (uint16_t)inst->_buf[12] | ((uint16_t)inst->_buf[13] << 8);
+                        inst->CH7  = (uint16_t)inst->_buf[14] | ((uint16_t)inst->_buf[15] << 8);
+                        inst->CH8  = (uint16_t)inst->_buf[16] | ((uint16_t)inst->_buf[17] << 8);
+                        inst->CH9  = (uint16_t)inst->_buf[18] | ((uint16_t)inst->_buf[19] << 8);
+                        inst->CH10 = (uint16_t)inst->_buf[20] | ((uint16_t)inst->_buf[21] << 8);
+                        inst->CH11 = (uint16_t)inst->_buf[22] | ((uint16_t)inst->_buf[23] << 8);
+                        inst->CH12 = (uint16_t)inst->_buf[24] | ((uint16_t)inst->_buf[25] << 8);
+                        inst->CH13 = (uint16_t)inst->_buf[26] | ((uint16_t)inst->_buf[27] << 8);
+                        inst->CH14 = (uint16_t)inst->_buf[28] | ((uint16_t)inst->_buf[29] << 8);
+                        inst->VALID  = true;
+                        inst->FAULT  = false;
+                        inst->ERR_ID = 0;
+                    }
+                    inst->_state = IBUS_STATE_SYNC1;
+                }
+                break;
+            default:
+                inst->_state = IBUS_STATE_SYNC1;
+                break;
+        }
+    }
+}
+
+/* IBUS channel wrappers */
+static inline void IBUS0_Receiver_Call(IBUS_Receiver *i) { IBUS_Receiver_Call(i, 0); }
+static inline void IBUS1_Receiver_Call(IBUS_Receiver *i) { IBUS_Receiver_Call(i, 1); }
+static inline void IBUS2_Receiver_Call(IBUS_Receiver *i) { IBUS_Receiver_Call(i, 2); }
+static inline void IBUS3_Receiver_Call(IBUS_Receiver *i) { IBUS_Receiver_Call(i, 3); }
+static inline void IBUS4_Receiver_Call(IBUS_Receiver *i) { IBUS_Receiver_Call(i, 4); }
+static inline void IBUS5_Receiver_Call(IBUS_Receiver *i) { IBUS_Receiver_Call(i, 5); }
 
 #endif /* KRONHAL_H */

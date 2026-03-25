@@ -261,6 +261,35 @@ const INTERFACE_BLOCKS = {
               { name: 'READY', type: 'BOOL' },
             ],
             class: 'FunctionBlock',
+          },
+          {
+            blockType: `IBUS${i}_Receiver`,
+            label: `IBUS${i}_Receiver`,
+            desc: `UART${i} – FlySky iBUS receiver (32-byte frame, 14 channels, 115200 baud)`,
+            inputs: [
+              { name: 'BAUD', type: 'DINT', default: '115200' },
+              { name: 'EN', type: 'BOOL', default: 'TRUE' },
+            ],
+            outputs: [
+              { name: 'ENO',   type: 'BOOL' },
+              { name: 'VALID', type: 'BOOL' },
+              { name: 'FAULT', type: 'BOOL' },
+              { name: 'CH1',   type: 'UINT' },
+              { name: 'CH2',   type: 'UINT' },
+              { name: 'CH3',   type: 'UINT' },
+              { name: 'CH4',   type: 'UINT' },
+              { name: 'CH5',   type: 'UINT' },
+              { name: 'CH6',   type: 'UINT' },
+              { name: 'CH7',   type: 'UINT' },
+              { name: 'CH8',   type: 'UINT' },
+              { name: 'CH9',   type: 'UINT' },
+              { name: 'CH10',  type: 'UINT' },
+              { name: 'CH11',  type: 'UINT' },
+              { name: 'CH12',  type: 'UINT' },
+              { name: 'CH13',  type: 'UINT' },
+              { name: 'CH14',  type: 'UINT' },
+            ],
+            class: 'FunctionBlock',
           }
         );
       }

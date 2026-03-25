@@ -378,19 +378,22 @@ static inline void HAL_UART_Send_Call(HAL_UART_Send *inst, uint8_t ch) {
 }
 
 static inline void HAL_UART_Receive_Call(HAL_UART_Receive *inst, uint8_t ch) {
-    inst->ENO   = inst->EN;
-    inst->DATA  = 0;
-    inst->READY = false;
+    inst->ENO    = inst->EN;
+    inst->DATA   = 0;
+    inst->READY  = false;
+    inst->ERR_ID = 0;
     if (!inst->EN) return;
 
     int fd = _uart_open(ch, inst->BAUD);
-    if (fd < 0) return;
+    if (fd < 0) { inst->ERR_ID = 2; return; }
 
     uint8_t byte = 0;
     ssize_t n = read(fd, &byte, 1);
     if (n == 1) {
         inst->DATA  = byte;
         inst->READY = true;
+    } else if (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+        inst->ERR_ID = 3;
     }
 }
 

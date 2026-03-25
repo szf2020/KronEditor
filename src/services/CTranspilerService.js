@@ -21,9 +21,20 @@ export const transpileToC = (projectStructure, standardHeaders = [], boardId = n
         'kronhal_sim.h', 'kronhal_pico.h', 'kronhal_rpi.h', 'kronhal_bb.h', 'kronhal_edatec.h'
     ]);
 
+    // Board HAL headers that must come AFTER type definitions (kronstandard.h etc.)
+    const HAL_LAST_HEADERS = new Set([
+        'kronhal_jetson.h'
+    ]);
+
+    const lateIncludes = [];
+
     standardHeaders.forEach(([filename, content]) => {
         if (!HAL_IMPL_HEADERS.has(filename)) {
-            customIncludes += `#include "${filename}"\n`;
+            if (HAL_LAST_HEADERS.has(filename)) {
+                lateIncludes.push(filename);
+            } else {
+                customIncludes += `#include "${filename}"\n`;
+            }
         }
         const regex = /\b([A-Za-z0-9_]+)_Call\s*\(([^)]*)\)/g;
         let match;
@@ -109,7 +120,7 @@ export const transpileToC = (projectStructure, standardHeaders = [], boardId = n
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
-${boardDefines}${customIncludes}
+${boardDefines}${customIncludes}${lateIncludes.map(f => `#include "${f}"\n`).join('')}
 
 extern volatile uint64_t us_tick;
 
@@ -564,9 +575,8 @@ const generateMainLoop = (projectStructure, config, boardId = null, shmEnabled =
         });
         taskGroups = Object.values(legacyTaskMap);
     } else {
-        const progs = (projectStructure.programs || []).map(p => (p.name || '').trim().replace(/\s+/g, '_'));
-        if (progs.length > 0) taskGroups.push({ taskName: '__default', intervalUs: 10000, programs: progs });
-        progs.forEach(pName => programTasks.push({ name: pName, intervalUs: 10000 }));
+        // No tasks configured — programs are NOT executed. Build will succeed but nothing runs.
+        // (User must assign programs to tasks in Task Manager.)
     }
 
     // Base tick = minimum interval across all programs (minimum 1us) — used for baremetal/Win

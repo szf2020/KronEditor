@@ -1204,8 +1204,15 @@ const RungContainer = ({
   const MIN_RUNG_HEIGHT = 150;
 
   // Helper to calculate block height (no cap — rung expands to fit)
-  const getBlockHeight = useCallback((type) => {
+  // customData is passed for HAL/board blocks whose pins aren't in blockConfig.
+  const getBlockHeight = useCallback((type, customData) => {
     if (type === 'Contact' || type === 'Coil') return 18;
+    // HAL/board blocks carry pin info in customData
+    if (customData?.inputs) {
+      const inRows  = (customData.inputs  || []).filter(p => p.name !== 'EN').length;
+      const outRows = (customData.outputs || []).filter(p => p.name !== 'ENO').length;
+      return 46 + (Math.max(inRows, outRows) * 30);
+    }
     const config = blockConfig[type];
     if (!config) return 100;
     const rows = Math.max(config.inputs.length, config.outputs.length);
@@ -1215,7 +1222,7 @@ const RungContainer = ({
   // Dynamic rung height: expand to fit the tallest block (+ 20px padding)
   const RUNG_HEIGHT = React.useMemo(() => {
     const maxBlock = rung.blocks.reduce((max, b) => {
-      return Math.max(max, getBlockHeight(b.data?.type || b.type));
+      return Math.max(max, getBlockHeight(b.data?.type || b.type, b.data?.customData));
     }, 0);
     return Math.max(MIN_RUNG_HEIGHT, maxBlock + 20);
   }, [rung.blocks, getBlockHeight]);

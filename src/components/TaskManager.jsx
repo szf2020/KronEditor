@@ -134,9 +134,14 @@ export default function TaskManager({
                     const sorted = [...task.programs].sort((a, b) => a.priority - b.priority);
                     const available = programs.filter(p => !task.programs.some(tp => tp.program === p.name));
                     const ivUs = iv.unit === 'us' ? iv.value : iv.unit === 'ms' ? iv.value * 1000 : iv.value * 1_000_000;
+                    const totalExecUs = sorted.reduce((sum, p) => {
+                        const us = liveVariables?.[`prog____exec_us_${p.program.replace(/\s+/g, '_')}`];
+                        return sum + (us != null ? us : 0);
+                    }, 0);
+                    const taskOverrun = isRunning && totalExecUs > 0 && totalExecUs > ivUs;
 
                     return (
-                        <div key={task.id} style={{ background: '#252526', borderRadius: 7, borderLeft: `3px solid ${color}`, boxShadow: '0 1px 6px rgba(0,0,0,0.3)' }}>
+                        <div key={task.id} style={{ background: '#252526', borderRadius: 7, borderLeft: `3px solid ${taskOverrun ? '#f44336' : color}`, boxShadow: taskOverrun ? '0 1px 6px rgba(244,67,54,0.25)' : '0 1px 6px rgba(0,0,0,0.3)' }}>
 
                             {/* Task header */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '1px solid #2a2a2a' }}>
@@ -161,6 +166,14 @@ export default function TaskManager({
                                         style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#ddd', cursor: isRunning ? 'default' : 'text', userSelect: 'none' }}
                                     >
                                         {task.name}
+                                    </span>
+                                )}
+
+                                {/* Total exec time / overrun badge */}
+                                {isRunning && totalExecUs > 0 && (
+                                    <span style={{ fontSize: 10, fontVariantNumeric: 'tabular-nums', color: taskOverrun ? '#f44336' : '#4ec9b0', background: taskOverrun ? '#3a1a1a' : '#1a2a2a', border: `1px solid ${taskOverrun ? '#f4433644' : '#4ec9b044'}`, borderRadius: 3, padding: '1px 6px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        {taskOverrun && <span>⚠</span>}
+                                        {fmtExecUs(totalExecUs)} / {fmtExecUs(ivUs)}
                                     </span>
                                 )}
 
@@ -206,20 +219,19 @@ export default function TaskManager({
                                 {sorted.map((p, i) => {
                                     const pName = p.program.replace(/\s+/g, '_');
                                     const execUs = liveVariables?.[`prog____exec_us_${pName}`];
-                                    const overrun = execUs != null && execUs > ivUs;
+                                    const rowColor = taskOverrun ? '#f44336' : color;
                                     return (
-                                        <div key={p.program} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: '#1e1e1e', borderRadius: 4, borderLeft: `2px solid ${color}30` }}>
+                                        <div key={p.program} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: taskOverrun ? '#1e1212' : '#1e1e1e', borderRadius: 4, borderLeft: `2px solid ${rowColor}44` }}>
                                             {/* Priority badge */}
-                                            <div style={{ width: 20, height: 20, borderRadius: '50%', background: color + '18', border: `1px solid ${color}50`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: color, fontWeight: 700, flexShrink: 0 }}>
+                                            <div style={{ width: 20, height: 20, borderRadius: '50%', background: rowColor + '18', border: `1px solid ${rowColor}50`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: rowColor, fontWeight: 700, flexShrink: 0 }}>
                                                 {i + 1}
                                             </div>
-                                            <span style={{ flex: 1, fontSize: 12, color: '#ccc' }}>{p.program}</span>
+                                            <span style={{ flex: 1, fontSize: 12, color: taskOverrun ? '#e88' : '#ccc' }}>{p.program}</span>
 
                                             {/* Live exec time */}
                                             {execUs != null && (
-                                                <span style={{ fontSize: 10, color: overrun ? '#f44747' : '#4ec9b0', fontVariantNumeric: 'tabular-nums' }}>
+                                                <span style={{ fontSize: 10, color: taskOverrun ? '#f44336' : '#4ec9b0', fontVariantNumeric: 'tabular-nums' }}>
                                                     {fmtExecUs(execUs)}
-                                                    {overrun && <span title="Overrun!" style={{ marginLeft: 3 }}>⚠</span>}
                                                 </span>
                                             )}
 

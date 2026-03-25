@@ -284,6 +284,7 @@ const SettingsPage = ({ theme, setTheme, editorSettings, setEditorSettings, sele
         { id: 'general', label: t('settingsPage.general'), icon: '⚙️' },
         { id: 'editor', label: t('settingsPage.editor'), icon: '📝' },
         { id: 'connection', label: t('settingsPage.connection', 'Connection'), icon: '🔌' },
+        { id: 'hmi', label: 'HMI', icon: '📊' },
         { id: 'fieldbus', label: 'Fieldbus', icon: '⊕' },
         ...(import.meta.env.DEV ? [{ id: 'libraries', label: 'Libraries', icon: '📦' }] : []),
         { id: 'about', label: t('settingsPage.about'), icon: 'ℹ️' }
@@ -522,7 +523,11 @@ const SettingsPage = ({ theme, setTheme, editorSettings, setEditorSettings, sele
                                 <input
                                     type="text"
                                     value={sshUser}
-                                    onChange={(e) => setSshUser(e.target.value)}
+                                    onChange={(e) => {
+                                        setSshUser(e.target.value);
+                                        if (setSshUserProp) setSshUserProp(e.target.value);
+                                        localStorage.setItem('sshUser', e.target.value);
+                                    }}
                                     placeholder="pi"
                                     style={{
                                         width: '100%', padding: '8px', background: '#252526', color: '#fff',
@@ -552,7 +557,11 @@ const SettingsPage = ({ theme, setTheme, editorSettings, setEditorSettings, sele
                                 <input
                                     type="text"
                                     value={sshPort}
-                                    onChange={(e) => setSshPort(e.target.value)}
+                                    onChange={(e) => {
+                                        setSshPort(e.target.value);
+                                        if (setSshPortProp) setSshPortProp(e.target.value);
+                                        localStorage.setItem('sshPort', e.target.value);
+                                    }}
                                     placeholder="22"
                                     style={{
                                         width: '100%', padding: '8px', background: '#252526', color: '#fff',
@@ -777,6 +786,50 @@ const SettingsPage = ({ theme, setTheme, editorSettings, setEditorSettings, sele
                         <p style={{ marginTop: '20px', fontSize: '12px', color: '#666' }}>
                             {t('settingsPage.copyright')}
                         </p>
+                    </div>
+                );
+            case 'hmi':
+                return (
+                    <div>
+                        <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '24px', color: '#fff' }}>HMI Server</h2>
+                        <div style={{ background: '#252526', border: '1px solid #333', borderRadius: 3, padding: '20px', marginBottom: 20 }}>
+                            <h3 style={{ fontSize: 13, fontWeight: '600', color: '#aaa', marginBottom: 16, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Web Server Port</h3>
+                            <p style={{ fontSize: 12, color: '#666', marginBottom: 14 }}>
+                                The HMI visualization is served as a web page at <span style={{ color: '#7eb8f7', fontFamily: 'monospace' }}>http://localhost:[port]</span>.
+                                Open this URL in any browser to view the HMI at runtime.
+                            </p>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <label style={{ fontSize: 13, color: '#888', minWidth: 80 }}>Port</label>
+                                <input
+                                    type="number"
+                                    min={1024} max={65535}
+                                    defaultValue={Number(localStorage.getItem('hmiPort') || '7800')}
+                                    onChange={e => {
+                                        const v = Math.min(65535, Math.max(1024, Number(e.target.value)));
+                                        localStorage.setItem('hmiPort', String(v));
+                                    }}
+                                    style={{
+                                        width: 100, background: '#1a1a1a', border: '1px solid #444',
+                                        color: '#d4d4d4', fontSize: 13, padding: '5px 8px', outline: 'none',
+                                        borderRadius: 2,
+                                    }}
+                                    onFocus={e => e.target.style.borderColor = '#007acc'}
+                                    onBlur={e => e.target.style.borderColor = '#444'}
+                                />
+                                <span style={{ fontSize: 11, color: '#555' }}>Restart app to apply port change.</span>
+                            </div>
+                        </div>
+
+                        <div style={{ background: '#252526', border: '1px solid #333', borderRadius: 3, padding: '20px' }}>
+                            <h3 style={{ fontSize: 13, fontWeight: '600', color: '#aaa', marginBottom: 12, letterSpacing: '0.05em', textTransform: 'uppercase' }}>How to Use</h3>
+                            <div style={{ fontSize: 12, color: '#666', lineHeight: 1.8 }}>
+                                <div>1. Open the <span style={{ color: '#c0c0c0' }}>Visualization</span> tab from the project tree.</div>
+                                <div>2. Drag components from the toolbox onto the canvas.</div>
+                                <div>3. Bind variables using the properties panel on the right.</div>
+                                <div>4. Click <span style={{ color: '#4ec9b0' }}>🌐 Serve</span> in the toolbar to start the web server.</div>
+                                <div>5. Open <span style={{ color: '#7eb8f7', fontFamily: 'monospace' }}>http://localhost:{Number(localStorage.getItem('hmiPort') || '7800')}</span> in a browser.</div>
+                            </div>
+                        </div>
                     </div>
                 );
             default:

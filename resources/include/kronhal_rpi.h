@@ -17,6 +17,8 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <termios.h>
+#include <errno.h>
 
 #ifndef KRON_GPIO_CHIP
 #define KRON_GPIO_CHIP "/dev/gpiochip0"
@@ -205,20 +207,103 @@ static inline void HAL_I2C_Write_Call(HAL_I2C_Write *inst, uint8_t ch) {
 }
 
 /* ---------------------------------------------------------------------------
- * UART  (TODO)
+ * UART
+ *   UART0 = /dev/ttyAMA0  (primary PL011 — GPIO14/15)
+ *   UART1 = /dev/ttyS0    (mini UART — lower priority, less reliable >115200)
+ *   UART2..5 = /dev/ttyAMA1..4  (additional PL011 — RPi4/5, needs DT overlay)
  * -------------------------------------------------------------------------*/
-static inline void HAL_UART_Send_Call(HAL_UART_Send *inst, uint8_t ch) {
-    (void)ch;
-    inst->ENO  = inst->EN;
-    inst->DONE = inst->EN;
-    /* TODO: /dev/ttyAMA0 write */
+#ifndef KRON_UART0
+#define KRON_UART0 "/dev/ttyAMA0"
+#endif
+#ifndef KRON_UART1
+#define KRON_UART1 "/dev/ttyS0"
+#endif
+#ifndef KRON_UART2
+#define KRON_UART2 "/dev/ttyAMA1"
+#endif
+#ifndef KRON_UART3
+#define KRON_UART3 "/dev/ttyAMA2"
+#endif
+#ifndef KRON_UART4
+#define KRON_UART4 "/dev/ttyAMA3"
+#endif
+#ifndef KRON_UART5
+#define KRON_UART5 "/dev/ttyAMA4"
+#endif
+
+static const char *const _rpi_uart_devs[6] = {
+    KRON_UART0, KRON_UART1, KRON_UART2,
+    KRON_UART3, KRON_UART4, KRON_UART5,
+};
+static int _rpi_uart_fd[6] = { -1, -1, -1, -1, -1, -1 };
+
+static inline speed_t _rpi_baud_to_speed(int32_t baud) {
+    switch (baud) {
+        case 9600:   return B9600;
+        case 19200:  return B19200;
+        case 38400:  return B38400;
+        case 57600:  return B57600;
+        case 115200: return B115200;
+        case 230400: return B230400;
+        case 460800: return B460800;
+        case 921600: return B921600;
+        default:     return B115200;
+    }
 }
+
+static inline int _rpi_uart_open(uint8_t ch, int32_t baud) {
+    if (ch >= 6) return -1;
+    if (_rpi_uart_fd[ch] >= 0) return _rpi_uart_fd[ch];
+
+    int fd = open(_rpi_uart_devs[ch], O_RDWR | O_NOCTTY | O_NONBLOCK);
+    if (fd < 0) return -1;
+
+    struct termios tty;
+    memset(&tty, 0, sizeof(tty));
+    if (tcgetattr(fd, &tty) != 0) { close(fd); return -1; }
+
+    speed_t spd = _rpi_baud_to_speed(baud);
+    cfsetispeed(&tty, spd);
+    cfsetospeed(&tty, spd);
+
+    tty.c_cflag  = (tty.c_cflag & ~CSIZE) | CS8;
+    tty.c_cflag |= (CLOCAL | CREAD);
+    tty.c_cflag &= ~(PARENB | PARODD | CSTOPB | CRTSCTS);
+    tty.c_lflag  = 0;
+    tty.c_oflag  = 0;
+    tty.c_iflag  = 0;
+    tty.c_cc[VMIN]  = 0;
+    tty.c_cc[VTIME] = 1;
+
+    if (tcsetattr(fd, TCSANOW, &tty) != 0) { close(fd); return -1; }
+    _rpi_uart_fd[ch] = fd;
+    return fd;
+}
+
+static inline void HAL_UART_Send_Call(HAL_UART_Send *inst, uint8_t ch) {
+    inst->ENO    = inst->EN;
+    inst->DONE   = false;
+    inst->ERR_ID = 0;
+    if (!inst->EN) return;
+    int fd = _rpi_uart_open(ch, inst->BAUD);
+    if (fd < 0) { inst->ERR_ID = 2; return; }
+    uint8_t byte = inst->DATA;
+    if (write(fd, &byte, 1) == 1)
+        inst->DONE = true;
+    else
+        inst->ERR_ID = 3;
+}
+
 static inline void HAL_UART_Receive_Call(HAL_UART_Receive *inst, uint8_t ch) {
-    (void)ch;
-    inst->ENO   = inst->EN;
-    inst->DATA  = 0;
-    inst->READY = false;
-    /* TODO: /dev/ttyAMA0 read */
+    inst->ENO    = inst->EN;
+    inst->DATA   = 0;
+    inst->READY  = false;
+    inst->ERR_ID = 0;
+    if (!inst->EN) return;
+    int fd = _rpi_uart_open(ch, inst->BAUD);
+    if (fd < 0) { inst->ERR_ID = 2; return; }
+    uint8_t byte = 0;
+    if (read(fd, &byte, 1) == 1) { inst->DATA = byte; inst->READY = true; }
 }
 
 /* ---------------------------------------------------------------------------

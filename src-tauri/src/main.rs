@@ -2858,6 +2858,352 @@ fn list_network_interfaces() -> Vec<String> {
 }
 
 // ---------------------------------------------------------------------------
+// HMI web server
+// ---------------------------------------------------------------------------
+
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
+struct HmiState {
+    layout:        Mutex<String>,
+    variables:     Mutex<String>,
+    pending_writes: Mutex<Vec<(String, serde_json::Value)>>,
+    running:       AtomicBool,
+}
+
+impl HmiState {
+    fn new() -> Self {
+        HmiState {
+            layout:        Mutex::new("{}".to_string()),
+            variables:     Mutex::new("{}".to_string()),
+            pending_writes: Mutex::new(Vec::new()),
+            running:       AtomicBool::new(false),
+        }
+    }
+}
+
+static HMI_STATE: std::sync::OnceLock<Arc<HmiState>> = std::sync::OnceLock::new();
+
+fn get_hmi_state() -> Arc<HmiState> {
+    HMI_STATE.get_or_init(|| Arc::new(HmiState::new())).clone()
+}
+
+const HMI_HTML: &str = r####"<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KronEditor HMI</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0d0d0d;color:#d4d4d4;font-family:Consolas,monospace;overflow:auto}
+#hmi-root{position:relative}
+.hmi-comp{position:absolute;overflow:hidden}
+.led-wrap{width:100%;height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px}
+.led-circle{border-radius:50%;border:2px solid #555;transition:background .1s,box-shadow .1s}
+.num-display{width:100%;height:100%;display:flex;align-items:center;justify-content:center;gap:4px;font-family:'Courier New',monospace}
+.btn{width:100%;height:100%;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;transition:background .08s}
+.progress-bar{position:relative;width:100%;overflow:hidden}
+.progress-fill{height:100%;transition:width .15s}
+.progress-val{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:10px;font-weight:600;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.8)}
+.switch-track{position:relative;cursor:pointer;border-radius:999px;transition:background .15s}
+.switch-thumb{position:absolute;border-radius:50%;background:#e0e0e0;box-shadow:0 1px 4px rgba(0,0,0,.5);transition:left .15s}
+.label-comp{width:100%;height:100%;display:flex;align-items:center;overflow:hidden;padding:0 4px}
+</style>
+</head>
+<body>
+<div id="hmi-root"></div>
+<script>
+let layout={pages:[]};
+let variables={};
+let currentPage=0;
+let btnState={};
+
+async function loadLayout(){
+  try{const r=await fetch('/api/layout');layout=await r.json();}catch(e){}
+  render();
+}
+async function pollVars(){
+  try{const r=await fetch('/api/variables');variables=await r.json();updateLive();}catch(e){}
+}
+async function sendWrite(key,value){
+  try{await fetch('/api/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,value})});}catch(e){}
+}
+
+function resolveVar(expr){
+  if(!expr)return null;
+  const t=expr.trim();
+  const d=t.indexOf('.');
+  if(d>0){const prog=t.slice(0,d).replace(/\s+/g,'_');const v=t.slice(d+1).replace(/\s+/g,'_');return`prog_${prog}_${v}`;}
+  return t.replace(/\s+/g,'_');
+}
+
+function getVal(expr){const k=resolveVar(expr);return k?variables[k]:undefined;}
+function fmtVal(v,dec){if(v===null||v===undefined)return'---';if(typeof v==='boolean')return v?'TRUE':'FALSE';const n=Number(v);return isNaN(n)?String(v):n.toFixed(Number(dec)||0);}
+
+function render(){
+  const root=document.getElementById('hmi-root');
+  const pg=layout.pages?layout.pages[currentPage]:null;
+  if(!pg){root.innerHTML='<div style="color:#333;padding:20px">No pages.</div>';return;}
+  root.style.width=(pg.canvasW||1280)+'px';
+  root.style.height=(pg.canvasH||800)+'px';
+  root.innerHTML='';
+  (pg.components||[]).forEach(comp=>renderComp(root,comp));
+  updateLive();
+}
+
+function renderComp(root,comp){
+  const el=document.createElement('div');
+  el.className='hmi-comp';
+  el.id='comp_'+comp.id;
+  el.style.cssText=`left:${comp.x}px;top:${comp.y}px;width:${comp.w}px;height:${comp.h}px`;
+  const p=comp.props||{};
+  switch(comp.type){
+    case'LED':{
+      const s=Math.min(comp.w,comp.h)*0.68;
+      el.innerHTML=`<div class="led-wrap"><div class="led-circle" id="led_${comp.id}" style="width:${s}px;height:${s}px"></div>${p.label&&p.label.trim()?`<span style="font-size:${p.fontSize||11}px;color:#aaa">${p.label}</span>`:''}</div>`;
+      break;}
+    case'ALARM':{
+      el.innerHTML=`<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px">
+        <svg id="alarm_${comp.id}" width="${Math.min(comp.w,comp.h)*0.7}" height="${Math.min(comp.w,comp.h)*0.7}" viewBox="0 0 24 24">
+          <path d="M12 2L1 21h22L12 2z" fill="${p.inactiveColor||'#2a2a2a'}" stroke="#444" stroke-width="1"/>
+          <text x="12" y="17" text-anchor="middle" fill="#fff" font-size="7" font-weight="bold">!</text>
+        </svg>
+        ${p.label?`<span style="font-size:${p.fontSize||12}px;font-weight:600;letter-spacing:.05em" id="alarmlbl_${comp.id}">${p.label}</span>`:''}
+      </div>`;break;}
+    case'NUMERIC_DISPLAY':{
+      el.innerHTML=`<div class="num-display" style="background:${p.background||'#0a0f14'};border:1px solid ${p.borderColor||'#1e2a38'}">
+        <span id="num_${comp.id}" style="font-size:${Math.min(p.fontSize||24,comp.h*.7)}px;color:${p.color||'#4ec9b0'};font-weight:700">---</span>
+        ${p.unit?`<span style="font-size:${Math.max((p.fontSize||24)*.45,10)}px;color:#666">${p.unit}</span>`:''}
+      </div>`;break;}
+    case'PROGRESS':{
+      el.innerHTML=`<div style="width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;gap:2px">
+        ${p.label?`<span style="font-size:10px;color:#777;padding-left:2px">${p.label}</span>`:''}
+        <div class="progress-bar" style="flex:1;background:${p.background||'#1a1a1a'};border:1px solid ${p.borderColor||'#2a2a2a'}">
+          <div id="prog_${comp.id}" class="progress-fill" style="background:${p.color||'#007acc'};width:0%"></div>
+          ${p.showValue?`<div id="progval_${comp.id}" class="progress-val">0</div>`:''}
+        </div>
+      </div>`;break;}
+    case'BUTTON':{
+      const off=p.offColor||'#252525',on=p.onColor||'#007acc';
+      el.innerHTML=`<div class="btn" id="btn_${comp.id}" style="background:${off};border:1px solid ${p.borderColor||'#3a3a3a'};border-radius:${p.borderRadius||3}px;box-shadow:0 2px 4px rgba(0,0,0,.3)">
+        <span style="font-size:${p.fontSize||13}px;color:${p.textColor||'#fff'};font-weight:500;pointer-events:none">${p.label||'Button'}</span>
+      </div>`;
+      const btn=el.querySelector(`#btn_${comp.id}`);
+      const lk=resolveVar(p.variable);
+      if(lk){
+        if(p.mode==='toggle'){
+          btn.addEventListener('click',()=>{const cur=variables[lk];sendWrite(lk,!(cur===true||cur===1||cur==='TRUE'));});
+        }else{
+          btn.addEventListener('mousedown',()=>{btn.style.background=on;btn.style.boxShadow='inset 0 2px 6px rgba(0,0,0,.4)';sendWrite(lk,true);});
+          btn.addEventListener('mouseup',()=>{btn.style.background=off;btn.style.boxShadow='0 2px 4px rgba(0,0,0,.3)';sendWrite(lk,false);});
+          btn.addEventListener('mouseleave',()=>{btn.style.background=off;btn.style.boxShadow='0 2px 4px rgba(0,0,0,.3)';sendWrite(lk,false);});
+        }
+      }
+      break;}
+    case'TOGGLE_BUTTON':{
+      el.innerHTML=`<div class="btn" id="tbtn_${comp.id}" style="background:${p.offColor||'#252525'};border:1px solid ${p.borderColor||'#3a3a3a'};border-radius:${p.borderRadius||3}px">
+        <span id="tbtnlbl_${comp.id}" style="font-size:${p.fontSize||13}px;color:${p.textColor||'#fff'};font-weight:600;letter-spacing:.06em;pointer-events:none">${p.labelOff||'OFF'}</span>
+      </div>`;
+      const lk=resolveVar(p.variable);
+      if(lk)el.querySelector(`#tbtn_${comp.id}`).addEventListener('click',()=>sendWrite(lk,!(variables[lk]===true||variables[lk]===1)));
+      break;}
+    case'SWITCH':{
+      const tw=Math.min(comp.w*.56,54),th=Math.min(comp.h*.52,28),thumb=th-4;
+      el.innerHTML=`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;gap:8px">
+        <div id="sw_${comp.id}" class="switch-track" style="width:${tw}px;height:${th}px;background:${p.offColor||'#333'};box-shadow:inset 0 2px 4px rgba(0,0,0,.4)">
+          <div id="swthumb_${comp.id}" class="switch-thumb" style="top:2px;left:2px;width:${thumb}px;height:${thumb}px"></div>
+        </div>
+        ${p.label?`<span style="font-size:${p.fontSize||12}px;color:#aaa;white-space:nowrap">${p.label}</span>`:''}
+      </div>`;
+      const lk=resolveVar(p.variable),tw2=tw;
+      if(lk)el.querySelector(`#sw_${comp.id}`).addEventListener('click',()=>sendWrite(lk,!(variables[lk]===true||variables[lk]===1)));
+      el.querySelector(`#sw_${comp.id}`).__tw=tw2;el.querySelector(`#sw_${comp.id}`).__thumb=thumb;
+      break;}
+    case'SLIDER':{
+      const lk=resolveVar(p.variable);
+      el.innerHTML=`<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:0 8px">
+        <input id="slider_${comp.id}" type="range" min="${p.min||0}" max="${p.max||100}" step="${p.step||1}" value="${p.min||0}" style="width:100%;accent-color:${p.thumbColor||'#007acc'}">
+        ${p.showValue?`<span id="sliderval_${comp.id}" style="font-size:10px;color:#888;font-family:monospace">${p.min||0}</span>`:''}
+      </div>`;
+      const sl=el.querySelector(`#slider_${comp.id}`);
+      if(lk)sl.addEventListener('input',e=>{
+        if(p.showValue){const sv=el.querySelector(`#sliderval_${comp.id}`);if(sv)sv.textContent=e.target.value;}
+        sendWrite(lk,Number(e.target.value));
+      });
+      break;}
+    case'LABEL':{
+      el.innerHTML=`<div class="label-comp" style="background:${p.background||'transparent'};justify-content:${p.align==='center'?'center':p.align==='right'?'flex-end':'flex-start'}">
+        <span id="lbl_${comp.id}" style="font-size:${p.fontSize||13}px;font-weight:${p.fontWeight||'normal'};color:${p.color||'#d4d4d4'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.text||''}</span>
+      </div>`;break;}
+    case'RECTANGLE':{
+      el.innerHTML=`<div style="width:100%;height:100%;background:${p.background||'transparent'};border:${p.borderWidth||1}px solid ${p.borderColor||'#444'};border-radius:${p.borderRadius||0}px;display:flex;align-items:flex-end">
+        ${p.label?`<span style="font-size:${p.fontSize||11}px;color:${p.labelColor||'#888'};padding:2px 6px">${p.label}</span>`:''}
+      </div>`;break;}
+    case'CIRCLE':{
+      const sz=Math.min(comp.w,comp.h);
+      el.innerHTML=`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center"><div style="width:${sz}px;height:${sz}px;border-radius:50%;background:${p.background||'transparent'};border:${p.borderWidth||1}px solid ${p.borderColor||'#444'}"></div></div>`;break;}
+    case'LINE':{
+      const horiz=(p.orientation||'horizontal')==='horizontal';
+      el.innerHTML=`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center"><div style="width:${horiz?'100%':p.thickness+'px'};height:${horiz?p.thickness+'px':'100%'};background:${p.color||'#444'}"></div></div>`;break;}
+    default:
+      el.innerHTML=`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;border:1px dashed #333;color:#444;font-size:11px">${comp.type}</div>`;
+  }
+  root.appendChild(el);
+}
+
+function updateLive(){
+  const pg=layout.pages?layout.pages[currentPage]:null;
+  if(!pg)return;
+  (pg.components||[]).forEach(comp=>{
+    const p=comp.props||{};
+    const val=getVal(p.variable);
+    const on=val===true||val===1||val==='TRUE'||val==='1';
+    switch(comp.type){
+      case'LED':{
+        const c=document.getElementById('led_'+comp.id);
+        if(c){c.style.background=on?(p.onColor||'#00e676'):(p.offColor||'#1a1a1a');c.style.boxShadow=on?`0 0 12px ${p.onColor||'#00e676'},0 0 20px ${p.onColor||'#00e676'}55`:'inset 0 2px 6px rgba(0,0,0,.5)';}
+        break;}
+      case'ALARM':{
+        const a=document.getElementById('alarm_'+comp.id);
+        if(a){const path=a.querySelector('path');if(path)path.setAttribute('fill',on?(p.activeColor||'#f14c4c'):(p.inactiveColor||'#2a2a2a'));}
+        const lbl=document.getElementById('alarmlbl_'+comp.id);
+        if(lbl)lbl.style.color=on?(p.activeColor||'#f14c4c'):'#555';
+        break;}
+      case'NUMERIC_DISPLAY':{
+        const n=document.getElementById('num_'+comp.id);
+        if(n)n.textContent=fmtVal(val,p.decimals);
+        break;}
+      case'PROGRESS':{
+        const min=Number(p.min)||0,max=Number(p.max)||100,v=Math.min(max,Math.max(min,Number(val)||min));
+        const pct=max>min?((v-min)/(max-min))*100:0;
+        const bar=document.getElementById('prog_'+comp.id);if(bar)bar.style.width=pct+'%';
+        const pv=document.getElementById('progval_'+comp.id);if(pv)pv.textContent=v.toFixed(0);
+        break;}
+      case'TOGGLE_BUTTON':{
+        const tb=document.getElementById('tbtn_'+comp.id);
+        const tl=document.getElementById('tbtnlbl_'+comp.id);
+        if(tb)tb.style.background=on?(p.onColor||'#007a4d'):(p.offColor||'#252525');
+        if(tl)tl.textContent=on?(p.labelOn||'ON'):(p.labelOff||'OFF');
+        break;}
+      case'BUTTON':{
+        if(p.mode==='toggle'){
+          const btn=document.getElementById('btn_'+comp.id);
+          if(btn)btn.style.background=on?(p.onColor||'#007acc'):(p.offColor||'#252525');
+        }break;}
+      case'SWITCH':{
+        const sw=document.getElementById('sw_'+comp.id);
+        const swt=document.getElementById('swthumb_'+comp.id);
+        if(sw&&swt){
+          sw.style.background=on?(p.onColor||'#007acc'):(p.offColor||'#333');
+          const tw=sw.__tw||54,thumb=sw.__thumb||24;
+          swt.style.left=on?(tw-thumb-2)+'px':'2px';
+        }break;}
+      case'SLIDER':{
+        const sl=document.getElementById('slider_'+comp.id);
+        if(sl&&val!==undefined)sl.value=Number(val);
+        const sv=document.getElementById('sliderval_'+comp.id);
+        if(sv&&val!==undefined)sv.textContent=Number(val).toFixed(0);
+        break;}
+      case'LABEL':{
+        const lbl=document.getElementById('lbl_'+comp.id);
+        if(lbl){if(p.variable&&val!==undefined){const n=Number(val);lbl.textContent=isNaN(n)?String(val):n.toFixed(p.decimals||0)+(p.unit?` ${p.unit}`:'')}else lbl.textContent=p.text||'';}
+        break;}
+    }
+  });
+}
+
+loadLayout();
+setInterval(pollVars,400);
+</script>
+</body>
+</html>
+"####;
+
+#[tauri::command]
+fn start_hmi_server(port: u16, layout_json: String) -> Result<String, String> {
+    let state = get_hmi_state();
+    *state.layout.lock().unwrap() = layout_json;
+    state.running.store(true, Ordering::Relaxed);
+
+    let state_clone = state.clone();
+    std::thread::spawn(move || {
+        let addr = format!("0.0.0.0:{}", port);
+        let server = match tiny_http::Server::http(&addr) {
+            Ok(s) => s,
+            Err(e) => { eprintln!("HMI server error: {}", e); return; }
+        };
+
+        while state_clone.running.load(Ordering::Relaxed) {
+            let request = match server.recv_timeout(std::time::Duration::from_millis(200)) {
+                Ok(Some(r)) => r,
+                Ok(None) => continue,
+                Err(_) => break,
+            };
+
+            let url = request.url().to_string();
+            let method = request.method().to_string();
+
+            let respond = |req: tiny_http::Request, status: u16, ct: &str, body: String| {
+                let response = tiny_http::Response::from_string(body)
+                    .with_status_code(status)
+                    .with_header(tiny_http::Header::from_bytes(&b"Content-Type"[..], ct.as_bytes()).unwrap())
+                    .with_header(tiny_http::Header::from_bytes(&b"Access-Control-Allow-Origin"[..], &b"*"[..]).unwrap());
+                let _ = req.respond(response);
+            };
+
+            if url == "/" || url.is_empty() {
+                respond(request, 200, "text/html; charset=utf-8", HMI_HTML.to_string());
+            } else if url == "/api/layout" {
+                let body = state_clone.layout.lock().unwrap().clone();
+                respond(request, 200, "application/json", body);
+            } else if url == "/api/variables" {
+                let body = state_clone.variables.lock().unwrap().clone();
+                respond(request, 200, "application/json", body);
+            } else if url == "/api/write" && method == "POST" {
+                let mut req = request;
+                let mut buf = String::new();
+                req.as_reader().read_to_string(&mut buf).unwrap_or(0);
+                if let Ok(val) = serde_json::from_str::<serde_json::Value>(&buf) {
+                    if let (Some(key), Some(value)) = (val.get("key"), val.get("value")) {
+                        let key_str = key.as_str().unwrap_or("").to_string();
+                        let mut pw = state_clone.pending_writes.lock().unwrap();
+                        pw.push((key_str, value.clone()));
+                    }
+                }
+                respond(req, 200, "application/json", r#"{"ok":true}"#.to_string());
+            } else {
+                respond(request, 404, "text/plain", "Not found".to_string());
+            }
+        }
+    });
+
+    Ok(format!("HMI server started on port {}", port))
+}
+
+#[tauri::command]
+fn stop_hmi_server() -> Result<(), String> {
+    let state = get_hmi_state();
+    state.running.store(false, Ordering::Relaxed);
+    Ok(())
+}
+
+#[tauri::command]
+fn push_hmi_variables(vars_json: String) -> Result<(), String> {
+    let state = get_hmi_state();
+    *state.variables.lock().unwrap() = vars_json;
+    Ok(())
+}
+
+#[tauri::command]
+fn poll_hmi_writes() -> Result<Vec<(String, serde_json::Value)>, String> {
+    let state = get_hmi_state();
+    let mut pw = state.pending_writes.lock().unwrap();
+    let writes = pw.drain(..).collect();
+    Ok(writes)
+}
+
+// ---------------------------------------------------------------------------
 // main
 // ---------------------------------------------------------------------------
 
@@ -2892,6 +3238,10 @@ fn main() {
             ec_request_state,
             build_canopen,
             list_network_interfaces,
+            start_hmi_server,
+            stop_hmi_server,
+            push_hmi_variables,
+            poll_hmi_writes,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

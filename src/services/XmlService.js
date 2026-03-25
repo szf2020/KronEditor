@@ -4,7 +4,7 @@
  * Uses CDATA sections to store complex React Flow / Editor content to ensure exact restoration.
  */
 
-export const exportProjectToXml = (projectStructure, boardId, connectionSettings = {}, buses = [], busConfigs = {}, watchTable = []) => {
+export const exportProjectToXml = (projectStructure, boardId, connectionSettings = {}, buses = [], busConfigs = {}, watchTable = [], hmiLayout = null) => {
     const doc = document.implementation.createDocument(null, "PLCProject", null);
     const root = doc.documentElement;
 
@@ -67,6 +67,13 @@ export const exportProjectToXml = (projectStructure, boardId, connectionSettings
         const cdata = doc.createCDATASection(JSON.stringify({ buses, busConfigs }));
         fieldbusSection.appendChild(cdata);
         root.appendChild(fieldbusSection);
+    }
+
+    // HmiLayout: visualization pages stored as JSON CDATA
+    if (hmiLayout && hmiLayout.pages && hmiLayout.pages.length > 0) {
+        const hmiSection = doc.createElement("HmiLayout");
+        hmiSection.appendChild(doc.createCDATASection(JSON.stringify(hmiLayout)));
+        root.appendChild(hmiSection);
     }
 
     const serializer = new XMLSerializer();
@@ -170,7 +177,14 @@ export const importProjectFromXml = (xmlString) => {
             try { watchTable = JSON.parse(wtSection.textContent); } catch (e) { /* ignore */ }
         }
 
-        return { projectStructure, boardId, plcAddress, sshUser, sshPort, buses, busConfigs, watchTable };
+        // HmiLayout
+        let hmiLayout = null;
+        const hmiSection = doc.getElementsByTagName("HmiLayout")[0];
+        if (hmiSection && hmiSection.textContent) {
+            try { hmiLayout = JSON.parse(hmiSection.textContent); } catch (e) { /* ignore */ }
+        }
+
+        return { projectStructure, boardId, plcAddress, sshUser, sshPort, buses, busConfigs, watchTable, hmiLayout };
     } catch (e) {
         console.error("Critical Import Error:", e);
         return null;
