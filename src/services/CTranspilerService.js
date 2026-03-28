@@ -216,6 +216,86 @@ const buildRuntimePortHelpers = (boardId, interfaceConfig = {}) => {
     return helpers;
 };
 
+const ST_KEYWORDS_LOWER = new Set([
+    'if','then','elsif','else','end_if','case','of','end_case',
+    'for','to','by','do','end_for','while','end_while',
+    'repeat','until','end_repeat','return','exit',
+    'true','false','and','or','not','xor','mod',
+    'bool','int','uint','dint','udint','lint','ulint',
+    'real','lreal','time','string','byte','word','dword','lword',
+    'ton','tof','tp','tonr','ctu','ctd','ctud','sr','rs','r_trig','f_trig',
+    'shl','shr','rol','ror','band','bor','bxor','bnot',
+    'add','sub','mul','div','abs','sqrt','expt','sin','cos','tan','asin','acos','atan',
+    'max','min','limit','sel','mux','move',
+    'gt','ge','eq','ne','le','lt',
+    'byte_to_uint','byte_to_int','byte_to_dint','byte_to_real',
+    'int_to_real','real_to_int','dint_to_real','real_to_dint',
+    'bool_to_int','int_to_bool','norm_x','scale_x',
+    'int_to_uint','uint_to_int','dint_to_int','int_to_dint',
+    'uart_receive','uart_send',
+]);
+
+/**
+ * Validate all ST/SCL code in the project before compilation.
+ * Returns an array of { program, rung, line, column, word } error objects.
+ * Errors indicate identifiers not found in variable tables or known functions.
+ */
+export const validateProjectST = (projectStructure, stdFunctionNames = []) => {
+    const errors = [];
+    const stdLower = new Set(stdFunctionNames.map(n => n.toLowerCase()));
+    const globalVarNames = new Set(
+        (projectStructure?.global?.variables || []).map(v => (v.name || '').toLowerCase())
+    );
+    const dataTypeNames = new Set(
+        (projectStructure?.dataTypes || []).map(dt => (dt.name || '').toLowerCase())
+    );
+
+    const validateCode = (code, varNames, contextLabel) => {
+        const lines = (code || '').split('\n');
+        lines.forEach((rawLine, i) => {
+            const line = rawLine.replace(/\/\/.*$/, '').replace(/\(\*.*?\*\)/g, '');
+            const regex = /\b[a-zA-Z_][a-zA-Z0-9_]*\b/g;
+            let match;
+            while ((match = regex.exec(line)) !== null) {
+                // Skip member access identifiers (e.g. .NewData in UART_Receive1.NewData)
+                if (match.index > 0 && line[match.index - 1] === '.') continue;
+                const word = match[0];
+                const lower = word.toLowerCase();
+                if (!ST_KEYWORDS_LOWER.has(lower) && !stdLower.has(lower) &&
+                    !globalVarNames.has(lower) && !dataTypeNames.has(lower) &&
+                    !varNames.has(lower) && isNaN(word)) {
+                    errors.push({ context: contextLabel, line: i + 1, column: match.index + 1, word });
+                }
+            }
+        });
+    };
+
+    const allPOUs = [
+        ...(projectStructure?.programs || []),
+        ...(projectStructure?.functionBlocks || []),
+        ...(projectStructure?.functions || []),
+    ];
+
+    allPOUs.forEach(pou => {
+        const pouName = pou.name || '?';
+        const varNames = new Set(
+            (pou.content?.variables || []).map(v => (v.name || '').toLowerCase())
+        );
+
+        if (pou.type === 'ST' && pou.content?.code) {
+            validateCode(pou.content.code, varNames, pouName);
+        } else if (pou.type === 'SCL') {
+            (pou.content?.rungs || []).forEach((rung, ri) => {
+                if (rung.lang === 'ST' && rung.code) {
+                    validateCode(rung.code, varNames, `${pouName} Rung ${ri}`);
+                }
+            });
+        }
+    });
+
+    return errors;
+};
+
 export const transpileToC = (projectStructure, standardHeaders = [], boardId = null, simMode = true) => {
     let stdFunctions = {};
     let customIncludes = ``;
@@ -1462,7 +1542,7 @@ const transpileSTLogics = (code, stdFunctions = {}, parentName = '', category = 
         const sortedNames = Object.keys(varMap).sort((a, b) => b.length - a.length);
         let result = expr;
         sortedNames.forEach(name => {
-            result = result.replace(new RegExp(`\\b${name}\\b`, 'g'), varMap[name]);
+            result = result.replace(new RegExp(`\\b${name}\\b`, 'gi'), varMap[name]);
         });
         return result;
     };
@@ -1484,6 +1564,18 @@ const transpileSTLogics = (code, stdFunctions = {}, parentName = '', category = 
             .replace(/\bFALSE\b/gi, 'false');
         result = result.replace(/\bADR\s*\(\s*([^)]+?)\s*\)/gi, (_, inner) => `(&(${resolveVarsInExpr(inner.trim())}))`);
         result = result.replace(/\bNULL\b/g, 'NULL');
+        // IEC 61131-3 type-conversion functions → KRON_ library names
+        // e.g. BYTE_TO_UINT(...) → KRON_BYTE_TO_UINT16(...)
+        const IEC_TO_KRON_TYPE = {
+            BOOL:'BOOL', BYTE:'BYTE', WORD:'WORD', DWORD:'DWORD',
+            SINT:'INT8', INT:'INT16', DINT:'INT32', LINT:'INT32',
+            USINT:'UINT8', UINT:'UINT16', UDINT:'UINT32', ULINT:'UINT32',
+            REAL:'REAL', LREAL:'LREAL',
+        };
+        result = result.replace(/\b([A-Z]+)_TO_([A-Z]+)(?=\s*\()/g, (match, src, dst) => {
+            const ks = IEC_TO_KRON_TYPE[src], kd = IEC_TO_KRON_TYPE[dst];
+            return (ks && kd) ? `KRON_${ks}_TO_${kd}` : match;
+        });
         return resolveVarsInExpr(result);
     };
 

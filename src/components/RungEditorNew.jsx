@@ -7,12 +7,64 @@ import ForceWriteModal from './common/ForceWriteModal';
 import DragDropManager from '../utils/DragDropManager';
 import { registerIECSTLanguage } from '../utils/iecSTLanguage';
 
+// IEC ST identifier validation for SCL inline editors.
+// Returns Monaco markers for undeclared identifiers.
+const ST_ALWAYS_ALLOWED = new Set([
+  'if','then','elsif','else','end_if','case','of','end_case',
+  'for','to','by','do','end_for','while','end_while',
+  'repeat','until','end_repeat','return','exit',
+  'true','false','and','or','not','xor','mod',
+  'bool','int','uint','dint','udint','lint','ulint',
+  'real','lreal','time','string','byte','word','dword','lword',
+  'ton','tof','tp','tonr','ctu','ctd','ctud','sr','rs','r_trig','f_trig',
+  'shl','shr','rol','ror','band','bor','bxor','bnot',
+  'add','sub','mul','div','abs','sqrt','expt','sin','cos','tan','asin','acos','atan',
+  'max','min','limit','sel','mux','move',
+  'gt','ge','eq','ne','le','lt',
+  'byte_to_uint','byte_to_int','byte_to_dint','byte_to_real',
+  'int_to_real','real_to_int','dint_to_real','real_to_dint',
+  'bool_to_int','int_to_bool','norm_x','scale_x',
+  'int_to_uint','uint_to_int','dint_to_int','int_to_dint',
+  'uart_receive','uart_send',
+]);
+
+function validateSCLCode(code, variables, globalVars, monaco, model) {
+  const allowed = new Set(ST_ALWAYS_ALLOWED);
+  variables.forEach(v => { if (v.name) allowed.add(v.name.toLowerCase()); });
+  globalVars.forEach(v => { if (v.name) allowed.add(v.name.toLowerCase()); });
+
+  const markers = [];
+  const lines = (code || '').split('\n');
+  lines.forEach((rawLine, i) => {
+    const line = rawLine.replace(/\/\/.*$/, '').replace(/\(\*.*?\*\)/g, '');
+    const regex = /\b[a-zA-Z_][a-zA-Z0-9_]*\b/g;
+    let match;
+    while ((match = regex.exec(line)) !== null) {
+      if (match.index > 0 && line[match.index - 1] === '.') continue;
+      const word = match[0];
+      if (!allowed.has(word.toLowerCase()) && isNaN(word)) {
+        markers.push({
+          severity: monaco.MarkerSeverity.Error,
+          message: `Undefined identifier: '${word}'`,
+          startLineNumber: i + 1,
+          startColumn: match.index + 1,
+          endLineNumber: i + 1,
+          endColumn: match.index + 1 + word.length,
+        });
+      }
+    }
+  });
+  monaco.editor.setModelMarkers(model, 'scl-owner', markers);
+}
+
 // Auto-sizing Monaco editor for SCL ST rungs.
 // IMPORTANT: must stop mouse event propagation to prevent the outer
 // draggable rung div from intercepting clicks and blocking Monaco input.
-const SCLInlineEditor = ({ code, readOnly, onCodeChange, onBlur }) => {
+const SCLInlineEditor = ({ code, readOnly, onCodeChange, onBlur, variables = [], globalVars = [], liveVariables = null, parentName = '' }) => {
   const [height, setHeight] = useState(60);
   const editorRef = useRef(null);
+  const monacoRef = useRef(null);
+  const liveDecsRef = useRef([]);
 
   // Sync external code (undo/redo) into Monaco without resetting cursor
   useEffect(() => {
@@ -25,6 +77,61 @@ const SCLInlineEditor = ({ code, readOnly, onCodeChange, onBlur }) => {
       if (pos) ed.setPosition(pos);
     }
   }, [code]);
+
+  // Re-validate when variables/globalVars change
+  useEffect(() => {
+    const ed = editorRef.current;
+    const mc = monacoRef.current;
+    if (!ed || !mc) return;
+    const model = ed.getModel();
+    if (model) validateSCLCode(model.getValue(), variables, globalVars, mc, model);
+  }, [variables, globalVars]);
+
+  // Live variable decorations
+  useEffect(() => {
+    const ed = editorRef.current;
+    const mc = monacoRef.current;
+    if (!ed || !mc) return;
+    const model = ed.getModel();
+    if (!model) return;
+
+    if (!liveVariables) {
+      liveDecsRef.current = ed.deltaDecorations(liveDecsRef.current, []);
+      return;
+    }
+
+    const safeProgName = (parentName || '').trim().replace(/\s+/g, '_');
+    const userVarNames = new Set([...variables.map(v => v.name), ...globalVars.map(v => v.name)]);
+    const lines = model.getValue().split('\n');
+    const decs = [];
+
+    for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+      const line = lines[lineIdx];
+      const regex = /\b[a-zA-Z_][a-zA-Z0-9_]*\b/g;
+      let match;
+      while ((match = regex.exec(line)) !== null) {
+        const word = match[0];
+        if (!userVarNames.has(word)) continue;
+        const progKey = `prog_${safeProgName}_${word}`;
+        const globalKey = `prog__${word}`;
+        let val;
+        if (liveVariables[progKey] !== undefined) val = liveVariables[progKey];
+        else if (liveVariables[globalKey] !== undefined) val = liveVariables[globalKey];
+        else continue;
+
+        const isBool = typeof val === 'boolean';
+        const displayStr = isBool ? (val ? 'TRUE' : 'FALSE') : String(val);
+        const hlClass = isBool ? (val ? 'live-var-hl-true' : 'live-var-hl-false') : 'live-var-hl-num';
+        const textClass = isBool ? (val ? 'live-var-text-true' : 'live-var-text-false') : 'live-var-text-num';
+        decs.push({
+          range: new mc.Range(lineIdx + 1, match.index + 1, lineIdx + 1, match.index + 1 + word.length),
+          options: { className: hlClass, after: { content: ` ${displayStr}`, inlineClassName: textClass } },
+        });
+      }
+    }
+
+    liveDecsRef.current = ed.deltaDecorations(liveDecsRef.current, decs);
+  }, [liveVariables, variables, globalVars, parentName]);
 
   return (
     <div
@@ -51,10 +158,39 @@ const SCLInlineEditor = ({ code, readOnly, onCodeChange, onBlur }) => {
           contextmenu: true,
           scrollbar: { vertical: 'hidden', horizontal: 'auto', alwaysConsumeMouseWheel: false },
         }}
-        beforeMount={registerIECSTLanguage}
+        beforeMount={monaco => {
+          registerIECSTLanguage(monaco);
+          monacoRef.current = monaco;
+          if (!document.getElementById('inline-live-var-style')) {
+            const style = document.createElement('style');
+            style.id = 'inline-live-var-style';
+            style.textContent = `
+              .live-var-text-true {
+                background-color: #00c853 !important; color: #fff !important;
+                font-size: 11px !important; font-weight: bold !important;
+                font-style: normal !important; padding: 1px 5px !important;
+                border-radius: 3px !important; margin-left: 4px !important;
+              }
+              .live-var-text-false {
+                background-color: #d32f2f !important; color: #fff !important;
+                font-size: 11px !important; font-weight: bold !important;
+                font-style: normal !important; padding: 1px 5px !important;
+                border-radius: 3px !important; margin-left: 4px !important;
+              }
+              .live-var-text-num {
+                background-color: #1565c0 !important; color: #fff !important;
+                font-size: 11px !important; font-style: normal !important;
+                padding: 1px 5px !important; border-radius: 3px !important;
+                margin-left: 4px !important;
+              }
+            `;
+            document.head.appendChild(style);
+          }
+        }}
         onChange={val => onCodeChange(val ?? '')}
         onMount={editor => {
           editorRef.current = editor;
+          const mc = monacoRef.current;
           const updateHeight = () => {
             const h = Math.max(60, editor.getContentHeight());
             setHeight(h);
@@ -62,6 +198,14 @@ const SCLInlineEditor = ({ code, readOnly, onCodeChange, onBlur }) => {
           editor.onDidContentSizeChange(updateHeight);
           updateHeight();
           editor.onDidBlurEditorText(onBlur);
+          // Initial validation
+          const model = editor.getModel();
+          if (model && mc) {
+            validateSCLCode(model.getValue(), variables, globalVars, mc, model);
+            editor.onDidChangeModelContent(() => {
+              validateSCLCode(model.getValue(), variables, globalVars, mc, model);
+            });
+          }
         }}
       />
     </div>
@@ -1072,6 +1216,10 @@ const RungEditorNew = ({ variables, setVariables, rungs, setRungs, availableBloc
                         readOnly={readOnly}
                         onCodeChange={val => updateRungCode(rung.id, val)}
                         onBlur={() => saveHistory(rungs, variables)}
+                        variables={variables}
+                        globalVars={globalVars}
+                        liveVariables={liveVariables}
+                        parentName={parentName}
                       />
                     </div>
                   ) : (

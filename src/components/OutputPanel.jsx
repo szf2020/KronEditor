@@ -65,6 +65,7 @@ const resolveExpression = (expr, projectStructure) => {
 
 const OutputPanel = ({
     logs = [],
+    onClearLogs = null,
     watchTable = [],
     onWatchTableUpdate,
     onWatchTableRemove,
@@ -189,6 +190,32 @@ const OutputPanel = ({
                         )}
                     </button>
                 ))}
+                {/* Clear button — right-aligned */}
+                {onClearLogs && ['messages','warnings','errors'].includes(activeTab) && (
+                    <button
+                        onClick={onClearLogs}
+                        title="Clear all logs"
+                        style={{
+                            marginLeft: 'auto',
+                            marginRight: 6,
+                            alignSelf: 'center',
+                            background: 'transparent',
+                            border: '1px solid #3a3a3a',
+                            borderRadius: 3,
+                            color: '#666',
+                            fontSize: 10,
+                            padding: '2px 8px',
+                            cursor: 'pointer',
+                            letterSpacing: '0.04em',
+                            textTransform: 'uppercase',
+                            whiteSpace: 'nowrap',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.color = '#ccc'; e.currentTarget.style.borderColor = '#555'; }}
+                        onMouseLeave={e => { e.currentTarget.style.color = '#666'; e.currentTarget.style.borderColor = '#3a3a3a'; }}
+                    >
+                        Clear
+                    </button>
+                )}
             </div>
 
             {/* ── Log content ── */}

@@ -166,24 +166,55 @@ const EditorPane = ({
       const markers = [];
       const lines = text.split('\n');
 
-      const allVarNames = new Set([
-        ...variables.map(v => v.name),
-        ...globalVars.map(v => v.name),
-        'IF', 'THEN', 'ELSE', 'END_IF', 'CASE', 'OF', 'END_CASE', 'FOR', 'TO', 'DO', 'END_FOR',
-        'WHILE', 'END_WHILE', 'REPEAT', 'UNTIL', 'END_REPEAT', 'RETURN', 'EXIT',
-        'TRUE', 'FALSE', 'BOOL', 'INT', 'REAL', 'TIME', 'STRING', 'TON', 'TOF', 'TP', 'CTU', 'CTD',
-        'AND', 'OR', 'NOT', 'XOR', 'MOD', 'R_TRIG', 'F_TRIG'
+      // Case-insensitive set: IEC 61131-3 identifiers are case-insensitive
+      const allowedLower = new Set([
+        ...variables.map(v => (v.name || '').toLowerCase()),
+        ...globalVars.map(v => (v.name || '').toLowerCase()),
+        // control flow keywords
+        'if', 'then', 'elsif', 'else', 'end_if',
+        'case', 'of', 'end_case',
+        'for', 'to', 'by', 'do', 'end_for',
+        'while', 'end_while',
+        'repeat', 'until', 'end_repeat',
+        'return', 'exit',
+        // literals & operators
+        'true', 'false', 'and', 'or', 'not', 'xor', 'mod',
+        // types
+        'bool', 'int', 'uint', 'dint', 'udint', 'lint', 'ulint',
+        'real', 'lreal', 'time', 'string', 'byte', 'word', 'dword', 'lword',
+        // standard FBs
+        'ton', 'tof', 'tp', 'tonr',
+        'ctu', 'ctd', 'ctud',
+        'sr', 'rs', 'r_trig', 'f_trig',
+        // standard functions — bit logic
+        'shl', 'shr', 'rol', 'ror', 'band', 'bor', 'bxor', 'bnot',
+        // standard functions — math
+        'add', 'sub', 'mul', 'div', 'abs', 'sqrt', 'expt',
+        'sin', 'cos', 'tan', 'asin', 'acos', 'atan',
+        'max', 'min', 'limit', 'sel', 'mux', 'move',
+        // standard functions — comparison
+        'gt', 'ge', 'eq', 'ne', 'le', 'lt',
+        // standard functions — conversion
+        'byte_to_uint', 'byte_to_int', 'byte_to_dint', 'byte_to_real',
+        'int_to_real', 'real_to_int', 'dint_to_real', 'real_to_dint',
+        'bool_to_int', 'int_to_bool', 'norm_x', 'scale_x',
+        'int_to_uint', 'uint_to_int', 'dint_to_int', 'int_to_dint',
+        // HAL block types (used as FB instance type names in expressions)
+        'uart_receive', 'uart_send',
       ]);
 
-      lines.forEach((line, i) => {
+      lines.forEach((rawLine, i) => {
+        // Strip single-line comments before scanning
+        const line = rawLine.replace(/\/\/.*$/, '').replace(/\(\*.*?\*\)/g, '');
         const regex = /\b[a-zA-Z_][a-zA-Z0-9_]*\b/g;
         let match;
         while ((match = regex.exec(line)) !== null) {
+          if (match.index > 0 && line[match.index - 1] === '.') continue;
           const word = match[0];
-          if (!allVarNames.has(word) && isNaN(word)) {
+          if (!allowedLower.has(word.toLowerCase()) && isNaN(word)) {
             markers.push({
               severity: monacoInstance.MarkerSeverity.Error,
-              message: `Undefined variable: '${word}'`,
+              message: `Undefined identifier: '${word}'`,
               startLineNumber: i + 1,
               startColumn: match.index + 1,
               endLineNumber: i + 1,

@@ -22,6 +22,13 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+/* SOEM header is only needed for the real hardware implementation.
+ * In simulation/stub mode it is not required (and may not be available
+ * on bare-metal or Windows targets without WinPcap). */
+#ifndef KRON_EC_SIM
+#include "soem/soem.h"
+#endif
+
 /* ── PDO data types ───────────────────────────────────────────────────────── */
 typedef enum {
     KRON_EC_DTYPE_BOOL   = 0,
@@ -105,7 +112,7 @@ static inline void kron_ec_pdo_write(KRON_EC_Config *cfg)  { (void)cfg; }
 static inline void kron_ec_close(KRON_EC_Config *cfg)      { (void)cfg; }
 static inline void kron_ec_check_state(KRON_EC_Config *cfg){ (void)cfg; }
 #else
-/* ── Real SOEM-backed implementations (defined in kronethercatmaster.c or main.rs) ── */
+/* ── Real SOEM-backed implementations (defined in kronethercatmaster.c) ── */
 int  kron_ec_init(KRON_EC_Config *cfg);
 void kron_ec_pdo_read(KRON_EC_Config *cfg);
 void kron_ec_pdo_write(KRON_EC_Config *cfg);

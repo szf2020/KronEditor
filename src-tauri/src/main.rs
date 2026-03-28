@@ -533,13 +533,26 @@ fn do_update_libraries(app: &tauri::AppHandle, repos: Vec<String>) -> Result<(),
     // --- Compile for each target ---
 
     // Pre-compute SOEM platform include paths (structure-preserved from do_build_soem)
-    let soem_base        = include_dir.join("soem");
+    // In dev mode the bundled resource_dir doesn't contain soem/ (tauri only copies flat globs);
+    // fall back to the project-root resources/include/soem/ path via dev_include_dir.
+    let soem_base = {
+        let primary = include_dir.join("soem");
+        if primary.exists() {
+            primary
+        } else if let Some(ref di) = dev_include_dir {
+            di.join("soem")
+        } else {
+            include_dir.join("soem")
+        }
+    };
     let soem_inc_dir     = soem_base.join("include");          // soem/include  → soem/soem.h
     let soem_osal_dir    = soem_base.join("osal");             // soem/osal/    → osal.h dispatch
     let soem_osal_linux  = soem_base.join("osal/linux");       // Linux osal
     let soem_osal_win32  = soem_base.join("osal/win32");       // Win32 osal
     let soem_oshw_linux  = soem_base.join("oshw/linux");       // Linux nicdrv.h
     let soem_oshw_win32  = soem_base.join("oshw/win32");       // Win32 nicdrv.h
+    // WinPcap headers needed by soem/oshw/win32/nicdrv.h (<pcap.h>)
+    let soem_wpcap_inc   = soem_base.join("oshw/win32/wpcap/Include");
 
     // Returns extra include dirs + extra cc flags for repos that wrap SOEM (KronEthercatMaster).
     // Returns empty vecs for all other repos.
@@ -551,12 +564,17 @@ fn do_update_libraries(app: &tauri::AppHandle, repos: Vec<String>) -> Result<(),
                 vec!["-DLINUX"]
             ),
             "win32" => (
-                vec![soem_inc_dir.clone(), soem_osal_dir.clone(), soem_osal_win32.clone(), soem_oshw_win32.clone()],
+                // EtherCAT master on Windows requires WinPcap. Compile with SOEM includes
+                // and the bundled WinPcap headers so nicdrv.h can find <pcap.h>.
+                vec![soem_inc_dir.clone(), soem_osal_dir.clone(), soem_osal_win32.clone(),
+                     soem_oshw_win32.clone(), soem_wpcap_inc.clone()],
                 vec!["-DWIN32"]
             ),
             "bare" => {
-                // Bare-metal: skip — EtherCAT master requires an OS/HAL; user links their own
-                (vec![], vec!["-DKRON_EC_BARE_METAL"])
+                // Bare-metal targets have no OS networking stack — compile stub-only.
+                // kronethercatmaster.h guards soem/soem.h with #ifndef KRON_EC_SIM,
+                // so no SOEM include paths are needed here.
+                (vec![], vec!["-DKRON_EC_SIM"])
             },
             _ => (vec![], vec![]),
         }
@@ -933,6 +951,15 @@ fn compile_for_target(
     let out_file = build_dir.join("runtime.bin");
     let res_include = resource_dir.join("resources/include");
 
+    // In dev mode the bundled resource dir may not contain soem/ (only flat files are
+    // bundled by default).  Fall back to the project-root resources/include/soem/.
+    let project_soem_inc = std::env::current_dir().ok()
+        .and_then(|cwd| {
+            std::iter::successors(Some(cwd.as_path()), |p| p.parent())
+                .find(|p| p.join("src-tauri").exists() && p.join("resources").exists())
+                .map(|p| p.join("resources/include/soem/include"))
+        });
+
     // Select cross-compiler and library directory based on board
     let (compiler, lib_dir) = if board_id.starts_with("rpi_pico") {
         return Err("Pico (Cortex-M) targets are not supported for remote deployment".into());
@@ -989,14 +1016,42 @@ fn compile_for_target(
         })
     }).unwrap_or(false);
 
-    let soem_inc = res_include.join("soem/include");
+    // SOEM requires 4 separate -I paths for the full include chain:
+    //   soem/include          → #include "soem/soem.h"
+    //   soem/osal             → #include "osal.h"       (from ec_type.h)
+    //   soem/osal/linux       → #include "osal_defs.h"  (from osal.h)
+    //   soem/oshw/linux       → #include "nicdrv.h"     (from soem.h)
+    // Prefer bundled path; fall back to project root for dev builds.
+    // project_soem_inc = .../resources/include/soem/include
+    // one .parent() → .../resources/include/soem  (the soem base dir we want)
+    let soem_base_inc = {
+        let bundled = res_include.join("soem");
+        if bundled.exists() {
+            bundled
+        } else {
+            project_soem_inc
+                .as_ref()
+                .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+                .unwrap_or_else(|| res_include.join("soem"))
+        }
+    };
+    let soem_inc        = soem_base_inc.join("include");
+    let soem_osal       = soem_base_inc.join("osal");
+    let soem_osal_linux = soem_base_inc.join("osal/linux");
+    let soem_oshw_linux = soem_base_inc.join("oshw/linux");
 
     if !has_ec_lib {
         cmd.arg("-DKRON_EC_SIM");
     }
     cmd.arg("-I").arg(&build_dir)
-        .arg("-I").arg(&res_include)
-        .arg("-I").arg(&soem_inc)
+        .arg("-I").arg(&res_include);
+    // Only add SOEM paths when not in sim mode (they may not exist on all systems)
+    if has_ec_lib {
+        for p in &[&soem_inc, &soem_osal, &soem_osal_linux, &soem_oshw_linux] {
+            if p.exists() { cmd.arg("-I").arg(p); }
+        }
+    }
+    cmd
         .arg("-o").arg(&out_file)
         .arg(&plc_c);
 

@@ -27,6 +27,7 @@
         "targets": "all",
         "resources": [
             "resources/include/*",
+            "resources/include/soem/**",
             "resources/arm/aarch64/*",
             "resources/arm/armv7/*",
             "resources/arm/CortexM/M0/*",

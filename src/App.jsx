@@ -31,7 +31,7 @@ import { open, save, ask } from '@tauri-apps/plugin-dialog';
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
-import { transpileToC } from './services/CTranspilerService';
+import { transpileToC, validateProjectST } from './services/CTranspilerService';
 import { PLCClient } from './services/PLCClient';
 import PlcIcon from './assets/icons/plc-icon.png';
 import EtherCATIconSrc from './assets/icons/ethercat.png';
@@ -945,6 +945,12 @@ function App() {
 
   const handleBuild = async () => {
     if (!checkTaskAssignments()) return;
+    const stErrors = validateProjectST(projectStructure);
+    if (stErrors.length > 0) {
+      stErrors.forEach(e => addLog('error', `[${e.context}] Line ${e.line}:${e.column} — Undefined identifier: '${e.word}'`));
+      addLog('error', `Build aborted: ${stErrors.length} ST validation error(s). Fix before building.`);
+      return;
+    }
     const boardInfo = getBoardById(selectedBoard);
     checkBaremetalConcurrency();
     addLog('info', `Build started for board: ${boardInfo?.name || selectedBoard}...`);
@@ -967,6 +973,12 @@ function App() {
     if (!checkTaskAssignments()) return;
     if (!isPlcConnected || !plcAddress) {
       addLog('error', 'Cannot Build & Send: not connected to PLC server.');
+      return;
+    }
+    const stErrors = validateProjectST(projectStructure);
+    if (stErrors.length > 0) {
+      stErrors.forEach(e => addLog('error', `[${e.context}] Line ${e.line}:${e.column} — Undefined identifier: '${e.word}'`));
+      addLog('error', `Build aborted: ${stErrors.length} ST validation error(s). Fix before building.`);
       return;
     }
     const boardInfo = getBoardById(selectedBoard);
@@ -1785,6 +1797,7 @@ function App() {
               <div style={{ height: layout.consoleHeight, display: 'flex', flexDirection: 'column' }}>
                 <OutputPanel
                   logs={logs}
+                  onClearLogs={() => setLogs([])}
                   watchTable={watchTable}
                   onWatchTableRemove={removeFromWatchTable}
                   onWatchTableUpdate={updateWatchTableEntry}

@@ -97,4 +97,12 @@ typedef struct {
 
 void F_TRIG_Call(F_TRIG *inst);
 
+/* =========================================================
+ * IEC 61131-3 Bit Shift Functions
+ * SHL(IN, N): shift IN left  by N positions
+ * SHR(IN, N): shift IN right by N positions
+ * ========================================================= */
+uint32_t SHL(uint32_t in, uint8_t n);
+uint32_t SHR(uint32_t in, uint8_t n);
+
 #endif /* KRONLOGIC_H */
