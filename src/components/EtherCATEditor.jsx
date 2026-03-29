@@ -175,7 +175,7 @@ function SlaveRow({ slave, slaveIdx, onUpdate, onDelete, isRunning }) {
             <tbody>
               {(slave.pdos || []).map((pdo, pi) =>
                 (pdo.entries || []).map((entry, ei) => (
-                  <tr key={`${pi}-${ei}`}>
+                  <tr key={`${pi}-${ei}`} className="pdo-row">
                     <td style={S.td}>
                       <input type="checkbox" checked={!!entry.selected} disabled={isRunning}
                         onChange={e => togglePdo(pi, ei, e.target.checked)} />

@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Library name="ETHERCAT">
+
+  <Category name="BUS_DIAGNOSTICS">
+
+    <Block type="EC_GetMasterState" description="Returns the current EtherCAT master bus state. Enable=TRUE reads continuously." class="FunctionBlock">
+      <Inputs>
+        <Variable name="Enable"  type="BOOL" default="FALSE"/>
+      </Inputs>
+      <Outputs>
+        <Variable name="Valid"       type="BOOL"/>
+        <Variable name="Error"       type="BOOL"/>
+        <Variable name="ErrorID"     type="WORD"/>
+        <Variable name="State"       type="BYTE"/>
+        <Variable name="Operational" type="BOOL"/>
+        <Variable name="SlaveCount"  type="UINT"/>
+      </Outputs>
+    </Block>
+
+    <Block type="EC_GetSlaveState" description="Returns the state of a specific EtherCAT slave node. SlaveAddress is 1-based." class="FunctionBlock">
+      <Inputs>
+        <Variable name="Enable"       type="BOOL" default="FALSE"/>
+        <Variable name="SlaveAddress" type="UINT" default="1"/>
+      </Inputs>
+      <Outputs>
+        <Variable name="Valid"   type="BOOL"/>
+        <Variable name="Error"   type="BOOL"/>
+        <Variable name="ErrorID" type="WORD"/>
+        <Variable name="State"   type="BYTE"/>
+        <Variable name="LinkUp"  type="BOOL"/>
+      </Outputs>
+    </Block>
+
+    <Block type="EC_ResetBus" description="Rising edge of Execute attempts to bring all slaves back to OP state. Use after a slave drops and reconnects." class="FunctionBlock">
+      <Inputs>
+        <Variable name="Execute" type="BOOL" default="FALSE"/>
+      </Inputs>
+      <Outputs>
+        <Variable name="Done"    type="BOOL"/>
+        <Variable name="Busy"    type="BOOL"/>
+        <Variable name="Error"   type="BOOL"/>
+        <Variable name="ErrorID" type="WORD"/>
+      </Outputs>
+    </Block>
+
+  </Category>
+
+  <Category name="SDO_ACCESS">
+
+    <Block type="EC_ReadSDO" description="Asynchronous SDO read. Rising edge of Execute posts the request. Done=TRUE when value is ready. Does not block the RT cycle." class="FunctionBlock">
+      <Inputs>
+        <Variable name="Execute"      type="BOOL" default="FALSE"/>
+        <Variable name="SlaveAddress" type="UINT" default="1"/>
+        <Variable name="Index"        type="WORD" default="0"/>
+        <Variable name="SubIndex"     type="BYTE" default="0"/>
+        <Variable name="ByteSize"     type="BYTE" default="4"/>
+      </Inputs>
+      <Outputs>
+        <Variable name="Done"    type="BOOL"/>
+        <Variable name="Busy"    type="BOOL"/>
+        <Variable name="Error"   type="BOOL"/>
+        <Variable name="ErrorID" type="WORD"/>
+        <Variable name="Value"   type="DWORD"/>
+      </Outputs>
+    </Block>
+
+    <Block type="EC_WriteSDO" description="Asynchronous SDO write. Rising edge of Execute posts the request. Done=TRUE on success. Does not block the RT cycle." class="FunctionBlock">
+      <Inputs>
+        <Variable name="Execute"      type="BOOL" default="FALSE"/>
+        <Variable name="SlaveAddress" type="UINT" default="1"/>
+        <Variable name="Index"        type="WORD" default="0"/>
+        <Variable name="SubIndex"     type="BYTE" default="0"/>
+        <Variable name="ByteSize"     type="BYTE" default="4"/>
+        <Variable name="Value"        type="DWORD" default="0"/>
+      </Inputs>
+      <Outputs>
+        <Variable name="Done"    type="BOOL"/>
+        <Variable name="Busy"    type="BOOL"/>
+        <Variable name="Error"   type="BOOL"/>
+        <Variable name="ErrorID" type="WORD"/>
+      </Outputs>
+    </Block>
+
+  </Category>
+
+</Library>

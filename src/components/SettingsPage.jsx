@@ -4,6 +4,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { open } from '@tauri-apps/plugin-dialog';
 import { readTextFile } from '@tauri-apps/plugin-fs';
+import { Editor } from '@monaco-editor/react';
+import { transpileToC } from '../services/CTranspilerService';
 
 const KRON_REPOS = [
     'KronStandard', 'KronControl', 'KronCompare', 'KronConverter',
@@ -11,13 +13,20 @@ const KRON_REPOS = [
     'KronEthercatMaster',
 ];
 
-const SettingsPage = ({ theme, setTheme, editorSettings, setEditorSettings, selectedBoard, plcAddress, setPlcAddress, sshUser: sshUserProp, setSshUser: setSshUserProp, sshPort: sshPortProp, setSshPort: setSshPortProp, isPlcConnected, setConnectionEnabled, esiLibrary = [], onLoadEsiFile }) => {
+const SettingsPage = ({ theme, setTheme, editorSettings, setEditorSettings, selectedBoard, plcAddress, setPlcAddress, sshUser: sshUserProp, setSshUser: setSshUserProp, sshPort: sshPortProp, setSshPort: setSshPortProp, isPlcConnected, setConnectionEnabled, esiLibrary = [], onLoadEsiFile, projectStructure, buses, busConfigs }) => {
     const { t, i18n } = useTranslation();
     const [activeTab, setActiveTab] = useState('general');
     const [isUpdating, setIsUpdating] = useState(false);
     const [progressLog, setProgressLog] = useState('');
     const [selectedRepos, setSelectedRepos] = useState([...KRON_REPOS]);
     const logRef = useRef(null);
+
+    // ── Transpiler debug panel state (DEV only) ──────────────────────────────
+    const [transpilerOut, setTranspilerOut] = useState({ header: '', source: '' });
+    const [transpilerTab, setTranspilerTab] = useState('header');
+    const [buildLog, setBuildLog] = useState('');
+    const [isBuildRunning, setIsBuildRunning] = useState(false);
+    const buildLogRef = useRef(null);
     const unlistenRef = useRef(null);
 
     // Connection state
@@ -85,6 +94,52 @@ const SettingsPage = ({ theme, setTheme, editorSettings, setEditorSettings, sele
             logRef.current.scrollTop = logRef.current.scrollHeight;
         }
     }, [progressLog]);
+
+    // ── Transpiler debug handlers ────────────────────────────────────────────
+    const handleTranspile = async () => {
+        try {
+            const standardHeaders = await invoke('get_standard_headers').catch(() => []);
+            const result = transpileToC(projectStructure || {}, standardHeaders, selectedBoard, true, buses || [], busConfigs || {});
+            setTranspilerOut({ header: result.header || '', source: result.source || '' });
+        } catch (err) {
+            setTranspilerOut({ header: '// Error: ' + err, source: '' });
+        }
+    };
+
+    const handleDevBuild = async () => {
+        setIsBuildRunning(true);
+        setBuildLog('Starting build → runtime2.bin...\n');
+        try {
+            const standardHeaders = await invoke('get_standard_headers').catch(() => []);
+            const result = transpileToC(projectStructure || {}, standardHeaders, selectedBoard, false, buses || [], busConfigs || {});
+            setTranspilerOut({ header: result.header || '', source: result.source || '' });
+            setBuildLog(prev => prev + 'Transpile OK. Cross-compiling...\n');
+
+            const outPath = await invoke('compile_for_target', {
+                header: result.header,
+                source: result.source,
+                variableTable: JSON.stringify(result.variableTable || {}, null, 2),
+                hal: result.hal || '',
+                boardId: selectedBoard,
+                outputName: 'runtime2.bin',
+            });
+            setBuildLog(prev => prev + `✓ Built: ${outPath}\n`);
+        } catch (err) {
+            setBuildLog(prev => prev + '✗ ' + String(err) + '\n');
+        } finally {
+            setIsBuildRunning(false);
+            if (buildLogRef.current) buildLogRef.current.scrollTop = buildLogRef.current.scrollHeight;
+        }
+    };
+
+    const handleTranspilerCodeChange = (value) => {
+        const nextValue = value ?? '';
+        setTranspilerOut(prev => (
+            transpilerTab === 'header'
+                ? { ...prev, header: nextValue }
+                : { ...prev, source: nextValue }
+        ));
+    };
 
     const handleUpdateLibraries = async () => {
         setIsUpdating(true);
@@ -606,121 +661,140 @@ const SettingsPage = ({ theme, setTheme, editorSettings, setEditorSettings, sele
                 );
             case 'libraries':
                 return (
-                    <div style={{ maxWidth: '600px' }}>
-                        <h3 style={{ borderBottom: '1px solid #444', paddingBottom: '10px', marginTop: 0 }}>
-                            Kron Libraries
-                        </h3>
-                        <div style={{ marginBottom: '20px', background: '#252526', borderRadius: '4px', padding: '4px 12px' }}>
-                            {KRON_REPOS.map((repo, i) => (
-                                <div key={repo} style={{
-                                    padding: '8px 0',
-                                    color: '#ccc',
-                                    fontSize: '13px',
-                                    borderBottom: i < KRON_REPOS.length - 1 ? '1px solid #333' : 'none',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '8px'
+                    <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
+
+                        {/* ── Left: Kron Libraries ── */}
+                        <div style={{ width: '280px', flexShrink: 0 }}>
+                            <h3 style={{ borderBottom: '1px solid #444', paddingBottom: '10px', marginTop: 0 }}>
+                                Kron Libraries
+                            </h3>
+                            <div style={{ marginBottom: '20px', background: '#252526', borderRadius: '4px', padding: '4px 12px' }}>
+                                {KRON_REPOS.map((repo, i) => (
+                                    <div key={repo} style={{
+                                        padding: '8px 0', color: '#ccc', fontSize: '13px',
+                                        borderBottom: i < KRON_REPOS.length - 1 ? '1px solid #333' : 'none',
+                                        display: 'flex', alignItems: 'center', gap: '8px'
+                                    }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedRepos.includes(repo)}
+                                            onChange={() => handleRepoSelection(repo)}
+                                            disabled={isUpdating}
+                                            style={{ cursor: isUpdating ? 'not-allowed' : 'pointer', margin: 0 }}
+                                        />
+                                        <span style={{ color: '#888' }}>github.com/Krontek/</span>
+                                        <span style={{ color: '#9cdcfe' }}>{repo}</span>
+                                    </div>
+                                ))}
+                            </div>
+                            {[
+                                { label: 'Build Libraries', handler: handleUpdateLibraries, color: '#007acc' },
+                                { label: 'Build Server',    handler: handleUpdateServer,    color: '#0d47a1' },
+                                { label: 'Build SOEM',      handler: handleBuildSoem,       color: '#1b5e20' },
+                                { label: 'Build CANopen',   handler: handleBuildCanopen,    color: '#0d47a1' },
+                            ].map(({ label, handler, color }) => (
+                                <button key={label} onClick={handler} disabled={isUpdating} style={{
+                                    padding: '10px 20px', backgroundColor: isUpdating ? '#444' : color,
+                                    color: '#fff', border: 'none', borderRadius: '4px',
+                                    cursor: isUpdating ? 'not-allowed' : 'pointer',
+                                    marginBottom: '8px', width: '100%', fontSize: '14px'
                                 }}>
-                                    <input
-                                        type="checkbox"
-                                        checked={selectedRepos.includes(repo)}
-                                        onChange={() => handleRepoSelection(repo)}
-                                        disabled={isUpdating}
-                                        style={{ cursor: isUpdating ? 'not-allowed' : 'pointer', margin: 0 }}
-                                    />
-                                    <span style={{ color: '#888' }}>github.com/Krontek/</span>
-                                    <span style={{ color: '#9cdcfe' }}>{repo}</span>
-                                </div>
+                                    {isUpdating ? 'Building...' : label}
+                                </button>
                             ))}
+                            {progressLog && (
+                                <textarea
+                                    ref={logRef}
+                                    value={progressLog}
+                                    readOnly
+                                    style={{
+                                        width: '100%', height: '260px', background: '#0d0d0d',
+                                        color: '#4ec9b0', border: '1px solid #333', borderRadius: '4px',
+                                        padding: '10px', fontFamily: 'monospace', fontSize: '12px',
+                                        resize: 'none', boxSizing: 'border-box', marginTop: '8px'
+                                    }}
+                                />
+                            )}
                         </div>
-                        <button
-                            onClick={handleUpdateLibraries}
-                            disabled={isUpdating}
-                            style={{
-                                padding: '10px 20px',
-                                backgroundColor: isUpdating ? '#444' : '#007acc',
-                                color: '#fff',
-                                border: 'none',
-                                borderRadius: '4px',
-                                cursor: isUpdating ? 'not-allowed' : 'pointer',
-                                marginBottom: '16px',
-                                width: '100%',
-                                fontSize: '14px'
-                            }}
-                        >
-                            {isUpdating ? 'Building...' : 'Build Libraries'}
-                        </button>
-                        <button
-                            onClick={handleUpdateServer}
-                            disabled={isUpdating}
-                            style={{
-                                padding: '10px 20px',
-                                backgroundColor: isUpdating ? '#444' : '#0d47a1',
-                                color: '#fff',
-                                border: 'none',
-                                borderRadius: '4px',
-                                cursor: isUpdating ? 'not-allowed' : 'pointer',
-                                marginBottom: '16px',
-                                width: '100%',
-                                fontSize: '14px'
-                            }}
-                        >
-                            {isUpdating ? 'Building...' : 'Build Server'}
-                        </button>
-                        <button
-                            onClick={handleBuildSoem}
-                            disabled={isUpdating}
-                            style={{
-                                padding: '10px 20px',
-                                backgroundColor: isUpdating ? '#444' : '#1b5e20',
-                                color: '#fff',
-                                border: 'none',
-                                borderRadius: '4px',
-                                cursor: isUpdating ? 'not-allowed' : 'pointer',
-                                marginBottom: '8px',
-                                width: '100%',
-                                fontSize: '14px'
-                            }}
-                        >
-                            Build SOEM
-                        </button>
-                        <button
-                            onClick={handleBuildCanopen}
-                            disabled={isUpdating}
-                            style={{
-                                padding: '10px 20px',
-                                backgroundColor: isUpdating ? '#444' : '#0d47a1',
-                                color: '#fff',
-                                border: 'none',
-                                borderRadius: '4px',
-                                cursor: isUpdating ? 'not-allowed' : 'pointer',
-                                marginBottom: '16px',
-                                width: '100%',
-                                fontSize: '14px'
-                            }}
-                        >
-                            Build CANopen
-                        </button>
-                        {progressLog && (
-                            <textarea
-                                ref={logRef}
-                                value={progressLog}
-                                readOnly
-                                style={{
-                                    width: '100%',
-                                    height: '260px',
-                                    background: '#0d0d0d',
-                                    color: '#4ec9b0',
-                                    border: '1px solid #333',
-                                    borderRadius: '4px',
-                                    padding: '10px',
-                                    fontFamily: 'monospace',
-                                    fontSize: '12px',
-                                    resize: 'none',
-                                    boxSizing: 'border-box'
-                                }}
-                            />
-                        )}
+
+                        {/* ── Right: Transpiler Debug ── */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <h3 style={{ borderBottom: '1px solid #444', paddingBottom: '10px', marginTop: 0 }}>
+                                Transpiler Debug
+                            </h3>
+                            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                                <button
+                                    onClick={handleTranspile}
+                                    style={{
+                                        flex: 1, padding: '9px 0', background: '#4a3f7a', color: '#fff',
+                                        border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px'
+                                    }}
+                                >
+                                    Transpile to C
+                                </button>
+                                <button
+                                    onClick={handleDevBuild}
+                                    disabled={isBuildRunning}
+                                    style={{
+                                        flex: 1, padding: '9px 0',
+                                        background: isBuildRunning ? '#444' : '#1b5e20',
+                                        color: '#fff', border: 'none', borderRadius: '4px',
+                                        cursor: isBuildRunning ? 'not-allowed' : 'pointer', fontSize: '13px'
+                                    }}
+                                >
+                                    {isBuildRunning ? 'Building...' : 'Build'}
+                                </button>
+                            </div>
+
+                            {/* Tab bar always visible */}
+                            <div style={{ display: 'flex', borderBottom: '1px solid #444' }}>
+                                {['header', 'source'].map(tab => (
+                                    <div
+                                        key={tab}
+                                        onClick={() => setTranspilerTab(tab)}
+                                        style={{
+                                            padding: '6px 16px', cursor: 'pointer', fontSize: '12px',
+                                            color: transpilerTab === tab ? '#fff' : '#888',
+                                            borderBottom: transpilerTab === tab ? '2px solid #007acc' : '2px solid transparent',
+                                            userSelect: 'none'
+                                        }}
+                                    >
+                                        {tab === 'header' ? 'plc.h' : 'plc.c'}
+                                    </div>
+                                ))}
+                            </div>
+                            <div style={{ border: '1px solid #444', borderTop: 'none', height: '480px' }}>
+                                <Editor
+                                    language="c"
+                                    theme="vs-dark"
+                                    value={transpilerTab === 'header' ? transpilerOut.header : transpilerOut.source}
+                                    onChange={handleTranspilerCodeChange}
+                                    options={{
+                                        readOnly: false,
+                                        minimap: { enabled: false },
+                                        fontSize: 11,
+                                        lineNumbers: 'on',
+                                        scrollBeyondLastLine: false,
+                                        automaticLayout: true,
+                                        wordWrap: 'off',
+                                    }}
+                                />
+                            </div>
+
+                            {buildLog && (
+                                <textarea
+                                    ref={buildLogRef}
+                                    value={buildLog}
+                                    readOnly
+                                    style={{
+                                        width: '100%', height: '160px', background: '#0d0d0d',
+                                        color: '#4ec9b0', border: '1px solid #333', borderRadius: '4px',
+                                        padding: '10px', fontFamily: 'monospace', fontSize: '12px',
+                                        resize: 'none', boxSizing: 'border-box', marginTop: '8px'
+                                    }}
+                                />
+                            )}
+                        </div>
                     </div>
                 );
             case 'fieldbus':

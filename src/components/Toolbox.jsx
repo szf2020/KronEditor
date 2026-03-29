@@ -406,7 +406,7 @@ const Toolbox = ({ userDefinedBlocks = [], libraryData = [], activeFileType, sel
 
                   {expandedSubs[sub.id] !== false && (
                     <div style={{ paddingLeft: 12 }}>
-                      {sub.items.map(item => (
+                      {resolveItems(sub).map(item => (
                         <ToolboxItem
                           key={item.blockType}
                           blockType={item.blockType}

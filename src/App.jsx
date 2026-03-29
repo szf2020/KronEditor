@@ -761,11 +761,12 @@ function App() {
       addLog('info', t('logs.compilingSimulationTranspile') || 'Compiling Project for Simulation (C Transpilation)...');
       try {
         const standardHeaders = await invoke('get_standard_headers').catch(() => []);
-        const cCode = transpileToC(projectStructure, standardHeaders, selectedBoard);
+        const cCode = transpileToC(projectStructure, standardHeaders, selectedBoard, true, buses, busConfigs);
         const outPath = await invoke('write_plc_files', {
           header: cCode.header,
           source: cCode.source,
-          variableTable: JSON.stringify(cCode.variableTable, null, 2)
+          variableTable: JSON.stringify(cCode.variableTable, null, 2),
+          hal: cCode.hal || ''
         });
         addLog('success', t('logs.transpiledSaved', { path: outPath }) || `Transpiled C header and source successfully saved to ${outPath}`);
 
@@ -956,11 +957,12 @@ function App() {
     addLog('info', `Build started for board: ${boardInfo?.name || selectedBoard}...`);
     try {
       const standardHeaders = await invoke('get_standard_headers').catch(() => []);
-      const cCode = transpileToC(projectStructure, standardHeaders, selectedBoard);
+      const cCode = transpileToC(projectStructure, standardHeaders, selectedBoard, true, buses, busConfigs);
       await invoke('write_plc_files', {
         header: cCode.header,
         source: cCode.source,
-        variableTable: JSON.stringify(cCode.variableTable, null, 2)
+        variableTable: JSON.stringify(cCode.variableTable, null, 2),
+        hal: cCode.hal || ''
       });
       await invoke('compile_simulation');
       addLog('success', 'Build successful.');
@@ -986,13 +988,14 @@ function App() {
     addLog('info', `Build & Send for ${boardInfo?.name || selectedBoard}...`);
     try {
       const standardHeaders = await invoke('get_standard_headers').catch(() => []);
-      const cCode = transpileToC(projectStructure, standardHeaders, selectedBoard, false);
+      const cCode = transpileToC(projectStructure, standardHeaders, selectedBoard, false, buses, busConfigs);
 
       addLog('info', 'Cross-compiling for target...');
       await invoke('compile_for_target', {
         header: cCode.header,
         source: cCode.source,
         variableTable: JSON.stringify(cCode.variableTable, null, 2),
+        hal: cCode.hal || '',
         boardId: selectedBoard,
         diCount: boardInfo?.pinout?.diCount ?? null,
         doCount: boardInfo?.pinout?.doCount ?? null,
@@ -1473,7 +1476,18 @@ function App() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', background: '#1e1e1e', overflow: 'hidden', boxShadow: 'inset 0 0 0 1px #3e3e42' }}>
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      height: '100vh', 
+      width: '100vw', 
+      background: '#1e1e1e', 
+      overflow: 'hidden', 
+      boxSizing: 'border-box', 
+      border: '1px solid rgba(255, 255, 255, 0.1)', 
+      borderRadius: '8px',
+      boxShadow: '0 0 10px rgba(0, 0, 0, 0.5)'
+    }}>
       <SaveConfirmDialog
         isOpen={saveConfirmOpen}
         onSave={handleSaveConfirmSave}
@@ -1707,6 +1721,9 @@ function App() {
                       setConnectionEnabled={setConnectionEnabled}
                       esiLibrary={esiLibrary}
                       onLoadEsiFile={handleLoadEsiFile}
+                      projectStructure={projectStructure}
+                      buses={buses}
+                      busConfigs={busConfigs}
                     />
                   </ErrorBoundary>
                 ) : activeId === 'BOARD_CONFIG' ? (

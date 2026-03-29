@@ -219,6 +219,7 @@ export const DataTypeSelector = ({ value, onChange, derivedTypes = [], userDefin
     // Only standard blocks go to structuredUserTypes (FunctionBlock section)
     const structuredUserTypes = {};
     standardBlocks.forEach(curr => {
+        if (!curr.name) return;
         if (!curr.name.toLowerCase().includes(term)) return;
         const parts = curr.category ? curr.category.split(' / ') : ['FunctionBlocks'];
         const mainCat = parts[0];

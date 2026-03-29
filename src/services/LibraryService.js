@@ -12,6 +12,7 @@ export class LibraryService {
             '/libraries/conversion.xml',
             '/libraries/advanced_control.xml',
             '/libraries/motion.xml',
+            '/libraries/ethercat.xml',
             '/libraries/communication.xml',
             '/libraries/system.xml'
         ];

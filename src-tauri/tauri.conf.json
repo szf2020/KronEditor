@@ -15,7 +15,8 @@
                 "title": "KronEditor",
                 "width": 1200,
                 "height": 800,
-                "decorations": false
+                "decorations": false,
+                "transparent": true
             }
         ],
         "security": {

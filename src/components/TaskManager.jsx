@@ -15,7 +15,12 @@ const parseInterval = (str) => {
 
 const fmtInterval = (value, unit) => `T#${value}${unit}`;
 
-const fmtExecUs = (us) => us >= 1000 ? `${(us / 1000).toFixed(1)}ms` : `${us}µs`;
+// Value is in nanoseconds now
+const fmtExecNs = (ns) => {
+    if (ns >= 1000000) return `${(ns / 1000000).toFixed(2)}ms`;
+    if (ns >= 1000)    return `${(ns / 1000).toFixed(1)}µs`;
+    return `${ns}ns`;
+};
 
 export default function TaskManager({
     taskConfig, onTaskConfigChange,
@@ -173,7 +178,7 @@ export default function TaskManager({
                                 {isRunning && totalExecUs > 0 && (
                                     <span style={{ fontSize: 10, fontVariantNumeric: 'tabular-nums', color: taskOverrun ? '#f44336' : '#4ec9b0', background: taskOverrun ? '#3a1a1a' : '#1a2a2a', border: `1px solid ${taskOverrun ? '#f4433644' : '#4ec9b044'}`, borderRadius: 3, padding: '1px 6px', display: 'flex', alignItems: 'center', gap: 4 }}>
                                         {taskOverrun && <span>⚠</span>}
-                                        {fmtExecUs(totalExecUs)} / {fmtExecUs(ivUs)}
+                                        {fmtExecNs(totalExecUs)} / {fmtExecNs(ivUs)}
                                     </span>
                                 )}
 
@@ -231,7 +236,7 @@ export default function TaskManager({
                                             {/* Live exec time */}
                                             {execUs != null && (
                                                 <span style={{ fontSize: 10, color: taskOverrun ? '#f44336' : '#4ec9b0', fontVariantNumeric: 'tabular-nums' }}>
-                                                    {fmtExecUs(execUs)}
+                                                    {fmtExecNs(execUs)}
                                                 </span>
                                             )}
 

@@ -288,11 +288,17 @@ fn write_plc_files(
     header: String,
     source: String,
     variable_table: String,
+    hal: Option<String>,
 ) -> Result<String, String> {
     let build_dir = get_build_dir(&app)?;
     fs::write(build_dir.join("plc.h"), &header).map_err(|e| e.to_string())?;
     fs::write(build_dir.join("plc.c"), &source).map_err(|e| e.to_string())?;
     fs::write(build_dir.join("variables.json"), &variable_table).map_err(|e| e.to_string())?;
+    if let Some(hal_content) = hal {
+        if !hal_content.is_empty() {
+            fs::write(build_dir.join("kron_hal.h"), &hal_content).map_err(|e| e.to_string())?;
+        }
+    }
     Ok(build_dir.to_string_lossy().to_string())
 }
 
@@ -935,9 +941,11 @@ fn compile_for_target(
     header: String,
     source: String,
     variable_table: String,
+    hal: Option<String>,
     board_id: String,
     _di_count: Option<u8>,
     _do_count: Option<u8>,
+    output_name: Option<String>,
 ) -> Result<String, String> {
     let resource_dir = get_resource_dir(&app)?;
     let build_dir = plain_path(&get_build_dir(&app)?);
@@ -945,10 +953,16 @@ fn compile_for_target(
     // Write source files
     fs::write(build_dir.join("plc.h"), &header).map_err(|e| e.to_string())?;
     fs::write(build_dir.join("plc.c"), &source).map_err(|e| e.to_string())?;
+    if let Some(hal_content) = hal {
+        if !hal_content.is_empty() {
+            fs::write(build_dir.join("kron_hal.h"), &hal_content).map_err(|e| e.to_string())?;
+        }
+    }
     fs::write(build_dir.join("variables.json"), &variable_table).map_err(|e| e.to_string())?;
 
     let plc_c = build_dir.join("plc.c");
-    let out_file = build_dir.join("runtime.bin");
+    let bin_name = output_name.unwrap_or_else(|| "runtime.bin".to_string());
+    let out_file = build_dir.join(&bin_name);
     let res_include = resource_dir.join("resources/include");
 
     // In dev mode the bundled resource dir may not contain soem/ (only flat files are
@@ -1040,13 +1054,32 @@ fn compile_for_target(
     let soem_osal_linux = soem_base_inc.join("osal/linux");
     let soem_oshw_linux = soem_base_inc.join("oshw/linux");
 
-    if !has_ec_lib {
+    // Check if a full SOEM library (with ecx_init) is available.
+    // libsoem.a may exist but contain only partial symbols (e.g. NIC layer only).
+    // Use `ar -t` + `nm` to verify ecx_init is actually defined.
+    let has_full_soem = fs::read_dir(&lib_dir).ok()
+        .and_then(|entries| {
+            entries.flatten().find(|e| {
+                let n = e.file_name().to_string_lossy().to_lowercase();
+                n.contains("soem") && n.ends_with(".a")
+            })
+        })
+        .and_then(|e| std::process::Command::new("nm")
+            .arg(e.path())
+            .output().ok())
+        .map(|out| String::from_utf8_lossy(&out.stdout).contains("ecx_init"))
+        .unwrap_or(false);
+
+    // Use real EtherCAT only when kronethercatmaster.a + full SOEM are both present.
+    let use_real_ec = has_ec_lib && has_full_soem;
+
+    if !use_real_ec {
         cmd.arg("-DKRON_EC_SIM");
     }
     cmd.arg("-I").arg(&build_dir)
         .arg("-I").arg(&res_include);
-    // Only add SOEM paths when not in sim mode (they may not exist on all systems)
-    if has_ec_lib {
+    // Only add SOEM paths when real EtherCAT is available (they may not exist on all systems)
+    if use_real_ec {
         for p in &[&soem_inc, &soem_osal, &soem_osal_linux, &soem_oshw_linux] {
             if p.exists() { cmd.arg("-I").arg(p); }
         }
@@ -1055,11 +1088,17 @@ fn compile_for_target(
         .arg("-o").arg(&out_file)
         .arg(&plc_c);
 
-    // Link .a library files
+    // Link .a library files.
+    // Skip kronethercatmaster.a when libsoem.a is absent — the library was compiled
+    // against SOEM and will produce unresolved-symbol link errors without it.
+    // In that case -DKRON_EC_SIM above makes kronethercatmaster.h use inline stubs.
     let mut a_files: Vec<PathBuf> = Vec::new();
     if let Ok(entries) = fs::read_dir(&lib_dir) {
         for e in entries.flatten() {
             if e.path().extension().map_or(false, |x| x == "a") {
+                let name = e.file_name().to_string_lossy().to_lowercase();
+                let is_ec_lib = name.contains("ethercatmaster") || name.contains("kronec");
+                if is_ec_lib && !use_real_ec { continue; }
                 a_files.push(e.path());
             }
         }
@@ -1274,7 +1313,7 @@ fn deploy_server_to_target(
 
     // Write systemd unit file and install it
     let unit_content = format!(
-        "[Unit]\nDescription=PLC Agent (KronServer)\nAfter=network.target\n\n[Service]\nExecStart={} -addr :7070 -deploy-dir {} -shm-name plc_runtime -shm-size 65536\nRestart=always\nRestartSec=3\nWorkingDirectory={}\n\n[Install]\nWantedBy=multi-user.target\n",
+        "[Unit]\nDescription=PLC Agent (KronServer)\nAfter=network.target\n\n[Service]\nExecStart={} -addr :7070 -deploy-dir {} -shm-name plc_runtime -shm-size 65536\nRestart=always\nRestartSec=3\nWorkingDirectory={}\nUser=root\n\n[Install]\nWantedBy=multi-user.target\n",
         remote_bin, remote_dir, remote_dir
     );
     let install_cmd = format!(

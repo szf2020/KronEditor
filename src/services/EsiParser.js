@@ -257,10 +257,32 @@ export function parseEsiXml(xmlString) {
  * @returns {{ name: string, type: string, direction: string, comment: string }[]}
  */
 export function pdoEntriesToGlobalVars(selectedEntries, prefix = 'ec') {
+  const usedNames = new Set();
+  const makeUniqueName = (rawName) => {
+    const base = (rawName || 'ec_var')
+      .replace(/[^A-Za-z0-9_]/g, '_')
+      .replace(/__+/g, '_')
+      .replace(/^_+|_+$/g, '');
+    const root = base || 'ec_var';
+    if (!usedNames.has(root)) {
+      usedNames.add(root);
+      return root;
+    }
+    let n = 2;
+    let candidate = `${root}_${n}`;
+    while (usedNames.has(candidate)) {
+      n += 1;
+      candidate = `${root}_${n}`;
+    }
+    usedNames.add(candidate);
+    return candidate;
+  };
+
   return selectedEntries.map(({ entry, slaveName, direction }) => {
     const safeSlave = (slaveName || 'slave').replace(/[^A-Za-z0-9_]/g, '_');
     const safeName  = (entry.name || 'var').replace(/[^A-Za-z0-9_]/g, '_');
-    const varName   = `${prefix}_${safeSlave}_${safeName}`.replace(/__+/g, '_');
+    const autoName  = `${prefix}_${safeSlave}_${safeName}`;
+    const varName   = makeUniqueName(autoName);
     return {
       name:      varName,
       type:      entry.iecType || 'USINT',

@@ -2,17 +2,23 @@
 body {
   margin: 0;
   padding: 0;
-  background: #1e1e1e;
+  background: transparent;
   color: #d4d4d4;
   font-family: 'Segoe UI', sans-serif;
+  overflow: hidden;
+}
+
+#root {
+  height: 100vh;
+  width: 100vw;
   overflow: hidden;
 }
 
 /* ANA IZGARA YAPISI */
 .app-layout {
   display: grid;
-  height: 100vh;
-  width: 100vw;
+  height: 100%;
+  width: 100%;
   /* Grid Şablonu:
      Üst: 50px
      Orta: Kalan boşluk (1fr)
@@ -309,4 +315,11 @@ body.light video,
 body.light iframe {
   /* re-invert images and iframe content so they look normal */
   filter: invert(1) hue-rotate(180deg);
+}
+/* PDO Table Zebra Striping */
+.pdo-row:nth-child(even) {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+.pdo-row:hover {
+  background-color: rgba(255, 255, 255, 0.06);
 }
