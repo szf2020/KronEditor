@@ -43,11 +43,13 @@ export const BOARD_PORT_DETAILS = {
       SPI_0_CE0: { path: '/dev/spidev0.0', pins: { MOSI: 'Pin 19 / SPI_MOSI', MISO: 'Pin 21 / SPI_MISO', SCLK: 'Pin 23 / SPI_SCK', CS: 'Pin 24 / SPI_CS0' } },
       SPI_1_CE0: { path: '/dev/spidev1.0', pins: { MOSI: 'Carrier specific', MISO: 'Carrier specific', SCLK: 'Carrier specific', CS: 'Carrier specific' } },
     },
+    // Jetson Nano: 40-pin header UART = ttyTHS1 (Pin 8 TX / Pin 10 RX)
+    // ttyTHS0 is the debug console and typically unavailable for general use
     UART: {
-      UART_0: { path: '/dev/ttyTHS0', pins: { TX: 'Pin 8 / UART_TX', RX: 'Pin 10 / UART_RX' } },
-      UART_1: { path: '/dev/ttyTHS1', pins: { TX: 'Carrier specific', RX: 'Carrier specific' } },
-      UART_2: { path: '/dev/ttyTHS2', pins: { TX: 'Carrier specific', RX: 'Carrier specific' } },
-      UART_3: { path: '/dev/ttyTHS3', pins: { TX: 'Carrier specific', RX: 'Carrier specific' } },
+      UART_0: { path: '/dev/ttyTHS1', pins: { TX: 'Pin 8 / UART1_TXD', RX: 'Pin 10 / UART1_RXD' } },
+      UART_1: { path: '/dev/ttyTHS2', pins: { TX: 'Carrier specific', RX: 'Carrier specific' } },
+      UART_2: { path: '/dev/ttyTHS3', pins: { TX: 'Carrier specific', RX: 'Carrier specific' } },
+      UART_3: { path: '/dev/ttyTHS0', pins: { TX: 'Debug console', RX: 'Debug console' } },
       UART_4: { path: '/dev/ttyS0', pins: { TX: 'Legacy UART TX', RX: 'Legacy UART RX' } },
       UART_5: { path: '/dev/ttyS1', pins: { TX: 'Legacy UART TX', RX: 'Legacy UART RX' } },
     },

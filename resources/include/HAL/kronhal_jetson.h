@@ -438,7 +438,7 @@ static inline int _uart_open(uint8_t ch, int32_t baud) {
         if (stop_bits == 2) tty.c_cflag |= CSTOPB;
         tty.c_lflag  = 0;
         tty.c_oflag  = 0;
-        tty.c_iflag  = 0;
+        tty.c_iflag  = IGNBRK;   /* Jetson THS UART: suppress BREAK→EIO */
         tty.c_cc[VMIN]  = 0;
         tty.c_cc[VTIME] = 1;
 
@@ -475,7 +475,8 @@ static inline void HAL_UART_Receive_Call(HAL_UART_Receive *inst, uint8_t ch) {
     if (n == 1) {
         inst->DATA  = byte;
         inst->READY = true;
-    } else if (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+    } else if (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK
+                      && errno != EINTR  && errno != EIO) {
         inst->ERR_ID = 3;
     }
 }

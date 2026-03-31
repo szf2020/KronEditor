@@ -62,7 +62,7 @@ const EditorPane = ({
     } else if (fileType === 'LD' || fileType === 'SCL') {
       newContent = { rungs, variables };
     } else if (fileType === 'RESOURCE_EDITOR') {
-      newContent = { globalVars: variables, tasks, instances };
+      newContent = { ...initialContent, globalVars: variables, tasks, instances };
     } else {
       newContent = { ...initialContent, variables };
     }
@@ -238,7 +238,7 @@ const EditorPane = ({
           ...globalVars.map(v => v.name)
         ]);
 
-        lines.forEach((line, i) => {
+        lines.forEach((line) => {
           const regex = /\b[a-zA-Z_][a-zA-Z0-9_]*\b/g;
           let match;
           while ((match = regex.exec(line)) !== null) {
@@ -469,7 +469,6 @@ const EditorPane = ({
       if (!window.liveVariablesRef || !window.onForceWriteRef) return;
 
       const liveVars = window.liveVariablesRef;
-      const onForceWriteFn = window.onForceWriteRef;
 
       // Ensure click target is text
       if (e.target.type !== monaco.editor.MouseTargetType.CONTENT_TEXT) return;

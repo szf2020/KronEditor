@@ -183,6 +183,24 @@ const INTERFACE_BLOCKS = {
               { name: 'OK', type: 'BOOL' },
             ],
             class: 'FunctionBlock',
+          },
+          {
+            blockType: `I2C${i}_BurstRead`,
+            label: `I2C${i}_BurstRead`,
+            desc: `I2C${i} – Burst-read multiple bytes from slave device into buffer`,
+            inputs: [
+              { name: 'ADDR', type: 'BYTE', default: '0' },
+              { name: 'REG', type: 'BYTE', default: '0' },
+              { name: 'LEN', type: 'UINT', default: '1' },
+              { name: 'BUFFER', type: 'POINTER', default: '0' },
+              { name: 'EN', type: 'BOOL', default: 'TRUE' },
+            ],
+            outputs: [
+              { name: 'ENO', type: 'BOOL' },
+              { name: 'OK', type: 'BOOL' },
+              { name: 'ERR_ID', type: 'BYTE' },
+            ],
+            class: 'FunctionBlock',
           }
         );
       }

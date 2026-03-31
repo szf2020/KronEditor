@@ -325,6 +325,7 @@ fn get_standard_headers(app: tauri::AppHandle) -> Result<Vec<(String, String)>, 
 
     if let Ok(resource_dir) = get_resource_dir(&app) {
         let include_dir = resource_dir.join("resources/include");
+        // Scan top-level kron*.h / gpiod.h (non-HAL headers)
         if let Ok(entries) = fs::read_dir(&include_dir) {
             for entry in entries.flatten() {
                 if let Some(name) = entry.file_name().to_str() {
@@ -334,6 +335,21 @@ fn get_standard_headers(app: tauri::AppHandle) -> Result<Vec<(String, String)>, 
                     if is_allowed {
                         if let Ok(content) = fs::read_to_string(entry.path()) {
                             headers.push((name.to_string(), content));
+                        }
+                    }
+                }
+            }
+        }
+        // Scan HAL/ subdirectory — filenames returned as "HAL/kronhal.h" etc.
+        let hal_dir = include_dir.join("HAL");
+        if let Ok(hal_entries) = fs::read_dir(&hal_dir) {
+            for entry in hal_entries.flatten() {
+                if let Some(name) = entry.file_name().to_str() {
+                    if name.starts_with("kron") && name.ends_with(".h")
+                        && !hal_impl_headers.contains(name)
+                    {
+                        if let Ok(content) = fs::read_to_string(entry.path()) {
+                            headers.push((format!("HAL/{}", name), content));
                         }
                     }
                 }

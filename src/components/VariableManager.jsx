@@ -303,7 +303,27 @@ const VariableManager = ({
     return String(val);
   };
 
-  const dataTypes = projectStructure?.dataTypes || [];
+  const AXIS_REF_BUILTIN = {
+    name: 'AXIS_REF', type: 'Structure',
+    content: { members: [
+      { name: 'AxisNo',         type: 'UINT' },
+      { name: 'Simulation',     type: 'BOOL' },
+      { name: 'ActualPosition', type: 'REAL' },
+      { name: 'ActualVelocity', type: 'REAL' },
+      { name: 'ActualTorque',   type: 'REAL' },
+      { name: 'IsHomed',        type: 'BOOL' },
+      { name: 'AxisWarning',    type: 'BOOL' },
+      { name: 'AxisErrorID',    type: 'UINT' },
+      { name: 'cmd_Seq',        type: 'UINT' },
+      { name: 'sts_AckSeq',     type: 'UINT' },
+      { name: 'sts_State',      type: 'UINT' },
+      { name: 'sts_Busy',       type: 'BOOL' },
+      { name: 'sts_Done',       type: 'BOOL' },
+      { name: 'sts_Error',      type: 'BOOL' },
+      { name: 'sts_ErrorID',    type: 'UINT' },
+    ]}
+  };
+  const dataTypes = [...(projectStructure?.dataTypes || []), AXIS_REF_BUILTIN];
   const isComplexType = (typeName) => dataTypes.some(dt => dt.name === typeName && (dt.type === 'Array' || dt.type === 'Structure'));
 
   const showClass = allowedClasses.some(c => c === 'Input' || c === 'Output' || c === 'InOut');

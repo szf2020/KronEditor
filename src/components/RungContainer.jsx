@@ -23,9 +23,8 @@ import DragDropManager from '../utils/DragDropManager';
  */
 
 // Terminal connection point - 24V and 0V connection points
-const TerminalConnectionPoint = ({ data, isConnectable }) => {
+const TerminalConnectionPoint = ({ data }) => {
   const isLeft = data.position === 'left';
-  const label = isLeft ? '24V' : '0V';
   const color = isLeft ? '#ff3333' : '#0066ff';
 
   return (
@@ -441,7 +440,7 @@ const getSymbolPath = (type, subType) => {
 };
 
 
-const BlockNode = ({ id, data, isConnectable, selected }) => {
+const BlockNode = ({ id, data, selected }) => {
   const { setNodes } = useReactFlow();
   const edges = useEdges();
   const { variables = [], globalVars = [], dataTypes = [], liveVariables = null } = data; // Receive vars from data context
@@ -1228,7 +1227,6 @@ const RungContainer = ({
   onNodeDoubleClick,
   onSelectBlock,
   globalSelectedBlockId,
-  availableBlocks = [],
   variables = [],
   globalVars = [],
   dataTypes = [],
@@ -1239,8 +1237,7 @@ const RungContainer = ({
   hwPortVars = [],
   isFocused = false,
   onFocusRung,
-  onInsertAbove,
-  onInsertBelow = null
+
 }) => {
   const containerRef = useRef(null);
   const [containerWidth, setContainerWidth] = React.useState(800);
@@ -1330,14 +1327,7 @@ const RungContainer = ({
     ];
   }, [LEFT_LINE_X, MIDDLE_Y]);
 
-  const mapBlocksToNodes = useCallback((blocks, width, selectedMap = {}, draggingMap = {}, prevNodes = []) => {
-    const safeWidth = Math.max(width, 200);
-    const bounds = {
-      minX: 50,
-      maxX: safeWidth - 50,
-      height: RUNG_HEIGHT
-    };
-
+  const mapBlocksToNodes = useCallback((blocks, selectedMap = {}, draggingMap = {}, prevNodes = []) => {
     return blocks.map(block => {
       // If node is currently being dragged, preserve its local state completely
       if (draggingMap[block.id]) {
@@ -1345,7 +1335,6 @@ const RungContainer = ({
         if (prev) return prev;
       }
 
-      const height = getBlockHeight(block.data.type || block.type);
       return {
         id: block.id,
         type: 'blockNode',
@@ -1366,14 +1355,13 @@ const RungContainer = ({
         },
         draggable: !readOnly,
         selected: !!selectedMap[block.id],
-        extent: [[bounds.minX, 0], [bounds.maxX, RUNG_HEIGHT]] // Fully relaxed Y constraint
       };
     });
-  }, [getBlockHeight, variables, globalVars, dataTypes, liveVariables, parentName, readOnly, hwPortVars, RUNG_HEIGHT]);
+  }, [getBlockHeight, variables, globalVars, dataTypes, parentName, readOnly, hwPortVars]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState([
     ...createTerminalNodes(containerWidth),
-    ...mapBlocksToNodes(rung.blocks, containerWidth)
+    ...mapBlocksToNodes(rung.blocks)
   ]);
 
   // Space key → toggle selected Contact variable in simulation mode
@@ -1457,7 +1445,7 @@ const RungContainer = ({
     if (onSelectBlock) onSelectBlock(null, null);
   }, [readOnly, setNodes, onSelectBlock]);
 
-  const handleNodeClick = useCallback((event, node) => {
+  const handleNodeClick = useCallback((_event, node) => {
     // Don't toggle terminal nodes
     if (node.id.startsWith('terminal_')) return;
 
@@ -1512,7 +1500,7 @@ const RungContainer = ({
     }
   }, [globalSelectedBlockId, setNodes]);
 
-  // Sync nodes when rung.blocks changes
+  // Sync nodes when rung.blocks changes (structure/data changes only — not liveVariables)
   React.useEffect(() => {
     setNodes((prevNodes) => {
       // Preserve current selection and drag state
@@ -1527,10 +1515,19 @@ const RungContainer = ({
 
       return [
         ...createTerminalNodes(containerWidth),
-        ...mapBlocksToNodes(rung.blocks, containerWidth, selectedMap, draggingMap, prevNodes)
+        ...mapBlocksToNodes(rung.blocks, selectedMap, draggingMap, prevNodes)
       ];
     });
   }, [rung.blocks, setNodes, containerWidth, createTerminalNodes, mapBlocksToNodes]);
+
+  // Lightweight liveVariables update — only refreshes node.data.liveVariables without
+  // rebuilding all nodes from scratch, preventing unnecessary block re-renders
+  React.useEffect(() => {
+    setNodes(prevNodes => prevNodes.map(n => {
+      if (n.type !== 'blockNode') return n;
+      return { ...n, data: { ...n.data, liveVariables } };
+    }));
+  }, [liveVariables, setNodes]);
 
   // Sync edges when rung.connections changes
   React.useEffect(() => {
@@ -1772,7 +1769,7 @@ const RungContainer = ({
     return finalConnection;
   }, [getNode, containerWidth]);
 
-  const onConnectStart = useCallback((event, { nodeId, handleType }) => {
+  const onConnectStart = useCallback((_event, _handles) => {
     connectionEndPositionRef.current = null;
     setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 0 });
   }, [setViewport]);
@@ -1865,8 +1862,6 @@ const RungContainer = ({
     DragDropManager.clear();
   }, [screenToFlowPosition, onAddBlock, RUNG_BOUNDS, getBlockHeight]);
 
-  const onDragLeave = useCallback(() => {
-  }, []);
 
   const isValidConnection = useCallback((connection) => {
     const sourceNode = getNode(connection.source);
@@ -1947,7 +1942,7 @@ const RungContainer = ({
 
   }, []);
 
-  const onNodeDragStop = useCallback((event, node) => {
+  const onNodeDragStop = useCallback((_event, node) => {
     if (node.id === 'terminal_left_middle' || node.id === 'terminal_right_middle') return;
     onUpdateBlockPosition(node.id, node.position);
   }, [onUpdateBlockPosition]);
@@ -2080,7 +2075,7 @@ const RungContainer = ({
     applyRubberBandSelection(updatedBand);
   }, [applyRubberBandSelection, setNodes, onSelectBlock]);
 
-  const handleRubberBandMouseUp = useCallback((e) => {
+  const handleRubberBandMouseUp = useCallback((_e) => {
     // If pending but never crossed threshold = just a click on empty space → deselect all
     if (rubberBandPendingRef.current && !isRubberBandingRef.current) {
       rubberBandPendingRef.current = null;

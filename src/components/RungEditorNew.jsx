@@ -950,70 +950,73 @@ const RungEditorNew = ({ variables, setVariables, rungs, setRungs, availableBloc
   const deleteBlockFromRung = useCallback((rungId, blockId) => {
     if (readOnly) return;
     let blockToDelete = null;
-    const newRungs = rungs.map(rung => {
-      if (rung.id === rungId) {
-        blockToDelete = rung.blocks.find(b => b.id === blockId);
-        return {
-          ...rung,
-          blocks: rung.blocks.filter(b => b.id !== blockId),
-          connections: rung.connections.filter(c => c.source !== blockId && c.target !== blockId)
-        };
-      }
-      return rung;
+    let newRungs;
+    setRungs(prevRungs => {
+      newRungs = prevRungs.map(rung => {
+        if (rung.id === rungId) {
+          blockToDelete = rung.blocks.find(b => b.id === blockId);
+          return {
+            ...rung,
+            blocks: rung.blocks.filter(b => b.id !== blockId),
+            connections: rung.connections.filter(c => c.source !== blockId && c.target !== blockId)
+          };
+        }
+        return rung;
+      });
+      return newRungs;
     });
-    setRungs(newRungs);
 
     // Remove the deleted block's variable if it is not used elsewhere
-    let newVariables = variables;
-    if (blockToDelete?.data?.instanceName) {
-      const instanceName = blockToDelete.data.instanceName;
-      const isUsedElsewhere = newRungs.some(r =>
-        r.blocks.some(b => b.data?.instanceName === instanceName)
-      );
-      if (!isUsedElsewhere) {
-        newVariables = variables.filter(v => v.name !== instanceName);
-        setVariables(newVariables);
+    // newRungs is set synchronously inside the updater before setVariables runs
+    setTimeout(() => {
+      if (!newRungs) return;
+      let newVariables = variables;
+      if (blockToDelete?.data?.instanceName) {
+        const instanceName = blockToDelete.data.instanceName;
+        const isUsedElsewhere = newRungs.some(r =>
+          r.blocks.some(b => b.data?.instanceName === instanceName)
+        );
+        if (!isUsedElsewhere) {
+          newVariables = variables.filter(v => v.name !== instanceName);
+          setVariables(newVariables);
+        }
       }
-    }
-
-    // Save both new states together into history
-    saveHistory(newRungs, newVariables);
-  }, [readOnly, rungs, variables, saveHistory, setVariables]);
+      saveHistory(newRungs, newVariables);
+    }, 0);
+  }, [readOnly, variables, saveHistory, setVariables]);
 
   // Add connection to rung
   const addConnectionToRung = useCallback((rungId, connection) => {
     if (readOnly) return;
-    const newRungs = rungs.map(rung => {
-      if (rung.id === rungId) {
-        return {
-          ...rung,
-          connections: [...rung.connections, {
-            id: `conn_${Date.now()}_${Math.random()}`,
-            ...connection
-          }]
-        };
-      }
-      return rung;
+    const newConn = { id: `conn_${Date.now()}_${Math.random()}`, ...connection };
+    let newRungs;
+    setRungs(prevRungs => {
+      newRungs = prevRungs.map(rung => {
+        if (rung.id === rungId) {
+          return { ...rung, connections: [...rung.connections, newConn] };
+        }
+        return rung;
+      });
+      return newRungs;
     });
-    setRungs(newRungs);
-    saveHistory(newRungs, variables);
-  }, [readOnly, rungs, variables, saveHistory]);
+    setTimeout(() => { if (newRungs) saveHistory(newRungs, variables); }, 0);
+  }, [readOnly, variables, saveHistory]);
 
   // Remove connection from rung
   const deleteConnectionFromRung = useCallback((rungId, connectionId) => {
     if (readOnly) return;
-    const newRungs = rungs.map(rung => {
-      if (rung.id === rungId) {
-        return {
-          ...rung,
-          connections: rung.connections.filter(c => c.id !== connectionId)
-        };
-      }
-      return rung;
+    let newRungs;
+    setRungs(prevRungs => {
+      newRungs = prevRungs.map(rung => {
+        if (rung.id === rungId) {
+          return { ...rung, connections: rung.connections.filter(c => c.id !== connectionId) };
+        }
+        return rung;
+      });
+      return newRungs;
     });
-    setRungs(newRungs);
-    saveHistory(newRungs, variables);
-  }, [readOnly, rungs, variables, saveHistory]);
+    setTimeout(() => { if (newRungs) saveHistory(newRungs, variables); }, 0);
+  }, [readOnly, variables, saveHistory]);
 
   // Type icons for complex types (stripped on input in RungContainer)
   // ⊞ = Array, ⊡ = Struct, ⊟ = Enum
