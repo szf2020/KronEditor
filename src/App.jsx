@@ -969,6 +969,7 @@ function App() {
         addLog('success', 'Connecting to PLC...');
         await client.start();
         addLog('success', 'PLC runtime started.');
+        addLog('info', `HMI available at http://${plcAddress}/hmi/`);
         setIsRunning(true);
 
         // Auto force-write literal-valued FB input shadow variables so the PLC
@@ -1032,6 +1033,9 @@ function App() {
       }
 
       addLog('info', 'Execution Stopped.');
+      if (isSimulationMode) {
+        invoke('stop_hmi_server').catch(() => {});
+      }
     }
   };
 
@@ -1060,6 +1064,36 @@ function App() {
       }
     }
   }, [isRunning, isSimulationMode, addLog]);
+
+  // Auto-start/stop local HMI server when simulation runs
+  useEffect(() => {
+    if (!isRunning || !isSimulationMode) return;
+    const layoutJson = JSON.stringify(hmiLayout);
+    invoke('start_hmi_server', { port: hmiPort, layoutJson })
+      .then(() => addLog('info', `HMI available at http://localhost:${hmiPort}/hmi/`))
+      .catch((e) => addLog('warning', `HMI server failed to start: ${e}`));
+    return () => { invoke('stop_hmi_server').catch(() => {}); };
+  }, [isRunning, isSimulationMode]); // eslint-disable-line
+
+  // Push live variables to local HMI server during simulation
+  useEffect(() => {
+    if (!isRunning || !isSimulationMode || !liveVariables) return;
+    invoke('push_hmi_variables', { varsJson: JSON.stringify(liveVariables) }).catch(() => {});
+  }, [isRunning, isSimulationMode, liveVariables]);
+
+  // Poll HMI write requests from local server during simulation
+  useEffect(() => {
+    if (!isRunning || !isSimulationMode) return;
+    const interval = setInterval(async () => {
+      try {
+        const writes = await invoke('poll_hmi_writes');
+        if (Array.isArray(writes)) {
+          writes.forEach(([key, val]) => handleForceWrite(key, val));
+        }
+      } catch (_) {}
+    }, 200);
+    return () => clearInterval(interval);
+  }, [isRunning, isSimulationMode, handleForceWrite]);
 
   const isBaremetalBoard = (boardId) => boardId === 'rpi_pico' || boardId === 'rpi_pico_w';
 
@@ -1164,7 +1198,7 @@ function App() {
         } else {
           const result = await hmiResp.json();
           if (hasHmiPages) {
-            addLog('info', `HMI deployed: ${result.pages ?? '?'} page(s).`);
+            addLog('info', `HMI deployed: ${result.pages ?? '?'} page(s). Access at http://${plcAddress}/hmi/`);
           }
         }
       } catch (hmiErr) {
@@ -1906,9 +1940,7 @@ function App() {
                     onLayoutChange={setHmiLayout}
                     liveVariables={isRunning ? liveVariables : null}
                     onForceWrite={isRunning ? handleForceWrite : null}
-                    isRunning={isRunning}
                     projectStructure={projectStructure}
-                    hmiPort={hmiPort}
                   />
                 ) : activeItem ? (
                   <ErrorBoundary>

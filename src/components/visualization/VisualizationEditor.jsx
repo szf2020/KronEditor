@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+
 import HmiToolbox from './HmiToolbox';
 import HmiCanvas from './HmiCanvas';
 import HmiProperties from './HmiProperties';
@@ -16,19 +16,14 @@ const VisualizationEditor = ({
     onLayoutChange,
     liveVariables = null,
     onForceWrite = null,
-    isRunning = false,
     projectStructure = null,
-    hmiPort = 7800,
 }) => {
     const [currentPageIdx, setCurrentPageIdx] = useState(0);
     const [selectedId, setSelectedId]         = useState(null);
     const [isPreview, setIsPreview]           = useState(false);
-    const [isServing, setIsServing]           = useState(false);
-    const [serveStatus, setServeStatus]       = useState('');
     const [renamingPage, setRenamingPage]     = useState(null); // pageId | null
     const [renameVal, setRenameVal]           = useState('');
     const [activeView, setActiveView]         = useState('editor'); // 'editor' | 'auth'
-    const [deployStatus, setDeployStatus]     = useState(''); // '' | 'deploying' | 'ok' | error string
     const [propsWidth, setPropsWidth]         = useState(240);
     const resizingRef                         = useRef(false);
     const resizeStartX                        = useRef(0);
@@ -43,26 +38,6 @@ const VisualizationEditor = ({
             onLayoutChange({ pages: [newPage('Page 1')] });
         }
     }, []); // eslint-disable-line
-
-    /* ── Poll HMI write requests when serving ───────────────── */
-    useEffect(() => {
-        if (!isServing || !onForceWrite) return;
-        const interval = setInterval(async () => {
-            try {
-                const writes = await invoke('poll_hmi_writes');
-                if (Array.isArray(writes)) {
-                    writes.forEach(([key, val]) => onForceWrite(key, val));
-                }
-            } catch (_) {}
-        }, 200);
-        return () => clearInterval(interval);
-    }, [isServing, onForceWrite]);
-
-    /* ── Push live variables to HMI server ────────────────── */
-    useEffect(() => {
-        if (!isServing || !liveVariables) return;
-        invoke('push_hmi_variables', { varsJson: JSON.stringify(liveVariables) }).catch(() => {});
-    }, [isServing, liveVariables]);
 
     /* ── Helpers ────────────────────────────────────────────── */
     const updatePages = useCallback((newPages) => {
@@ -137,43 +112,6 @@ const VisualizationEditor = ({
     }, [page, updateComponents]);
 
     const selectedComp = page?.components?.find(c => c.id === selectedId) || null;
-
-    /* ── Serve / Stop ──────────────────────────────────────── */
-    const handleServe = async () => {
-        try {
-            const layoutJson = JSON.stringify(hmiLayout);
-            await invoke('start_hmi_server', { port: hmiPort, layoutJson });
-            setIsServing(true);
-            setServeStatus(`Serving at http://localhost:${hmiPort}`);
-        } catch (e) {
-            setServeStatus(`Error: ${e}`);
-        }
-    };
-    const handleStop = async () => {
-        try {
-            await invoke('stop_hmi_server');
-        } catch (_) {}
-        setIsServing(false);
-        setServeStatus('');
-    };
-
-    /* ── Deploy to server ───────────────────────────────────── */
-    const handleDeploy = useCallback(async () => {
-        const plcAddr = localStorage.getItem('plcAddress') || '';
-        if (!plcAddr) {
-            setDeployStatus('No server address — set it in Settings → Connection');
-            return;
-        }
-        setDeployStatus('deploying');
-        try {
-            const xml = exportHmiXml(hmiLayout);
-            const result = await deployHmiToServer(plcAddr, xml);
-            setDeployStatus(`✓ Deployed ${result.pages ?? '?'} page(s) to ${plcAddr}`);
-        } catch (e) {
-            setDeployStatus(`✗ ${e.message}`);
-        }
-        setTimeout(() => setDeployStatus(''), 6000);
-    }, [hmiLayout]);
 
     /* ── Canvas size controls ────────────────────────────────── */
     const canvasW = page?.canvasW || 1280;
@@ -334,46 +272,6 @@ const VisualizationEditor = ({
                         </span>
                     )}
                 </button>
-
-                {/* Deploy to server */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 4 }}>
-                    <button
-                        onClick={handleDeploy}
-                        disabled={deployStatus === 'deploying'}
-                        style={{
-                            background: '#1a1f2a', border: '1px solid #2a3a4a',
-                            color: '#7eb8f7', fontSize: 11, padding: '3px 10px',
-                            cursor: deployStatus === 'deploying' ? 'not-allowed' : 'pointer',
-                            borderRadius: 2, opacity: deployStatus === 'deploying' ? 0.6 : 1,
-                        }}
-                    >
-                        {deployStatus === 'deploying' ? '⟳ Deploying…' : '⬆ Deploy'}
-                    </button>
-                    {deployStatus && deployStatus !== 'deploying' && (
-                        <span style={{ fontSize: 10, color: deployStatus.startsWith('✓') ? '#4ec9b0' : '#f14c4c', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {deployStatus}
-                        </span>
-                    )}
-                </div>
-
-                {/* Local serve (quick preview on LAN) */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 4 }}>
-                    {!isServing ? (
-                        <button
-                            onClick={handleServe}
-                            style={{
-                                background: '#1a2a1a', border: '1px solid #2a4a2a',
-                                color: '#4ec9b0', fontSize: 11, padding: '3px 10px',
-                                cursor: 'pointer', borderRadius: 2,
-                            }}
-                        >🌐 :{hmiPort}</button>
-                    ) : (
-                        <>
-                            <span style={{ fontSize: 10, color: '#4ec9b0' }}>{serveStatus}</span>
-                            <button onClick={handleStop} style={{ background: '#2a1a1a', border: '1px solid #4a2a2a', color: '#f14c4c', fontSize: 11, padding: '3px 10px', cursor: 'pointer', borderRadius: 2 }}>⏹</button>
-                        </>
-                    )}
-                </div>
 
                 {/* Duplicate */}
                 {selectedComp && !isPreview && activeView === 'editor' && (

@@ -1224,6 +1224,25 @@ extern KRON_Process_Image __gpi;
           `KRON_HAL_Driver    *Kron_HAL = NULL;\n` +
           `NC_AXIS             g_NC_Axes[${axisSlaves.length}];\n`
         : '';
+    // NC Engine stubs — provided inline so the build succeeds when libkronmotion
+    // does not yet export NC_Init / NC_ProcessOne.  The weak attribute lets a real
+    // library implementation take precedence if it is ever linked (GCC/Clang only).
+    const ncStubs = hasAxes
+        ? `\n/* NC Engine stubs — weak symbols, overridden by libkronmotion when available */\n` +
+          `#if defined(__GNUC__) || defined(__clang__)\n` +
+          `__attribute__((weak)) void NC_Init(NC_AXIS *nc, AXIS_REF *ref) {\n` +
+          `    if (!nc || !ref) return;\n` +
+          `    memset(&nc->priv, 0, sizeof(nc->priv));\n` +
+          `    nc->ref = ref;\n` +
+          `}\n` +
+          `__attribute__((weak)) void NC_ProcessOne(NC_AXIS *nc, float dt) {\n` +
+          `    (void)nc; (void)dt;\n` +
+          `}\n` +
+          `#else\n` +
+          `void NC_Init(NC_AXIS *nc, AXIS_REF *ref) { if(nc && ref) { memset(&nc->priv,0,sizeof(nc->priv)); nc->ref=ref; } }\n` +
+          `void NC_ProcessOne(NC_AXIS *nc, float dt) { (void)nc; (void)dt; }\n` +
+          `#endif\n`
+        : '';
     const headerDecl =
 `\n#if defined(__linux__)\n` +
 `KRON_Process_Image            __gpi_hw;\n` +
@@ -1234,7 +1253,8 @@ extern KRON_Process_Image __gpi;
 `KRON_Process_Image __gpi;\n` +
 `#endif\n` +
 `KRON_EC_Config __ec_cfg;\n` +
-kronjPIDecl;
+kronjPIDecl +
+ncStubs;
 
     // motionIncludes: injected EARLY in plc.h (before global vars) so AXIS_REF type
     // is defined by the time the global variable `AXIS_REF Axis1;` is emitted.

@@ -1473,7 +1473,19 @@ fn compile_simulation(app: tauri::AppHandle) -> Result<String, String> {
         }
     }
     a_files.sort();
-    for a in &a_files { cmd.arg(a); }
+    // Skip libkron.a when specialized split libs are present — both define the same
+    // converter/comparison/control symbols and the linker rejects duplicate definitions.
+    let has_specialized_kron = a_files.iter().any(|p| {
+        let name = p.file_name().map_or(String::new(), |n| n.to_string_lossy().into_owned());
+        name.starts_with("libkron") && name != "libkron.a" && name.ends_with(".a")
+    });
+    for a in &a_files {
+        let name = a.file_name().map_or(String::new(), |n| n.to_string_lossy().into_owned());
+        if has_specialized_kron && name == "libkron.a" {
+            continue; // monolithic lib superseded by split libs
+        }
+        cmd.arg(a);
+    }
     cmd.arg("-lm").arg("-lpthread");
 
     let output = cmd.output()
