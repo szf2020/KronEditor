@@ -678,7 +678,7 @@ ${boardDefines}${runtimePortHelpers}${customIncludes}${ecCfgEarly.motionIncludes
                 let vName = (v.name || '').trim().replace(/\s+/g, '_');
                 let vType = (v.type || '').trim();
                 if (isInlineMathType(vType)) return; // Inline math — handled inline in LD, no instance
-                const isFB = isFBType(vType, projectStructure) || !!stdFunctions[vType] || HAL_BLOCK_TYPES.has(vType);
+                const isFB = isFBType(vType, projectStructure) || !!stdFunctions[vType] || HAL_BLOCK_TYPES.has(vType) || (vType in FB_TRIGGER_PIN && !isInlineMathType(vType));
                 if (isFB) {
                     header += `${vType} prog_${progName}_inst_${vName};\n`;
                 } else {
@@ -1249,13 +1249,21 @@ extern KRON_Process_Image __gpi;
         axisSlaves.forEach(({ slave }, i) => {
             const axisName = (slave.axisRef.name || `Axis_${slave.position}`).replace(/[^A-Za-z0-9_]/g, '_');
             const axisNo   = Math.max(0, parseInt(slave.axisRef.axisNo) || 0);
-            const cpu      = parseFloat(slave.axisRef.countsPerUnit) || 10000;
-            const vpu      = parseFloat(slave.axisRef.velRawPerUnit) || 1000;
-            const sim      = (globalSimMode || slave.axisRef.simMode) ? 'true' : 'false';
+            const encoderResolution = parseFloat(slave.axisRef.encoderResolution);
+            const gearRatio         = parseFloat(slave.axisRef.gearRatio);
+            const encRes = Number.isFinite(encoderResolution) && encoderResolution > 0 ? encoderResolution : 10000;
+            const gRatio = Number.isFinite(gearRatio)         && gearRatio > 0         ? gearRatio         : 1;
+            // counts_per_unit = encoder counts per motor rev / user units per motor rev
+            // Example: 10000 counts/rev, gear ratio 5 (1 rev = 5 mm) → 10000/5 = 2000 counts/mm
+            const cpu = encRes / gRatio;
+            // vel_raw_per_unit: drive reports velocity in counts/s — same ratio applies
+            const vpu = cpu;
+            const sim = (globalSimMode || slave.axisRef.simMode) ? 'true' : 'false';
             // AXIS_REF_Init zeroes the struct and sets AxisNo, slot, VelFactor=1, AccFactor=1
             axisInitCode += `    AXIS_REF_Init(&${axisName}, ${axisNo}, &Kron_PI.servo[${axisNo}]);\n`;
-            // Simulation flag lives on AXIS_REF, not on KRON_SERVO_SLOT
-            axisInitCode += `    ${axisName}.Simulation = ${sim};\n`;
+            axisInitCode += `    ${axisName}.Simulation        = ${sim};\n`;
+            axisInitCode += `    ${axisName}.EncoderResolution = ${floatLit(encRes)};\n`;
+            axisInitCode += `    ${axisName}.GearRatio         = ${floatLit(gRatio)};\n`;
             // Scaling factors on the servo slot (set after AXIS_REF_Init so slot is valid)
             axisInitCode += `    Kron_PI.servo[${axisNo}].counts_per_unit   = ${floatLit(cpu)};\n`;
             axisInitCode += `    Kron_PI.servo[${axisNo}].vel_raw_per_unit  = ${floatLit(vpu)};\n`;
@@ -1670,7 +1678,7 @@ const transpilePOUSource = (pou, category, stdFunctions = {}, parentName = '', g
             if (globalVarNames.includes(vName)) {
                 varMap[vName] = vName; // global vars: no prefix
             } else if (category === 'program') {
-                const isFB = stdFunctions[v.type] !== undefined || HAL_BLOCK_TYPES.has(v.type);
+                const isFB = stdFunctions[v.type] !== undefined || HAL_BLOCK_TYPES.has(v.type) || (v.type in FB_TRIGGER_PIN && !isInlineMathType(v.type));
                 varMap[vName] = isFB
                     ? `prog_${parentName}_inst_${vName}`
                     : `prog_${parentName}_${vName}`;
@@ -1694,7 +1702,7 @@ const transpilePOUSource = (pou, category, stdFunctions = {}, parentName = '', g
                     if (!vName) return;
                     if (globalVarNames.includes(vName)) { varMap[vName] = vName; }
                     else if (category === 'program') {
-                        const isFB = stdFunctions[v.type] !== undefined || HAL_BLOCK_TYPES.has(v.type);
+                        const isFB = stdFunctions[v.type] !== undefined || HAL_BLOCK_TYPES.has(v.type) || (v.type in FB_TRIGGER_PIN && !isInlineMathType(v.type));
                         varMap[vName] = isFB ? `prog_${parentName}_inst_${vName}` : `prog_${parentName}_${vName}`;
                     } else if (category === 'function_block') { varMap[vName] = `instance->${vName}`; }
                     else { varMap[vName] = vName; }
@@ -2692,8 +2700,13 @@ const transpileLDLogics = (rungs, stdFunctions = {}, parentName = '', category =
                         if (sp.startsWith('out_') && !/^out_\d+$/.test(sp)) {
                             // Named data output pin (e.g. "out_VALUE", "out_Q") — read from source struct directly
                             const srcBlock = nodeMap[c.source];
-                            const srcInstName = (srcBlock?.data?.instanceName || srcBlock?.type || '');
-                            argValues[pinName] = `${getCallTarget(srcInstName)}.${sp.slice(4)}`;
+                            const srcType = srcBlock?.type || srcBlock?.data?.type || '';
+                            const srcInstName = (srcBlock?.data?.instanceName || srcType || '');
+                            if (isInlineMathType(srcType) && MATH_FB_BLOCKS.has(srcType)) {
+                                argValues[pinName] = `_m_r${rungIdx}_b${sortedIndex[c.source]}.${sp.slice(4)}`;
+                            } else {
+                                argValues[pinName] = `${getCallTarget(srcInstName)}.${sp.slice(4)}`;
+                            }
                         } else {
                             argValues[pinName] = `out_r${rungIdx}_b${sortedIndex[c.source]}`;
                         }
@@ -2711,9 +2724,9 @@ const transpileLDLogics = (rungs, stdFunctions = {}, parentName = '', category =
                     const localVar = `_m_r${rungIdx}_b${idx}`;
                     const pinMap = MATH_FB_PIN_MAP[type] || {};
 
+                    out += `    ${structType} ${localVar} = {0};\n`;
                     out += `    ${bOut} = ${inExpr};\n`;
                     out += `    if (${bOut}) {\n`;
-                    out += `    ${structType} ${localVar} = {0};\n`;
 
                     if (MATH_FB_ARRAY_INPUT.has(type)) {
                         // Array-input blocks: IN[0]=val1, IN[1]=val2, N=count
@@ -2885,8 +2898,16 @@ const transpileLDLogics = (rungs, stdFunctions = {}, parentName = '', category =
                         if (sp.startsWith('out_') && !/^out_\d+$/.test(sp)) {
                             // Named data output pin (e.g. "out_VALUE", "out_Q") — read from source struct directly
                             const srcBlock = nodeMap[c.source];
-                            const srcInstName = (srcBlock?.data?.instanceName || srcBlock?.type || '');
-                            const sourceExpr = adaptExprForInputPin(type, pinName, `${getCallTarget(srcInstName)}.${sp.slice(4)}`, data.customData);
+                            const srcType = srcBlock?.type || srcBlock?.data?.type || '';
+                            const srcInstName = (srcBlock?.data?.instanceName || srcType || '');
+                            // Inline math blocks use a local variable, not a persistent instance
+                            let srcRef;
+                            if (isInlineMathType(srcType) && MATH_FB_BLOCKS.has(srcType)) {
+                                srcRef = `_m_r${rungIdx}_b${sortedIndex[c.source]}.${sp.slice(4)}`;
+                            } else {
+                                srcRef = `${getCallTarget(srcInstName)}.${sp.slice(4)}`;
+                            }
+                            const sourceExpr = adaptExprForInputPin(type, pinName, srcRef, data.customData);
                             out += `    ${callTarget}.${cPin} = ${sourceExpr};\n`;
                         } else {
                             const sourceExpr = adaptExprForInputPin(type, pinName, `out_r${rungIdx}_b${sortedIndex[c.source]}`, data.customData);

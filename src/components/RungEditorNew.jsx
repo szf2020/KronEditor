@@ -506,6 +506,7 @@ const RungEditorNew = ({ variables, setVariables, rungs, setRungs, availableBloc
 
     setRungs(prevRungs => {
       let oldInstanceName = null;
+      let oldBlockType = null;
       const newRungs = prevRungs.map(rung => {
         if (rung.id === rungId) {
           return {
@@ -513,6 +514,7 @@ const RungEditorNew = ({ variables, setVariables, rungs, setRungs, availableBloc
             blocks: rung.blocks.map(b => {
               if (b.id === blockId) {
                 oldInstanceName = b.data.instanceName;
+                oldBlockType = b.data.type || b.type;
                 return { ...b, data: { ...b.data, ...newData } };
               }
               return b;
@@ -522,8 +524,11 @@ const RungEditorNew = ({ variables, setVariables, rungs, setRungs, availableBloc
         return rung;
       });
 
-      // If instanceName changed, update variables accordingly
-      if (newData.instanceName && oldInstanceName && newData.instanceName !== oldInstanceName) {
+      // Only rename the variable table entry when an FB instance is renamed.
+      // Contact/Coil just reference an existing variable — renaming their label
+      // must NOT touch the variable table.
+      const isFBBlock = oldBlockType && oldBlockType !== 'Contact' && oldBlockType !== 'Coil';
+      if (isFBBlock && newData.instanceName && oldInstanceName && newData.instanceName !== oldInstanceName) {
          setVariables(prev => {
             const newVars = prev.map(v => v.name === oldInstanceName ? { ...v, name: newData.instanceName } : v);
             setTimeout(() => saveHistory(newRungs, newVars), 0);

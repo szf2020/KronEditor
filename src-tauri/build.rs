@@ -18,22 +18,39 @@ fn ensure_placeholder_dirs(base: &std::path::Path, dirs: &[&str]) {
 }
 
 fn main() {
-    let lib_dirs: &[&str] = &[
-        "include",
-        "x86_64/linux", "x86_64/win32",
-        "arm/aarch64", "arm/armv7",
-        "arm/CortexM/M0", "arm/CortexM/M4", "arm/CortexM/M7",
+    let resource_targets: &[&str] = &[
+        "x86_64-linux-gnu/include",
+        "x86_64-linux-gnu/lib",
+        "x86_64-linux-gnu/server",
+        "x86_64-w64-mingw32/include",
+        "x86_64-w64-mingw32/lib",
+        "x86_64-w64-mingw32/server",
+        "x86_64-apple-darwin/include",
+        "x86_64-apple-darwin/lib",
+        "x86_64-apple-darwin/server",
+        "aarch64-linux-gnu/include",
+        "aarch64-linux-gnu/lib",
+        "aarch64-linux-gnu/server",
+        "arm-linux-gnueabihf/include",
+        "arm-linux-gnueabihf/lib",
+        "arm-linux-gnueabihf/server",
+        "arm-none-eabi-m0/include",
+        "arm-none-eabi-m0/lib",
+        "arm-none-eabi-m0/server",
+        "arm-none-eabi-m4/include",
+        "arm-none-eabi-m4/lib",
+        "arm-none-eabi-m4/server",
+        "arm-none-eabi-m7/include",
+        "arm-none-eabi-m7/lib",
+        "arm-none-eabi-m7/server",
     ];
 
-    // Ensure both debug and release resources directories exist with placeholders
-    // so Tauri glob patterns in tauri.conf.json / tauri.linux.conf.json don't fail.
-    ensure_placeholder_dirs(std::path::Path::new("target/debug/resources"),   lib_dirs);
-    ensure_placeholder_dirs(std::path::Path::new("target/release/resources"),  lib_dirs);
+    ensure_placeholder_dirs(std::path::Path::new("resources"), resource_targets);
 
     // Ensure toolchain bin/ placeholder dirs exist so Tauri globs don't fail
     // when toolchains haven't been downloaded yet.
     let tc_base = std::path::Path::new("toolchains");
-    for host in &["linux", "windows"] {
+    for host in &["linux", "macos", "windows"] {
         for tc in &["aarch64-none-linux-gnu/bin", "arm-linux-gnueabihf/bin", "arm-none-eabi/bin", "mingw/bin"] {
             let d = tc_base.join(host).join(tc);
             let _ = std::fs::create_dir_all(&d);
@@ -51,6 +68,21 @@ fn main() {
             }
         }
     }
+
+    // Ensure the new LLVM/sysroot toolchain layout exists so bundle resource
+    // globs keep working before setup_toolchain.py has been executed.
+    let llvm_toolchain_dirs: &[&str] = &[
+        "bin",
+        "lib/clang",
+        "sysroots/arm-none-eabi",
+        "sysroots/aarch64-linux-gnu",
+        "sysroots/arm-linux-gnueabihf",
+        "sysroots/x86_64-linux-gnu",
+        "sysroots/x86_64-w64-mingw32",
+        "sysroots/simulation_env/include",
+        "sysroots/simulation_env/lib",
+    ];
+    ensure_placeholder_dirs(std::path::Path::new("toolchains"), llvm_toolchain_dirs);
 
     tauri_build::build();
     lalrpop::process_root().unwrap();

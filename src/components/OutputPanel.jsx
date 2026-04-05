@@ -63,6 +63,209 @@ const resolveExpression = (expr, projectStructure) => {
     return { liveKey: `${trimmed.replace(/\s+/g, '_')}`, varType: null };
 };
 
+// Build a flat list of watchable expressions from project structure + live variables
+const buildSuggestions = (projectStructure, liveVariables, watchTable) => {
+    const existing = new Set((watchTable || []).map(e => e.displayName));
+    const suggestions = [];
+
+    const addSugg = (expr, type, prog) => {
+        if (existing.has(expr)) return;
+        suggestions.push({ expr, type: type || null, prog: prog || null });
+    };
+
+    // From project structure variables
+    if (projectStructure) {
+        // Global variables
+        for (const v of (projectStructure.globalVars || [])) {
+            addSugg(v.name, v.type, null);
+        }
+        // Program/FB local variables: Program.VarName
+        for (const pou of [...(projectStructure.programs || []), ...(projectStructure.functionBlocks || [])]) {
+            for (const v of (pou.content?.variables || [])) {
+                addSugg(`${pou.name}.${v.name}`, v.type, pou.name);
+            }
+        }
+    }
+
+    // From live variables keys not yet covered
+    if (liveVariables) {
+        for (const key of Object.keys(liveVariables)) {
+            // prog_ProgramName_VarName → ProgramName.VarName
+            const m = key.match(/^prog_([^_].+?)_(.+)$/);
+            if (m) {
+                const expr = `${m[1]}.${m[2]}`;
+                if (!existing.has(expr) && !suggestions.some(s => s.expr === expr)) {
+                    addSugg(expr, null, m[1]);
+                }
+            } else if (!existing.has(key) && !suggestions.some(s => s.expr === key)) {
+                addSugg(key, null, null);
+            }
+        }
+    }
+
+    return suggestions;
+};
+
+// ── WatchAddBar — inline add expression bar with dropdown autocomplete ────
+const WatchAddBar = ({ projectStructure, liveVariables, watchTable, onAdd }) => {
+    const [addExpr, setAddExpr] = useState('');
+    const [open, setOpen] = useState(false);
+    const [highlighted, setHighlighted] = useState(0);
+    const containerRef = useRef(null);
+    const addInputRef = useRef(null);
+
+    const allSuggestions = buildSuggestions(projectStructure, liveVariables, watchTable);
+
+    const filtered = addExpr.trim()
+        ? allSuggestions.filter(s =>
+            s.expr.toLowerCase().includes(addExpr.trim().toLowerCase())
+          ).slice(0, 12)
+        : allSuggestions.slice(0, 12);
+
+    const showDropdown = open && filtered.length > 0;
+
+    // Close dropdown on outside click
+    useEffect(() => {
+        const handler = (e) => {
+            if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false);
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
+
+    const commitAdd = () => {
+        const expr = addExpr.trim();
+        if (!expr) return;
+        const { liveKey, varType } = resolveExpression(expr, projectStructure);
+        onAdd({
+            id: `watch_${Date.now()}_${Math.random()}`,
+            displayName: expr,
+            liveKey: liveKey || expr.replace(/\s+/g, '_'),
+            varType: varType || null,
+        });
+        setAddExpr('');
+        setOpen(false);
+        setTimeout(() => addInputRef.current?.focus(), 0);
+    };
+
+    const pickSuggestion = (s) => {
+        setOpen(false);
+        const { liveKey, varType } = resolveExpression(s.expr, projectStructure);
+        onAdd({
+            id: `watch_${Date.now()}_${Math.random()}`,
+            displayName: s.expr,
+            liveKey: liveKey || s.expr.replace(/\s+/g, '_'),
+            varType: s.type || varType || null,
+        });
+        setAddExpr('');
+        setTimeout(() => addInputRef.current?.focus(), 0);
+    };
+
+    const handleKeyDown = (e) => {
+        if (showDropdown) {
+            if (e.key === 'ArrowDown') { e.preventDefault(); setHighlighted(h => Math.min(h + 1, filtered.length - 1)); return; }
+            if (e.key === 'ArrowUp')   { e.preventDefault(); setHighlighted(h => Math.max(h - 1, 0)); return; }
+            if (e.key === 'Enter' && filtered[highlighted]) { e.preventDefault(); pickSuggestion(filtered[highlighted]); return; }
+            if (e.key === 'Escape') { setOpen(false); return; }
+        }
+        if (e.key === 'Enter') commitAdd();
+        if (e.key === 'Escape') setAddExpr('');
+    };
+
+    return (
+        <div ref={containerRef} style={{ position: 'relative', borderTop: '1px solid #2a2a2a', flexShrink: 0 }}>
+            {/* Dropdown */}
+            {showDropdown && (
+                <div style={{
+                    position: 'absolute',
+                    bottom: '100%',
+                    left: 0,
+                    right: 0,
+                    background: '#1e1e1e',
+                    border: '1px solid #3a3a3a',
+                    borderBottom: 'none',
+                    maxHeight: 200,
+                    overflowY: 'auto',
+                    zIndex: 50,
+                    fontFamily: '"Consolas", "Cascadia Code", monospace',
+                    fontSize: 12,
+                }}>
+                    {filtered.map((s, i) => (
+                        <div
+                            key={s.expr}
+                            onMouseDown={e => { e.preventDefault(); pickSuggestion(s); }}
+                            onMouseEnter={() => setHighlighted(i)}
+                            style={{
+                                padding: '4px 10px',
+                                background: i === highlighted ? '#094771' : 'transparent',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                borderBottom: '1px solid #1a1a1a',
+                            }}
+                        >
+                            <span style={{ color: '#7eb8f7', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {s.expr}
+                            </span>
+                            {s.type && (
+                                <span style={{ color: '#b07040', fontSize: 10, flexShrink: 0 }}>{s.type}</span>
+                            )}
+                            {s.prog && (
+                                <span style={{ color: '#555', fontSize: 10, flexShrink: 0 }}>{s.prog}</span>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Input row */}
+            <div style={{ display: 'flex', alignItems: 'center', padding: '4px 6px', gap: 4 }}>
+                <input
+                    ref={addInputRef}
+                    value={addExpr}
+                    onChange={e => { setAddExpr(e.target.value); setHighlighted(0); setOpen(true); }}
+                    onFocus={() => setOpen(true)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Add expression…  e.g.  Roll  /  Program1.MyVar  /  Axis_1.ActualPosition"
+                    style={{
+                        flex: 1,
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#9cdcfe',
+                        fontSize: 12,
+                        fontFamily: '"Consolas", "Cascadia Code", monospace',
+                        padding: '3px 4px',
+                        outline: 'none',
+                    }}
+                />
+                <button
+                    title="Add to watch (Enter)"
+                    onClick={commitAdd}
+                    style={{
+                        flexShrink: 0,
+                        width: 22,
+                        height: 22,
+                        borderRadius: '50%',
+                        border: '1px solid',
+                        borderColor: addExpr.trim() ? '#4ec9b0' : '#2a2a2a',
+                        background: addExpr.trim() ? 'rgba(78,201,176,0.12)' : 'transparent',
+                        color: addExpr.trim() ? '#4ec9b0' : '#333',
+                        cursor: addExpr.trim() ? 'pointer' : 'default',
+                        fontSize: 16,
+                        lineHeight: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 0,
+                        transition: 'all 0.15s',
+                    }}
+                >+</button>
+            </div>
+        </div>
+    );
+};
+
 // Extracts the most relevant part of a compiler/linker error message.
 const summarizeMsg = (msg) => {
     if (!msg) return msg;
@@ -90,6 +293,7 @@ const OutputPanel = ({
     watchTable = [],
     onWatchTableUpdate,
     onWatchTableRemove,
+    onWatchTableAdd,
     onForceWrite = null,
     liveVariables = null,
     isRunning = false,
@@ -312,20 +516,9 @@ const OutputPanel = ({
 
             {/* ── Watchtable ── */}
             {activeTab === 'watch' && (
-                <div style={{ flex: 1, overflowY: 'auto' }}>
-                    {watchTable.length === 0 ? (
-                        <div style={{
-                            color: '#3a3a3a',
-                            padding: '14px 12px',
-                            fontSize: 11,
-                            textAlign: 'center',
-                            fontStyle: 'italic',
-                            letterSpacing: '0.03em',
-                        }}>
-                            Watch table is empty.<br />
-                            <span style={{ fontSize: 11, color: '#333' }}>Right-click a variable in the variable table to add it.</span>
-                        </div>
-                    ) : (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                    {/* Table area */}
+                    <div style={{ flex: 1, overflowY: 'auto' }}>
                         <table style={{
                             width: '100%',
                             borderCollapse: 'collapse',
@@ -343,6 +536,14 @@ const OutputPanel = ({
                                 </tr>
                             </thead>
                             <tbody>
+                                {watchTable.length === 0 && (
+                                    <tr>
+                                        <td colSpan={5} style={{ padding: '24px 10px', color: '#3a3a3a', fontSize: 11, fontStyle: 'italic', textAlign: 'center' }}>
+                                            Watch table is empty.<br/>
+                                            <span style={{ color: '#2a2a2a' }}>Type an expression in the bar below to add.</span>
+                                        </td>
+                                    </tr>
+                                )}
                                 {watchTable.map(entry => {
                                     const val = getLiveVal(entry.liveKey);
                                     const hasVal = val !== undefined;
@@ -448,7 +649,15 @@ const OutputPanel = ({
                                 })}
                             </tbody>
                         </table>
-                    )}
+                    </div>
+
+                    {/* ── Add expression bar ── */}
+                    <WatchAddBar
+                        projectStructure={projectStructure}
+                        liveVariables={liveVariables}
+                        watchTable={watchTable}
+                        onAdd={entry => onWatchTableAdd && onWatchTableAdd(entry)}
+                    />
                 </div>
             )}
 

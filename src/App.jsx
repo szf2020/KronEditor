@@ -2019,6 +2019,7 @@ function App() {
                     else if (tab === 'errors') setLogs(prev => prev.filter(l => l.type !== 'error'));
                   }}
                   watchTable={watchTable}
+                  onWatchTableAdd={addToWatchTable}
                   onWatchTableRemove={removeFromWatchTable}
                   onWatchTableUpdate={updateWatchTableEntry}
                   onForceWrite={isRunning ? handleForceWrite : null}

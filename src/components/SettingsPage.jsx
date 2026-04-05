@@ -144,7 +144,7 @@ const SettingsPage = ({ theme, setTheme, editorSettings, setEditorSettings, sele
     const handleUpdateLibraries = async () => {
         setIsUpdating(true);
         setProgressLog('Starting library build for all targets...\n');
-        setProgressLog(prev => prev + 'Targets: x86_64/linux (GCC), x86_64/win32 (MinGW), arm/linux (aarch64), arm/CortexM/M0, M4, M7 (arm-none-eabi-gcc)\n\n');
+        setProgressLog(prev => prev + 'Targets: x86_64/linux (Clang), x86_64/win32 (Clang + llvm-mingw sysroot), arm/linux (aarch64/armv7 via Clang), arm/CortexM/M0, M4, M7 (Clang + arm-none-eabi sysroot)\n\n');
 
         const unlistenProgress = await listen('library-update-progress', (event) => {
             setProgressLog(prev => prev + event.payload + '\n');
@@ -198,33 +198,6 @@ const SettingsPage = ({ theme, setTheme, editorSettings, setEditorSettings, sele
         });
     };
 
-    const handleBuildSoem = async () => {
-        setIsUpdating(true);
-        setProgressLog('Starting SOEM build (cloning + compiling for all toolchains)...\n');
-
-        const unlistenProgress = await listen('library-update-progress', (event) => {
-            setProgressLog(prev => prev + event.payload + '\n');
-        });
-
-        const unlistenDone = await listen('library-update-done', (event) => {
-            const { success, message } = event.payload;
-            setProgressLog(prev => prev + (success ? '✓ ' : '✗ ') + message + '\n');
-            setIsUpdating(false);
-            unlistenProgress();
-            unlistenDone();
-            unlistenRef.current = null;
-        });
-
-        unlistenRef.current = { progress: unlistenProgress, done: unlistenDone };
-
-        invoke('build_soem').catch(err => {
-            setProgressLog(prev => prev + 'Error: ' + err + '\n');
-            setIsUpdating(false);
-            unlistenProgress();
-            unlistenDone();
-            unlistenRef.current = null;
-        });
-    };
 
     const handleUpdateServer = async () => {
         setIsUpdating(true);
@@ -690,7 +663,6 @@ const SettingsPage = ({ theme, setTheme, editorSettings, setEditorSettings, sele
                             {[
                                 { label: 'Build Libraries', handler: handleUpdateLibraries, color: '#007acc' },
                                 { label: 'Build Server',    handler: handleUpdateServer,    color: '#0d47a1' },
-                                { label: 'Build SOEM',      handler: handleBuildSoem,       color: '#1b5e20' },
                                 { label: 'Build CANopen',   handler: handleBuildCanopen,    color: '#0d47a1' },
                             ].map(({ label, handler, color }) => (
                                 <button key={label} onClick={handler} disabled={isUpdating} style={{

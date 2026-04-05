@@ -66,13 +66,18 @@ export default function SlaveConfigPage({ slave, onChange, onAddGlobalVars, isRu
     enabled: true,
     name: `Axis_${slave.position || 1}`,
     axisNo: 0,
-    countsPerUnit: 10000,
-    velRawPerUnit: 1000,
+    encoderResolution: 10000,
+    gearRatio: 1,
     simMode: false,
   });
 
   const updateAxis = (field, value) =>
     onChange?.({ ...slave, axisRef: { ...defaultAxisRef(), ...slave.axisRef, [field]: value } });
+
+  const axisCfg = { ...defaultAxisRef(), ...(slave.axisRef || {}) };
+  const encRes = parseFloat(axisCfg.encoderResolution);
+  const gRatio = parseFloat(axisCfg.gearRatio);
+  const countsPerUnit = (encRes > 0 && gRatio > 0) ? encRes / gRatio : encRes || 10000;
 
   const handleImportFromEsi = (device) => {
     onChange?.({
@@ -347,18 +352,21 @@ export default function SlaveConfigPage({ slave, onChange, onAddGlobalVars, isRu
                     </span>
                   </div>
                   <div style={S.row}>
-                    <span style={S.label}>Counts / Unit</span>
+                    <span style={S.label}>Encoder Resolution</span>
                     <input type="number" min={1} style={{ ...S.input, maxWidth: 120 }}
-                      value={slave.axisRef.countsPerUnit ?? 10000} disabled={isRunning}
-                      onChange={e => updateAxis('countsPerUnit', parseFloat(e.target.value) || 10000)} />
-                    <span style={{ color: '#555', fontSize: 10 }}>encoder counts per user unit</span>
+                      value={axisCfg.encoderResolution ?? 10000} disabled={isRunning}
+                      onChange={e => updateAxis('encoderResolution', parseFloat(e.target.value) || 10000)} />
+                    <span style={{ color: '#555', fontSize: 10 }}>counts per motor revolution</span>
                   </div>
                   <div style={S.row}>
-                    <span style={S.label}>Vel Raw / Unit</span>
-                    <input type="number" min={1} style={{ ...S.input, maxWidth: 120 }}
-                      value={slave.axisRef.velRawPerUnit ?? 1000} disabled={isRunning}
-                      onChange={e => updateAxis('velRawPerUnit', parseFloat(e.target.value) || 1000)} />
-                    <span style={{ color: '#555', fontSize: 10 }}>raw velocity per user unit</span>
+                    <span style={S.label}>Gear Ratio</span>
+                    <input type="number" min={0.000001} step="any" style={{ ...S.input, maxWidth: 120 }}
+                      value={axisCfg.gearRatio ?? 1} disabled={isRunning}
+                      onChange={e => updateAxis('gearRatio', parseFloat(e.target.value) || 1)} />
+                    <span style={{ color: '#555', fontSize: 10 }}>user units per motor revolution (e.g. 5 = 1 rev → 5 mm)</span>
+                  </div>
+                  <div style={{ ...S.row, color: '#4ec9b0', fontSize: 10, fontFamily: 'monospace' }}>
+                    counts/unit = {(encRes / gRatio).toFixed(2)} &nbsp;|&nbsp; vel_raw/unit = {(encRes / gRatio).toFixed(2)} counts/s per u/s
                   </div>
                   <div style={S.row}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
@@ -370,14 +378,12 @@ export default function SlaveConfigPage({ slave, onChange, onAddGlobalVars, isRu
 
                   {/* Generated code preview */}
                   <div style={{ marginTop: 12, background: '#1a1a1a', borderRadius: 4, padding: '8px 12px', fontFamily: 'monospace', fontSize: 10, color: '#6a9955', lineHeight: 1.6 }}>
-                    <div style={{ color: '#555', marginBottom: 4 }}>// Generated in plc.h / plc.c:</div>
-                    <div style={{ color: '#9cdcfe' }}>extern AXIS_REF {slave.axisRef.name || `Axis_${slave.position || 1}`};</div>
-                    <div style={{ color: '#ce9178', marginTop: 4 }}>
-                      {'// PLC_Init():'}<br />
-                      {slave.axisRef.name || `Axis_${slave.position || 1}`}.AxisNo = {slave.axisRef.axisNo ?? 0};<br />
-                      {slave.axisRef.name || `Axis_${slave.position || 1}`}.slot = &Kron_PI.servo[{slave.axisRef.axisNo ?? 0}];<br />
-                      Kron_PI.servo[{slave.axisRef.axisNo ?? 0}].counts_per_unit = {slave.axisRef.countsPerUnit ?? 10000}f;<br />
-                      Kron_PI.servo[{slave.axisRef.axisNo ?? 0}].vel_raw_per_unit = {slave.axisRef.velRawPerUnit ?? 1000}f;
+                    <div style={{ color: '#555', marginBottom: 4 }}>// Generated in plc.c PLC_Init():</div>
+                    <div style={{ color: '#ce9178' }}>
+                      {slave.axisRef.name || `Axis_${slave.position || 1}`}.EncoderResolution = {axisCfg.encoderResolution ?? 10000}f;<br />
+                      {slave.axisRef.name || `Axis_${slave.position || 1}`}.GearRatio = {axisCfg.gearRatio ?? 1}f;<br />
+                      Kron_PI.servo[{slave.axisRef.axisNo ?? 0}].counts_per_unit = {countsPerUnit.toFixed(2)}f;<br />
+                      Kron_PI.servo[{slave.axisRef.axisNo ?? 0}].vel_raw_per_unit = {countsPerUnit.toFixed(2)}f;
                     </div>
                   </div>
                 </div>
