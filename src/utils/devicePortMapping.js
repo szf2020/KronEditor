@@ -30,6 +30,12 @@ export const BOARD_PORT_DETAILS = {
       UART_4: { path: '/dev/ttyAMA3', pins: { TX: 'Overlay pin mux', RX: 'Overlay pin mux' } },
       UART_5: { path: '/dev/ttyAMA4', pins: { TX: 'Overlay pin mux', RX: 'Overlay pin mux' } },
     },
+    USB: {
+      USB_0: { path: '/dev/ttyUSB0', pins: {} },
+      USB_1: { path: '/dev/ttyUSB1', pins: {} },
+      USB_2: { path: '/dev/ttyACM0', pins: {} },
+      USB_3: { path: '/dev/ttyACM1', pins: {} },
+    },
   },
 
   HAL_BOARD_FAMILY_JETSON: {
@@ -53,6 +59,12 @@ export const BOARD_PORT_DETAILS = {
       UART_4: { path: '/dev/ttyS0', pins: { TX: 'Legacy UART TX', RX: 'Legacy UART RX' } },
       UART_5: { path: '/dev/ttyS1', pins: { TX: 'Legacy UART TX', RX: 'Legacy UART RX' } },
     },
+    USB: {
+      USB_0: { path: '/dev/ttyUSB0', pins: {} },
+      USB_1: { path: '/dev/ttyUSB1', pins: {} },
+      USB_2: { path: '/dev/ttyACM0', pins: {} },
+      USB_3: { path: '/dev/ttyACM1', pins: {} },
+    },
   },
 
   HAL_BOARD_FAMILY_BB: {
@@ -70,6 +82,10 @@ export const BOARD_PORT_DETAILS = {
       UART_3: { path: '/dev/ttyS3', pins: { TX: 'Overlay pin mux', RX: 'Overlay pin mux' } },
       UART_4: { path: '/dev/ttyS4', pins: { TX: 'P9.13 / GPIO0_31', RX: 'P9.11 / GPIO0_30' } },
       UART_5: { path: '/dev/ttyS5', pins: { TX: 'Overlay pin mux', RX: 'Overlay pin mux' } },
+    },
+    USB: {
+      USB_0: { path: '/dev/ttyUSB0', pins: {} },
+      USB_1: { path: '/dev/ttyACM0', pins: {} },
     },
   },
 

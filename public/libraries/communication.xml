@@ -52,5 +52,31 @@
         <Variable name="ERROR" type="BOOL" />
       </Outputs>
     </Block>
+    <Block type="USB_Send" description="USB Serial Send Data" class="FunctionBlock">
+      <Inputs>
+        <Variable name="Execute"   type="BOOL"  default="FALSE" />
+        <Variable name="Port_ID"   type="USINT" default="0" />
+        <Variable name="pTxBuffer" type="ANY"   default="0" />
+        <Variable name="Length"    type="UINT"  default="0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="Done"  type="BOOL" />
+        <Variable name="Busy"  type="BOOL" />
+        <Variable name="Error" type="BOOL" />
+      </Outputs>
+    </Block>
+    <Block type="USB_Receive" description="USB Serial Receive Data" class="FunctionBlock">
+      <Inputs>
+        <Variable name="Enable"    type="BOOL"  default="FALSE" />
+        <Variable name="Port_ID"   type="USINT" default="0" />
+        <Variable name="pRxBuffer" type="ANY"   default="0" />
+        <Variable name="MaxSize"   type="UINT"  default="0" />
+      </Inputs>
+      <Outputs>
+        <Variable name="NewData"        type="BOOL" />
+        <Variable name="ReceivedLength" type="UINT" />
+        <Variable name="Error"          type="BOOL" />
+      </Outputs>
+    </Block>
   </Category>
 </Library>

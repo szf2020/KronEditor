@@ -8,18 +8,18 @@
  */
 import { getBoardById } from './boardDefinitions';
 
-const GENERIC_COMM_INTERFACES = new Set(['I2C', 'SPI', 'UART']);
+const GENERIC_COMM_INTERFACES = new Set(['I2C', 'SPI', 'UART', 'USB']);
 const isPicoBoard = (boardId) => boardId?.startsWith('rpi_pico');
 
 // ─── Channel counts per board family / board ─────────────────────────────────
 
 const BOARD_CHANNELS = {
   // Raspberry Pi (full-size boards)
-  rpi_5:        { PWM: 4, SPI: 2, I2C: 2, UART: 5 },
-  rpi_4b:       { PWM: 4, SPI: 2, I2C: 2, UART: 5 },
-  rpi_3b_plus:  { PWM: 2, SPI: 2, I2C: 1, UART: 1 },
-  rpi_3b:       { PWM: 2, SPI: 2, I2C: 1, UART: 1 },
-  rpi_zero_2w:  { PWM: 2, SPI: 2, I2C: 1, UART: 1 },
+  rpi_5:        { PWM: 4, SPI: 2, I2C: 2, UART: 5, USB: 4 },
+  rpi_4b:       { PWM: 4, SPI: 2, I2C: 2, UART: 5, USB: 4 },
+  rpi_3b_plus:  { PWM: 2, SPI: 2, I2C: 1, UART: 1, USB: 4 },
+  rpi_3b:       { PWM: 2, SPI: 2, I2C: 1, UART: 1, USB: 4 },
+  rpi_zero_2w:  { PWM: 2, SPI: 2, I2C: 1, UART: 1, USB: 1 },
   // Raspberry Pi Pico
   rpi_pico:     { PWM: 8, SPI: 2, I2C: 2, UART: 2, ADC: 3 },
   rpi_pico_w:   { PWM: 8, SPI: 2, I2C: 2, UART: 2, ADC: 3 },
@@ -31,13 +31,13 @@ const BOARD_CHANNELS = {
   bb_ai:             { PWM: 4, SPI: 4, I2C: 4, UART: 6, ADC: 7, CAN: 2, PRU: 4 },
   bb_ai64:           { PWM: 4, SPI: 4, I2C: 4, UART: 6, ADC: 7, CAN: 2, PRU: 4 },
   // NVIDIA Jetson — all models have 40-pin header with GPIO/I2C/SPI/UART/CAN
-  jetson_nano:       { PWM: 2, SPI: 1, I2C: 2, UART: 4, CAN: 1 },
-  jetson_tx2:        { PWM: 2, SPI: 1, I2C: 2, UART: 4, CAN: 1 },
-  jetson_xavier_nx:  { PWM: 2, SPI: 1, I2C: 2, UART: 4, CAN: 1 },
-  jetson_agx_xavier: { PWM: 2, SPI: 1, I2C: 2, UART: 4, CAN: 2 },
-  jetson_orin_nano:  { PWM: 2, SPI: 1, I2C: 2, UART: 4, CAN: 1 },
-  jetson_orin_nx:    { PWM: 2, SPI: 1, I2C: 2, UART: 4, CAN: 1 },
-  jetson_agx_orin:   { PWM: 2, SPI: 1, I2C: 2, UART: 4, CAN: 2 },
+  jetson_nano:       { PWM: 2, SPI: 1, I2C: 2, UART: 4, CAN: 1, USB: 4 },
+  jetson_tx2:        { PWM: 2, SPI: 1, I2C: 2, UART: 4, CAN: 1, USB: 4 },
+  jetson_xavier_nx:  { PWM: 2, SPI: 1, I2C: 2, UART: 4, CAN: 1, USB: 4 },
+  jetson_agx_xavier: { PWM: 2, SPI: 1, I2C: 2, UART: 4, CAN: 2, USB: 3 },
+  jetson_orin_nano:  { PWM: 2, SPI: 1, I2C: 2, UART: 4, CAN: 1, USB: 5 },
+  jetson_orin_nx:    { PWM: 2, SPI: 1, I2C: 2, UART: 4, CAN: 1, USB: 5 },
+  jetson_agx_orin:   { PWM: 2, SPI: 1, I2C: 2, UART: 4, CAN: 2, USB: 5 },
 };
 
 // ─── Block templates per interface ──────────────────────────────────────────
@@ -235,6 +235,49 @@ const INTERFACE_BLOCKS = {
             desc: `UART${i} – Receive data`,
             inputs: [
               { name: 'BAUD', type: 'DINT', default: '9600' },
+              { name: 'TIMEOUT', type: 'INT', default: '100' },
+              { name: 'EN', type: 'BOOL', default: 'TRUE' },
+            ],
+            outputs: [
+              { name: 'ENO', type: 'BOOL' },
+              { name: 'DATA', type: 'BYTE' },
+              { name: 'READY', type: 'BOOL' },
+            ],
+            class: 'FunctionBlock',
+          },
+        );
+      }
+      return blocks;
+    },
+  },
+
+  USB: {
+    title: 'USB Serial',
+    channelBlocks: (count) => {
+      const blocks = [];
+      for (let i = 0; i < count; i++) {
+        blocks.push(
+          {
+            blockType: `USB${i}_Send`,
+            label: `USB${i}_Send`,
+            desc: `USB${i} – Send serial data over USB`,
+            inputs: [
+              { name: 'DATA', type: 'BYTE', default: '0' },
+              { name: 'BAUD', type: 'DINT', default: '115200' },
+              { name: 'EN', type: 'BOOL', default: 'TRUE' },
+            ],
+            outputs: [
+              { name: 'ENO', type: 'BOOL' },
+              { name: 'DONE', type: 'BOOL' },
+            ],
+            class: 'FunctionBlock',
+          },
+          {
+            blockType: `USB${i}_Receive`,
+            label: `USB${i}_Receive`,
+            desc: `USB${i} – Receive serial data over USB`,
+            inputs: [
+              { name: 'BAUD', type: 'DINT', default: '115200' },
               { name: 'TIMEOUT', type: 'INT', default: '100' },
               { name: 'EN', type: 'BOOL', default: 'TRUE' },
             ],

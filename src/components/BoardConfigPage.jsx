@@ -437,6 +437,140 @@ const InterfacesCard = ({ board }) => {
   );
 };
 
+// ===== USB PORTS VISUAL =====
+const USB_CONNECTOR_STYLES = {
+  'Type-A': { width: 40, height: 18, borderRadius: 3, label: 'A' },
+  'Type-C': { width: 28, height: 12, borderRadius: 6, label: 'C' },
+  'Micro-B': { width: 24, height: 10, borderRadius: 2, label: 'μB' },
+};
+
+const UsbPortsVisual = ({ board, interfaceConfig, onInterfaceConfigChange }) => {
+  const { t } = useTranslation();
+  if (!board.usbPorts || board.usbPorts.length === 0) return null;
+
+  const usbConfig = interfaceConfig?.USB || {};
+
+  const togglePort = (portId) => {
+    if (!onInterfaceConfigChange) return;
+    const current = usbConfig[portId] || { enabled: false, baudRate: 115200, devicePath: '' };
+    const next = { ...current, enabled: !current.enabled };
+    onInterfaceConfigChange({
+      ...interfaceConfig,
+      USB: { ...usbConfig, [portId]: next },
+    });
+  };
+
+  const updatePort = (portId, patch) => {
+    if (!onInterfaceConfigChange) return;
+    const current = usbConfig[portId] || { enabled: false, baudRate: 115200, devicePath: '' };
+    onInterfaceConfigChange({
+      ...interfaceConfig,
+      USB: { ...usbConfig, [portId]: { ...current, ...patch } },
+    });
+  };
+
+  return (
+    <div>
+      {/* Section title */}
+      <div style={{
+        padding: '8px 14px', fontWeight: 'bold', fontSize: '11px', color: '#888',
+        textTransform: 'uppercase', letterSpacing: 0.5,
+        display: 'flex', alignItems: 'center', gap: 6,
+      }}>
+        <span style={{ color: '#4a90d9' }}>⬡</span>
+        USB Serial Ports
+        <span style={{ fontSize: '10px', color: '#555', fontWeight: 'normal', marginLeft: 'auto' }}>
+          {board.usbPorts.length} {board.usbPorts.length === 1 ? 'port' : 'ports'} — click to enable
+        </span>
+      </div>
+
+      {/* Visual representation */}
+      <div style={{
+        display: 'flex', flexWrap: 'wrap', gap: 12, padding: '4px 14px 14px',
+        justifyContent: 'flex-start',
+      }}>
+        {board.usbPorts.map((port) => {
+          const style = USB_CONNECTOR_STYLES[port.connector] || USB_CONNECTOR_STYLES['Type-A'];
+          const enabled = usbConfig[port.id]?.enabled;
+          return (
+            <div
+              key={port.id}
+              onClick={() => togglePort(port.id)}
+              style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                cursor: 'pointer', padding: 8, borderRadius: 8,
+                background: enabled ? '#1b3a2a' : '#2a2a2a',
+                border: `1px solid ${enabled ? '#4caf50' : '#444'}`,
+                transition: 'all 0.15s ease',
+                minWidth: 70,
+              }}
+            >
+              {/* USB connector shape */}
+              <div style={{
+                width: style.width, height: style.height, borderRadius: style.borderRadius,
+                border: `2px solid ${enabled ? '#4caf50' : '#666'}`,
+                background: enabled ? '#4caf5022' : '#33333366',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                position: 'relative',
+              }}>
+                <span style={{ fontSize: '8px', color: enabled ? '#4caf50' : '#888', fontWeight: 'bold' }}>
+                  {style.label}
+                </span>
+              </div>
+              <span style={{ fontSize: '10px', color: enabled ? '#4caf50' : '#aaa', fontWeight: 'bold' }}>
+                {port.id}
+              </span>
+              <span style={{ fontSize: '9px', color: '#666' }}>{port.type}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Configuration for enabled ports */}
+      {board.usbPorts.filter(p => usbConfig[p.id]?.enabled).map((port) => {
+        const cfg = usbConfig[port.id] || {};
+        return (
+          <div key={port.id} style={{
+            padding: '12px 14px', borderTop: '1px solid #333',
+            display: 'flex', flexDirection: 'column', gap: 10,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ color: '#4caf50', fontWeight: 'bold', fontSize: '12px' }}>
+                {port.id} — {port.type} {port.connector}
+              </span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+              <div>
+                <FieldLabel>{t('board.baudRate')}</FieldLabel>
+                <select
+                  value={cfg.baudRate ?? 115200}
+                  onChange={(e) => updatePort(port.id, { baudRate: Number(e.target.value) })}
+                  style={InputBaseStyle}
+                >
+                  {[9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600].map(b => (
+                    <option key={b} value={b}>{b}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <FieldLabel>Device Path</FieldLabel>
+                <input
+                  type="text"
+                  value={cfg.devicePath || ''}
+                  onChange={(e) => updatePort(port.id, { devicePath: e.target.value })}
+                  placeholder={`/dev/ttyUSB${port.id.replace('USB', '')}`}
+                  style={InputBaseStyle}
+                  spellCheck={false}
+                />
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 // ===== BOARD ICON HELPER =====
 const boardIcon = (family) => {
   if (family === 'Raspberry Pi') return { icon: '🍓', bg: 'linear-gradient(135deg, #c51a4a, #8b1a3a)' };
@@ -779,15 +913,17 @@ const BoardConfigPage = ({ boardId, interfaceConfig = {}, onInterfaceConfigChang
           gap: 8,
         }}
       >
-        {/* LEFT: Pinout Diagram */}
+        {/* LEFT: Pinout Diagram + USB Ports */}
         <div style={{
           background: '#252526', borderRadius: 8, border: '1px solid #333',
-          overflow: 'auto', minWidth: 0, minHeight: 0
+          overflow: 'auto', minWidth: 0, minHeight: 0,
+          display: 'flex', flexDirection: 'column',
         }}>
           <div style={{
             padding: '10px 14px', borderBottom: '1px solid #333',
             fontWeight: 'bold', fontSize: '12px', color: '#ccc',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            flexShrink: 0,
           }}>
             <span>{t('board.pinoutDiagram')}</span>
             <span style={{ fontSize: '10px', color: '#666', fontWeight: 'normal' }}>
@@ -795,7 +931,7 @@ const BoardConfigPage = ({ boardId, interfaceConfig = {}, onInterfaceConfigChang
             </span>
           </div>
 
-          <>
+          <div style={{ flexShrink: 0 }}>
             <PinLegend />
             <div style={{ display: 'flex', justifyContent: 'center', padding: '0 8px 8px' }}>
               {board.pinLayout === 'rpi40' && (
@@ -808,7 +944,17 @@ const BoardConfigPage = ({ boardId, interfaceConfig = {}, onInterfaceConfigChang
                 <BeagleBoneHeaders pinout={board.pinout} onPinClick={handlePinClick} selectedPin={selectedPin} />
               )}
             </div>
-          </>
+          </div>
+
+          {board.usbPorts && board.usbPorts.length > 0 && (
+            <div style={{ flexShrink: 0, borderTop: '1px solid #333' }}>
+              <UsbPortsVisual
+                board={board}
+                interfaceConfig={interfaceConfig}
+                onInterfaceConfigChange={onInterfaceConfigChange}
+              />
+            </div>
+          )}
         </div>
 
         {/* Resize handle */}

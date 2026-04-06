@@ -247,7 +247,7 @@ export const LIBRARY_TREE = [
       {
         id: 'comm_generic',
         title: 'Generic',
-        fromLibrary: ['TSEND', 'TRCV', 'I2C_WriteRead', 'SPI_Transfer', 'UART_Send', 'UART_Receive']
+        fromLibrary: ['TSEND', 'TRCV', 'I2C_WriteRead', 'SPI_Transfer', 'UART_Send', 'UART_Receive', 'USB_Send', 'USB_Receive']
       },
       {
         id: 'comm_protocols',
@@ -353,6 +353,36 @@ export const GENERIC_FB_DEFS = {
       { name: 'Error',          type: 'BOOL', desc: 'Framing, parity, or overrun error' },
     ],
   },
+
+  USB_Send: {
+    class: 'FunctionBlock',
+    inputs: [
+      { name: 'Execute',   type: 'BOOL',  desc: 'Rising edge triggers send' },
+      { name: 'Port_ID',   type: 'USINT', desc: 'USB serial port number (for example: USB0_PORT)' },
+      { name: 'pTxBuffer', type: 'ANY', storageType: 'POINTER', passByReference: true, desc: 'Transmit buffer variable. Transpiler uses its pointer automatically' },
+      { name: 'Length',    type: 'UINT',  desc: 'Number of bytes to send' },
+    ],
+    outputs: [
+      { name: 'Done',  type: 'BOOL', desc: 'All bytes sent' },
+      { name: 'Busy',  type: 'BOOL', desc: 'Transmission in progress' },
+      { name: 'Error', type: 'BOOL', desc: 'USB serial I/O error' },
+    ],
+  },
+
+  USB_Receive: {
+    class: 'FunctionBlock',
+    inputs: [
+      { name: 'Enable',    type: 'BOOL',  desc: 'TRUE = continuously poll USB serial buffer' },
+      { name: 'Port_ID',   type: 'USINT', desc: 'USB serial port number (for example: USB0_PORT)' },
+      { name: 'pRxBuffer', type: 'ANY', storageType: 'POINTER', passByReference: true, desc: 'Destination buffer variable. Transpiler uses its pointer automatically' },
+      { name: 'MaxSize',   type: 'UINT',  desc: 'Maximum bytes to copy (overflow guard)' },
+    ],
+    outputs: [
+      { name: 'NewData',        type: 'BOOL', desc: 'TRUE for one cycle when new data arrives' },
+      { name: 'ReceivedLength', type: 'UINT', desc: 'Number of bytes copied this cycle' },
+      { name: 'Error',          type: 'BOOL', desc: 'USB serial I/O error' },
+    ],
+  },
 };
 
 // Protocol → which generic FB block types to expose per enabled port
@@ -360,6 +390,7 @@ const PROTOCOL_BLOCKS = {
   I2C:  ['I2C_WriteRead'],
   SPI:  ['SPI_Transfer'],
   UART: ['UART_Send', 'UART_Receive'],
+  USB:  ['USB_Send', 'USB_Receive'],
 };
 
 // Colors used in Toolbox for device I/O items
@@ -379,7 +410,7 @@ export const buildDeviceLibraryTree = (interfaceConfig) => {
 
   const sections = [];
 
-  for (const protocol of ['I2C', 'SPI', 'UART']) {
+  for (const protocol of ['I2C', 'SPI', 'UART', 'USB']) {
     const ports = interfaceConfig[protocol];
     if (!ports) continue;
 

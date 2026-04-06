@@ -253,7 +253,13 @@ export const BOARD_FAMILIES = [
         display: '2x micro HDMI (4Kp60)',
         pinout: RPI_40PIN_HEADER,
         pinLayout: 'rpi40',
-        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'PCM'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'PCM', 'USB'],
+        usbPorts: [
+          { id: 'USB_0', type: 'USB 3.0', connector: 'Type-A' },
+          { id: 'USB_1', type: 'USB 3.0', connector: 'Type-A' },
+          { id: 'USB_2', type: 'USB 2.0', connector: 'Type-A' },
+          { id: 'USB_3', type: 'USB 2.0', connector: 'Type-A' },
+        ],
       },
       {
         id: 'rpi_4b',
@@ -268,7 +274,13 @@ export const BOARD_FAMILIES = [
         display: '2x micro HDMI (4Kp60)',
         pinout: RPI_40PIN_HEADER,
         pinLayout: 'rpi40',
-        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'PCM'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'PCM', 'USB'],
+        usbPorts: [
+          { id: 'USB_0', type: 'USB 3.0', connector: 'Type-A' },
+          { id: 'USB_1', type: 'USB 3.0', connector: 'Type-A' },
+          { id: 'USB_2', type: 'USB 2.0', connector: 'Type-A' },
+          { id: 'USB_3', type: 'USB 2.0', connector: 'Type-A' },
+        ],
       },
       {
         id: 'rpi_3b_plus',
@@ -283,7 +295,13 @@ export const BOARD_FAMILIES = [
         display: 'HDMI (1080p)',
         pinout: RPI_40PIN_HEADER,
         pinLayout: 'rpi40',
-        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'PCM'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'PCM', 'USB'],
+        usbPorts: [
+          { id: 'USB_0', type: 'USB 2.0', connector: 'Type-A' },
+          { id: 'USB_1', type: 'USB 2.0', connector: 'Type-A' },
+          { id: 'USB_2', type: 'USB 2.0', connector: 'Type-A' },
+          { id: 'USB_3', type: 'USB 2.0', connector: 'Type-A' },
+        ],
       },
       {
         id: 'rpi_3b',
@@ -298,7 +316,13 @@ export const BOARD_FAMILIES = [
         display: 'HDMI (1080p)',
         pinout: RPI_40PIN_HEADER,
         pinLayout: 'rpi40',
-        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'PCM'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'PCM', 'USB'],
+        usbPorts: [
+          { id: 'USB_0', type: 'USB 2.0', connector: 'Type-A' },
+          { id: 'USB_1', type: 'USB 2.0', connector: 'Type-A' },
+          { id: 'USB_2', type: 'USB 2.0', connector: 'Type-A' },
+          { id: 'USB_3', type: 'USB 2.0', connector: 'Type-A' },
+        ],
       },
       {
         id: 'rpi_zero_2w',
@@ -313,7 +337,10 @@ export const BOARD_FAMILIES = [
         display: 'mini HDMI',
         pinout: RPI_40PIN_HEADER,
         pinLayout: 'rpi40',
-        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'PCM'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'PCM', 'USB'],
+        usbPorts: [
+          { id: 'USB_0', type: 'USB 2.0', connector: 'Micro-B (OTG)' },
+        ],
       },
       {
         id: 'rpi_pico',
@@ -364,7 +391,11 @@ export const BOARD_FAMILIES = [
         display: 'micro HDMI',
         pinout: { P8: BB_P8_HEADER, P9: BB_P9_HEADER },
         pinLayout: 'beaglebone',
-        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'ADC', 'CAN', 'PRU'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'ADC', 'CAN', 'PRU', 'USB'],
+        usbPorts: [
+          { id: 'USB_0', type: 'USB 2.0', connector: 'Type-A (Host)' },
+          { id: 'USB_1', type: 'USB 2.0', connector: 'Mini-B (Client)' },
+        ],
       },
       {
         id: 'bb_black_wireless',
@@ -379,7 +410,11 @@ export const BOARD_FAMILIES = [
         display: 'micro HDMI',
         pinout: { P8: BB_P8_HEADER, P9: BB_P9_HEADER },
         pinLayout: 'beaglebone',
-        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'ADC', 'CAN', 'PRU'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'ADC', 'CAN', 'PRU', 'USB'],
+        usbPorts: [
+          { id: 'USB_0', type: 'USB 2.0', connector: 'Type-A (Host)' },
+          { id: 'USB_1', type: 'USB 2.0', connector: 'Mini-B (Client)' },
+        ],
       },
       {
         id: 'bb_green',
@@ -394,7 +429,11 @@ export const BOARD_FAMILIES = [
         display: 'N/A (No HDMI)',
         pinout: { P8: BB_P8_HEADER, P9: BB_P9_HEADER },
         pinLayout: 'beaglebone',
-        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'ADC', 'CAN', 'PRU', 'Grove'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'ADC', 'CAN', 'PRU', 'Grove', 'USB'],
+        usbPorts: [
+          { id: 'USB_0', type: 'USB 2.0', connector: 'Type-A (Host)' },
+          { id: 'USB_1', type: 'USB 2.0', connector: 'Mini-B (Client)' },
+        ],
       },
       {
         id: 'bb_green_wireless',
@@ -409,7 +448,10 @@ export const BOARD_FAMILIES = [
         display: 'N/A (No HDMI)',
         pinout: { P8: BB_P8_HEADER, P9: BB_P9_HEADER },
         pinLayout: 'beaglebone',
-        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'ADC', 'CAN', 'PRU', 'Grove'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'ADC', 'CAN', 'PRU', 'Grove', 'USB'],
+        usbPorts: [
+          { id: 'USB_0', type: 'USB 2.0', connector: 'Micro-B (Client)' },
+        ],
       },
       {
         id: 'bb_ai',
@@ -424,7 +466,11 @@ export const BOARD_FAMILIES = [
         display: 'micro HDMI',
         pinout: { P8: BB_P8_HEADER, P9: BB_P9_HEADER },
         pinLayout: 'beaglebone',
-        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'ADC', 'CAN', 'PRU'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'ADC', 'CAN', 'PRU', 'USB'],
+        usbPorts: [
+          { id: 'USB_0', type: 'USB 3.0', connector: 'Type-A' },
+          { id: 'USB_1', type: 'USB 2.0', connector: 'Type-C' },
+        ],
       },
       {
         id: 'bb_ai64',
@@ -439,7 +485,12 @@ export const BOARD_FAMILIES = [
         display: 'mini DP, micro HDMI',
         pinout: { P8: BB_P8_HEADER, P9: BB_P9_HEADER },
         pinLayout: 'beaglebone',
-        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'ADC', 'CAN', 'PRU', 'CSI'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'ADC', 'CAN', 'PRU', 'CSI', 'USB'],
+        usbPorts: [
+          { id: 'USB_0', type: 'USB 3.0', connector: 'Type-A' },
+          { id: 'USB_1', type: 'USB 3.0', connector: 'Type-A' },
+          { id: 'USB_2', type: 'USB 2.0', connector: 'Type-C' },
+        ],
       },
     ]
   },
@@ -460,7 +511,14 @@ export const BOARD_FAMILIES = [
         display: 'HDMI 2.0, DP 1.2',
         pinout: JETSON_40PIN_HEADER,
         pinLayout: 'rpi40',
-        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'CAN'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'CAN', 'USB'],
+        usbPorts: [
+          { id: 'USB_0', type: 'USB 3.0', connector: 'Type-A' },
+          { id: 'USB_1', type: 'USB 3.0', connector: 'Type-A' },
+          { id: 'USB_2', type: 'USB 3.0', connector: 'Type-A' },
+          { id: 'USB_3', type: 'USB 3.0', connector: 'Type-A' },
+          { id: 'USB_4', type: 'USB 2.0', connector: 'Micro-B (Device)' },
+        ],
       },
       {
         id: 'jetson_tx2',
@@ -475,7 +533,13 @@ export const BOARD_FAMILIES = [
         display: 'HDMI 2.0, DP 1.2, eDP 1.4',
         pinout: JETSON_40PIN_HEADER,
         pinLayout: 'rpi40',
-        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'CAN'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'CAN', 'USB'],
+        usbPorts: [
+          { id: 'USB_0', type: 'USB 3.0', connector: 'Type-A' },
+          { id: 'USB_1', type: 'USB 3.0', connector: 'Type-A' },
+          { id: 'USB_2', type: 'USB 3.0', connector: 'Type-A' },
+          { id: 'USB_3', type: 'USB 2.0', connector: 'Type-A' },
+        ],
       },
       {
         id: 'jetson_xavier_nx',
@@ -490,7 +554,14 @@ export const BOARD_FAMILIES = [
         display: 'HDMI 2.0, DP 1.4',
         pinout: JETSON_40PIN_HEADER,
         pinLayout: 'rpi40',
-        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'CAN'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'CAN', 'USB'],
+        usbPorts: [
+          { id: 'USB_0', type: 'USB 3.1', connector: 'Type-A' },
+          { id: 'USB_1', type: 'USB 3.1', connector: 'Type-A' },
+          { id: 'USB_2', type: 'USB 3.1', connector: 'Type-A' },
+          { id: 'USB_3', type: 'USB 3.1', connector: 'Type-A' },
+          { id: 'USB_4', type: 'USB 2.0', connector: 'Micro-B (Device)' },
+        ],
       },
       {
         id: 'jetson_agx_xavier',
@@ -505,7 +576,12 @@ export const BOARD_FAMILIES = [
         display: 'HDMI 2.0, DP 1.4, eDP 1.4',
         pinout: JETSON_40PIN_HEADER,
         pinLayout: 'rpi40',
-        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'CAN'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'CAN', 'USB'],
+        usbPorts: [
+          { id: 'USB_0', type: 'USB 3.1 Gen 2', connector: 'Type-A' },
+          { id: 'USB_1', type: 'USB 3.1 Gen 2', connector: 'Type-A' },
+          { id: 'USB_2', type: 'USB 3.1 Gen 2', connector: 'Type-C' },
+        ],
       },
       {
         id: 'jetson_orin_nano',
@@ -520,7 +596,14 @@ export const BOARD_FAMILIES = [
         display: 'HDMI 2.1, DP 1.4',
         pinout: JETSON_40PIN_HEADER,
         pinLayout: 'rpi40',
-        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'CAN'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'CAN', 'USB'],
+        usbPorts: [
+          { id: 'USB_0', type: 'USB 3.2 Gen 2', connector: 'Type-A' },
+          { id: 'USB_1', type: 'USB 3.2 Gen 2', connector: 'Type-A' },
+          { id: 'USB_2', type: 'USB 3.2 Gen 2', connector: 'Type-A' },
+          { id: 'USB_3', type: 'USB 3.2 Gen 2', connector: 'Type-A' },
+          { id: 'USB_4', type: 'USB 2.0', connector: 'Micro-B' },
+        ],
       },
       {
         id: 'jetson_orin_nx',
@@ -535,7 +618,14 @@ export const BOARD_FAMILIES = [
         display: 'HDMI 2.1, DP 1.4',
         pinout: JETSON_40PIN_HEADER,
         pinLayout: 'rpi40',
-        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'CAN'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'CAN', 'USB'],
+        usbPorts: [
+          { id: 'USB_0', type: 'USB 3.2 Gen 2', connector: 'Type-A' },
+          { id: 'USB_1', type: 'USB 3.2 Gen 2', connector: 'Type-A' },
+          { id: 'USB_2', type: 'USB 3.2 Gen 2', connector: 'Type-A' },
+          { id: 'USB_3', type: 'USB 3.2 Gen 2', connector: 'Type-A' },
+          { id: 'USB_4', type: 'USB 2.0', connector: 'Micro-B' },
+        ],
       },
       {
         id: 'jetson_agx_orin',
@@ -550,7 +640,14 @@ export const BOARD_FAMILIES = [
         display: 'HDMI 2.1, DP 1.4, eDP 1.4',
         pinout: JETSON_40PIN_HEADER,
         pinLayout: 'rpi40',
-        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'CAN'],
+        interfaces: ['GPIO', 'I2C', 'SPI', 'UART', 'PWM', 'CAN', 'USB'],
+        usbPorts: [
+          { id: 'USB_0', type: 'USB 3.2 Gen 2', connector: 'Type-A' },
+          { id: 'USB_1', type: 'USB 3.2 Gen 2', connector: 'Type-A' },
+          { id: 'USB_2', type: 'USB 3.2 Gen 2', connector: 'Type-A' },
+          { id: 'USB_3', type: 'USB 3.2 Gen 2', connector: 'Type-A' },
+          { id: 'USB_4', type: 'USB 3.2 Gen 2', connector: 'Type-C' },
+        ],
       },
     ]
   }

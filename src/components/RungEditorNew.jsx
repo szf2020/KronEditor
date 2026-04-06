@@ -30,7 +30,7 @@ const ST_ALWAYS_ALLOWED = new Set([
   'uint_to_dint','dint_to_uint','lint_to_dint','dint_to_lint',
   'uint_to_lint','int_to_lint','word_to_uint','uint_to_word',
   'dword_to_udint','udint_to_dword',
-  'uart_receive','uart_send',
+  'uart_receive','uart_send','usb_receive','usb_send',
 ]);
 
 function validateSCLCode(code, variables, globalVars, monaco, model) {

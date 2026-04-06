@@ -69,6 +69,9 @@ const resolveHardwarePortSymbol = (value) => {
         return String((bus * 2) + cs);
     }
 
+    const usbMatch = normalized.match(/^USB(?:_|)?(\d+)(?:_PORT)?$/);
+    if (usbMatch) return String(parseNumeric(usbMatch[1], 0));
+
     return null;
 };
 
@@ -251,6 +254,7 @@ const ST_KEYWORDS_LOWER = new Set([
     'uint_to_lint','int_to_lint','word_to_uint','uint_to_word',
     'dword_to_udint','udint_to_dword',
     'uart_receive','uart_send',
+    'usb_receive','usb_send',
 ]);
 
 /**
@@ -1733,6 +1737,7 @@ const FB_TRIGGER_PIN = {
     'R_TRIG': 'CLK', 'F_TRIG': 'CLK',
     // Generic communication runtime FBs
     'I2C_WriteRead': 'Execute', 'SPI_Transfer': 'Execute', 'UART_Send': 'Execute', 'UART_Receive': 'Enable',
+    'USB_Send': 'Execute', 'USB_Receive': 'Enable',
     // Comparison / Arithmetic / Math / Bitwise / Trig / Selection / Conversion — EN is the power-flow input
     'GT': 'EN', 'GE': 'EN', 'EQ': 'EN', 'NE': 'EN', 'LE': 'EN', 'LT': 'EN',
     'ADD': 'EN', 'SUB': 'EN', 'MUL': 'EN', 'DIV': 'EN', 'MOD': 'EN', 'MOVE': 'EN',
@@ -1773,6 +1778,7 @@ const FB_Q_OUTPUT = {
     'R_TRIG': 'Q', 'F_TRIG': 'Q',
     // Generic communication runtime FBs
     'I2C_WriteRead': 'Done', 'SPI_Transfer': 'Done', 'UART_Send': 'Done', 'UART_Receive': 'NewData',
+    'USB_Send': 'Done', 'USB_Receive': 'NewData',
     // Bistable
     'RS': 'Q1', 'SR': 'Q1',
     // Comparison: ENO = EN && (result) — acts as conditional power flow
@@ -1812,7 +1818,7 @@ const GENERATED_FB_OUTPUT_TYPES = {};
 // customData is optional — used for user-defined FB output pin types
 const getOutputPinType = (blockType, pinName, customData) => {
     if (['Q', 'Q1', 'QU', 'QD', 'ENO'].includes(pinName)) return 'BOOL';
-    if (blockType === 'UART_Receive' && pinName === 'ReceivedLength') return 'UINT';
+    if ((blockType === 'UART_Receive' || blockType === 'USB_Receive') && pinName === 'ReceivedLength') return 'UINT';
     if (GENERATED_FB_OUTPUT_TYPES[blockType]?.[pinName]) return GENERATED_FB_OUTPUT_TYPES[blockType][pinName];
     if (pinName === 'ET') return 'TIME';
     if (pinName === 'CV') return 'INT';
@@ -1976,6 +1982,8 @@ const FB_OUTPUTS = {
     'SPI_Transfer': ['Done', 'Busy', 'Error'],
     'UART_Send': ['Done', 'Busy', 'Error'],
     'UART_Receive': ['NewData', 'ReceivedLength', 'Error'],
+    'USB_Send': ['Done', 'Busy', 'Error'],
+    'USB_Receive': ['NewData', 'ReceivedLength', 'Error'],
     // Comparison — ENO (power-flow) + Q (raw comparison result)
     'GT': ['ENO', 'Q'], 'GE': ['ENO', 'Q'], 'EQ': ['ENO', 'Q'], 'NE': ['ENO', 'Q'], 'LE': ['ENO', 'Q'], 'LT': ['ENO', 'Q'],
     // Arithmetic / Math / Bitwise / Trig / Selection — ENO + OUT
@@ -2087,6 +2095,8 @@ const FB_INPUTS = {
     'SPI_Transfer': ['Execute', 'Port_ID', 'pTxBuffer', 'pRxBuffer', 'Length'],
     'UART_Send': ['Execute', 'Port_ID', 'pTxBuffer', 'Length'],
     'UART_Receive': ['Enable', 'Port_ID', 'pRxBuffer', 'MaxSize'],
+    'USB_Send': ['Execute', 'Port_ID', 'pTxBuffer', 'Length'],
+    'USB_Receive': ['Enable', 'Port_ID', 'pRxBuffer', 'MaxSize'],
     'RS': ['S', 'R1'],
     'SR': ['S1', 'R'],
     // Comparison
@@ -2180,6 +2190,8 @@ const FB_INPUT_TYPES = {
     'SPI_Transfer': { 'Port_ID': 'USINT', 'pTxBuffer': 'POINTER', 'pRxBuffer': 'POINTER', 'Length': 'UINT' },
     'UART_Send': { 'Port_ID': 'USINT', 'pTxBuffer': 'POINTER', 'Length': 'UINT' },
     'UART_Receive': { 'Port_ID': 'USINT', 'pRxBuffer': 'POINTER', 'MaxSize': 'UINT' },
+    'USB_Send': { 'Port_ID': 'USINT', 'pTxBuffer': 'POINTER', 'Length': 'UINT' },
+    'USB_Receive': { 'Port_ID': 'USINT', 'pRxBuffer': 'POINTER', 'MaxSize': 'UINT' },
     'TON':   { 'PT': 'TIME' },
     'TOF':   { 'PT': 'TIME' },
     'TP':    { 'PT': 'TIME' },
@@ -2222,16 +2234,18 @@ const transpileSTLogics = (code, stdFunctions = {}, parentName = '', category = 
     // e.g.  IF x THEN y := 1; ELSIF z THEN y := 2; END_IF;
     //   →   IF x THEN\ny := 1;\nELSIF z THEN\ny := 2;\nEND_IF;
     const normalized = stripped
-        // After THEN/DO — insert newline when something follows on the same line
+        // After THEN/DO/OF — insert newline when something follows on the same line
         .replace(/\bTHEN\b[ \t]*(?=[^\r\n])/gi, 'THEN\n')
         .replace(/\bDO\b[ \t]*(?=[^\r\n])/gi, 'DO\n')
-        // Before ELSIF / ELSE / END_xxx / UNTIL — ensure they start on own line
+        .replace(/\bOF\b[ \t]*(?=[^\r\n])/gi, 'OF\n')
+        // Before ELSIF / ELSE / END_xxx / UNTIL / END_CASE — ensure they start on own line
         .replace(/[ \t]*\bELSIF\b/gi, '\nELSIF')
         .replace(/[ \t]*\bELSE\b(?!\s*IF\b)[ \t]*/gi, '\nELSE\n')
         .replace(/[ \t]*\bEND_IF\b/gi, '\nEND_IF')
         .replace(/[ \t]*\bEND_FOR\b/gi, '\nEND_FOR')
         .replace(/[ \t]*\bEND_WHILE\b/gi, '\nEND_WHILE')
         .replace(/[ \t]*\bEND_REPEAT\b/gi, '\nEND_REPEAT')
+        .replace(/[ \t]*\bEND_CASE\b/gi, '\nEND_CASE')
         .replace(/[ \t]*\bUNTIL\b/gi, '\nUNTIL');
 
     // Join continuation lines: a line ending with AND/OR/,/( (after stripping comment)
@@ -2261,6 +2275,8 @@ const transpileSTLogics = (code, stdFunctions = {}, parentName = '', category = 
 
     let out = '';
     let indentLevel = 1; // 1 = inside function body (4 spaces)
+    let inCaseBlock = false;
+    let caseBodyOpen = false;
 
     const indent = () => '    '.repeat(indentLevel);
 
@@ -2303,12 +2319,97 @@ const transpileSTLogics = (code, stdFunctions = {}, parentName = '', category = 
             const ks = IEC_TO_KRON_TYPE[src], kd = IEC_TO_KRON_TYPE[dst];
             return (ks && kd) ? `KRON_${ks}_TO_${kd}` : match;
         });
+        // IEC type cast functions: INT(x) → (int16_t)(x), DINT(x) → (int32_t)(x), etc.
+        const IEC_CAST_C = {
+            BOOL: 'bool', BYTE: 'uint8_t', WORD: 'uint16_t', DWORD: 'uint32_t',
+            SINT: 'int8_t', INT: 'int16_t', DINT: 'int32_t', LINT: 'int64_t',
+            USINT: 'uint8_t', UINT: 'uint16_t', UDINT: 'uint32_t', ULINT: 'uint64_t',
+            REAL: 'float', LREAL: 'double',
+        };
+        result = result.replace(/\b(BOOL|BYTE|WORD|DWORD|SINT|INT|DINT|LINT|USINT|UINT|UDINT|ULINT|REAL|LREAL)\s*\(/g,
+            (match, typeName) => {
+                const ct = IEC_CAST_C[typeName];
+                return ct ? `(${ct})(` : match;
+            }
+        );
         return resolveVarsInExpr(result);
     };
 
     lines.forEach(line => {
         const trimmed = line.trim();
         if (!trimmed) return;
+
+        // ── CASE x OF ────────────────────────────────────────────────────
+        const caseOfMatch = trimmed.match(/^CASE\s+(.+?)\s+OF\s*;?\s*$/i);
+        if (caseOfMatch) {
+            out += `${indent()}switch (${transformExpr(caseOfMatch[1])}) {\n`;
+            indentLevel++;
+            inCaseBlock = true;
+            caseBodyOpen = false;
+            return;
+        }
+
+        // ── END_CASE ─────────────────────────────────────────────────────
+        if (/^END_CASE\s*;?$/i.test(trimmed)) {
+            if (caseBodyOpen) {
+                out += `${indent()}break;\n`;
+                indentLevel = Math.max(1, indentLevel - 1);
+            }
+            out += `${indent()}default: break;\n`;
+            indentLevel = Math.max(1, indentLevel - 1);
+            out += `${indent()}}\n`;
+            inCaseBlock = false;
+            caseBodyOpen = false;
+            return;
+        }
+
+        // ── Case label(s): n: or n1,n2: or n1..n2: ───────────────────────
+        if (inCaseBlock) {
+            const caseLabelMatch = trimmed.match(/^([\d\s,\.]+)\s*:\s*(.*)/);
+            if (caseLabelMatch) {
+                const labelPart = caseLabelMatch[1].trim();
+                const bodyPart  = caseLabelMatch[2].trim();
+                if (caseBodyOpen) {
+                    out += `${indent()}break;\n`;
+                    indentLevel = Math.max(1, indentLevel - 1);
+                }
+                // Multiple values: "1, 2" or ranges "1..3"
+                const parts = labelPart.split(',').map(p => p.trim());
+                parts.forEach(p => {
+                    if (p.includes('..')) {
+                        const [from, to] = p.split('..').map(n => parseInt(n.trim(), 10));
+                        for (let v = from; v <= to; v++) out += `${indent()}case ${v}:\n`;
+                    } else {
+                        out += `${indent()}case ${p}:\n`;
+                    }
+                });
+                indentLevel++;
+                caseBodyOpen = true;
+                if (bodyPart && bodyPart !== ';') {
+                    let cl = transformExpr(bodyPart);
+                    if (!cl.endsWith(';')) cl += ';';
+                    out += `${indent()}${cl}\n`;
+                }
+                return;
+            }
+            // ELSE inside CASE → default:
+            if (/^ELSE\s*:?\s*/i.test(trimmed)) {
+                if (caseBodyOpen) {
+                    out += `${indent()}break;\n`;
+                    indentLevel = Math.max(1, indentLevel - 1);
+                }
+                out += `${indent()}default:\n`;
+                indentLevel++;
+                caseBodyOpen = true;
+                const elseBody = trimmed.replace(/^ELSE\s*:?\s*/i, '').trim();
+                if (elseBody && elseBody !== ';') {
+                    let cl = transformExpr(elseBody);
+                    if (!cl.endsWith(';')) cl += ';';
+                    out += `${indent()}${cl}\n`;
+                }
+                return;
+            }
+        }
 
         // ── Block closing keywords ────────────────────────────────────────
         if (/^END_IF\s*;?$/i.test(trimmed)) {

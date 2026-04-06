@@ -207,7 +207,7 @@ const EditorPane = ({
         'uint_to_lint', 'int_to_lint', 'word_to_uint', 'uint_to_word',
         'dword_to_udint', 'udint_to_dword',
         // HAL block types (used as FB instance type names in expressions)
-        'uart_receive', 'uart_send',
+        'uart_receive', 'uart_send', 'usb_receive', 'usb_send',
       ]);
 
       lines.forEach((rawLine, i) => {

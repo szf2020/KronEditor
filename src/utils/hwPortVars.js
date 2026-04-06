@@ -23,7 +23,7 @@ export const buildHardwarePortVars = (interfaceConfig, boardFamilyDefine) => {
 
   const vars = [];
 
-  for (const protocol of ['I2C', 'SPI', 'UART']) {
+  for (const protocol of ['I2C', 'SPI', 'UART', 'USB']) {
     const ports = interfaceConfig[protocol];
     if (!ports) continue;
 
@@ -74,5 +74,6 @@ export const getRelevantPortVars = (blockType, hwPortVars) => {
   if (upper.includes('I2C'))  return hwPortVars.filter(v => v.protocol === 'I2C');
   if (upper.includes('SPI'))  return hwPortVars.filter(v => v.protocol === 'SPI');
   if (upper.includes('UART')) return hwPortVars.filter(v => v.protocol === 'UART');
+  if (upper.includes('USB'))  return hwPortVars.filter(v => v.protocol === 'USB');
   return hwPortVars;
 };

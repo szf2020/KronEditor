@@ -202,6 +202,7 @@ const COMM_PROTO_BLOCKS = {
   UART: ['UART_Send', 'UART_Receive'],
   I2C:  ['I2C_WriteRead'],
   SPI:  ['SPI_Transfer'],
+  USB:  ['USB_Send', 'USB_Receive'],
 };
 
 const Toolbox = ({ userDefinedBlocks = [], libraryData = [], activeFileType, selectedBoard, buses = [], interfaceConfig = {} }) => {
@@ -215,7 +216,7 @@ const Toolbox = ({ userDefinedBlocks = [], libraryData = [], activeFileType, sel
   const boardTree = useMemo(() => {
     const tree = getBoardLibraryTree(selectedBoard);
     // Append subcategories for each enabled comm protocol
-    for (const proto of ['UART', 'I2C', 'SPI']) {
+    for (const proto of ['UART', 'I2C', 'SPI', 'USB']) {
       const ports = interfaceConfig[proto];
       const hasEnabled = ports && Object.values(ports).some(p => p?.enabled);
       if (!hasEnabled) continue;

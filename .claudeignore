@@ -1,0 +1,48 @@
+# Build artifacts
+dist/
+node_modules/
+src-tauri/target/
+src-tauri/toolchains/
+__pycache__/
+
+# Prebuilt binaries and archives — do not edit, user rebuilds
+src-tauri/resources/x86_64-linux-gnu/lib/
+src-tauri/resources/aarch64-linux-gnu/
+src-tauri/resources/arm-linux-gnueabihf/
+src-tauri/resources/arm-none-eabi-m0/
+src-tauri/resources/arm-none-eabi-m4/
+src-tauri/resources/arm-none-eabi-m7/
+src-tauri/resources/x86_64-apple-darwin/
+src-tauri/resources/x86_64-w64-mingw32/
+*.a
+*.so
+*.o
+
+# Logs and temp files
+*.log
+Releases/
+
+# Lock files (large, auto-generated)
+package-lock.json
+Cargo.lock
+
+# Images and media
+images/
+*.png
+*.jpg
+*.ico
+*.svg
+
+# Documentation (not needed for coding tasks)
+doc/
+Standards/
+README.md
+LICENSE
+
+# Setup scripts (not part of core editing workflow)
+setup_toolchain.py
+scripts/
+
+# IDE config
+.codex
+.vscode/
